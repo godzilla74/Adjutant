@@ -39,11 +39,11 @@ def _product_context(product_id: str) -> str:
     workstreams = WORKSTREAMS.get(product_id, [])
     objectives = OBJECTIVES.get(product_id, [])
 
-    ws_lines = "\n".join(f"  - {w['name']} ({w['status']})" for w in workstreams)
+    ws_lines = "\n".join(f"  - {w['name']} ({w['status']})" for w in workstreams) or "  (none configured)"
     obj_lines = "\n".join(
         f"  - {o['text']} [{o['progress_current']}/{o['progress_target'] or '?'}]"
         for o in objectives
-    )
+    ) or "  (none configured)"
 
     return f"""
 ## Active Product Context: {product['name']}

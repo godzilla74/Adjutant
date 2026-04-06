@@ -33,7 +33,7 @@ TOOLS_DEFINITIONS = [
                 },
                 "context": {
                     "type": "string",
-                    "description": "Optional background context to help the sub-agent",
+                    "description": "Background context for the sub-agent AND rationale shown to Justin in the activity feed. Write this as a human-readable explanation of why this task is being done.",
                 },
             },
             "required": ["task", "agent_type"],
@@ -89,7 +89,7 @@ TOOLS_DEFINITIONS = [
                 },
                 "context": {
                     "type": "string",
-                    "description": "Optional context — e.g. what the email is about, tone to use, etc.",
+                    "description": "Background context for the email agent AND rationale shown to Justin in the activity feed. Write this as a human-readable explanation of why this email task is being done.",
                 },
             },
             "required": ["task"],
