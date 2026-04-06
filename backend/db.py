@@ -86,7 +86,35 @@ def init_db() -> None:
                 ON review_items(product_id, status);
             CREATE INDEX IF NOT EXISTS idx_messages_product
                 ON messages(product_id, id);
+
+            CREATE TABLE IF NOT EXISTS social_drafts (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id        TEXT NOT NULL REFERENCES products(id),
+                platform          TEXT NOT NULL,
+                content           TEXT NOT NULL,
+                image_description TEXT,
+                status            TEXT NOT NULL DEFAULT 'pending_review',
+                review_item_id    INTEGER REFERENCES review_items(id),
+                created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_social_drafts_product
+                ON social_drafts(product_id, status);
         """)
+        # Add brand config columns to products (idempotent)
+        _brand_cols = [
+            ("brand_voice",     "TEXT"),
+            ("tone",            "TEXT"),
+            ("writing_style",   "TEXT"),
+            ("target_audience", "TEXT"),
+            ("social_handles",  "TEXT"),  # JSON: {"instagram": "@handle", ...}
+            ("hashtags",        "TEXT"),  # comma-separated
+            ("brand_notes",     "TEXT"),
+        ]
+        for col_name, col_type in _brand_cols:
+            try:
+                conn.execute(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass  # column already exists
         _seed_products(conn)
 
 
@@ -120,7 +148,94 @@ def get_products() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def create_product(id: str, name: str, icon_label: str, color: str) -> str:
+    with _conn() as conn:
+        existing = conn.execute("SELECT id FROM products WHERE id = ?", (id,)).fetchone()
+        if existing:
+            return f"Product '{id}' already exists."
+        conn.execute(
+            "INSERT INTO products (id, name, icon_label, color) VALUES (?, ?, ?, ?)",
+            (id, name, icon_label, color),
+        )
+    return f"Created product: {name} (id: {id})"
+
+
+def update_product(product_id: str, **kwargs) -> str:
+    """Update any product fields. Accepted kwargs: name, icon_label, color,
+    brand_voice, tone, writing_style, target_audience, social_handles, hashtags, brand_notes."""
+    allowed = {"name", "icon_label", "color", "brand_voice", "tone",
+               "writing_style", "target_audience", "social_handles", "hashtags", "brand_notes"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+    if not updates:
+        return "No valid fields to update."
+    cols = ", ".join(f"{k} = ?" for k in updates)
+    with _conn() as conn:
+        conn.execute(
+            f"UPDATE products SET {cols} WHERE id = ?",
+            (*updates.values(), product_id),
+        )
+    return f"Updated product '{product_id}': {', '.join(updates.keys())}"
+
+
+def delete_product(product_id: str) -> str:
+    with _conn() as conn:
+        row = conn.execute("SELECT name FROM products WHERE id = ?", (product_id,)).fetchone()
+        if not row:
+            return f"Product '{product_id}' not found."
+        # Delete child records first (FK enforcement)
+        for table in ("messages", "review_items", "activity_events", "social_drafts", "objectives", "workstreams"):
+            conn.execute(f"DELETE FROM {table} WHERE product_id = ?", (product_id,))
+        conn.execute("DELETE FROM products WHERE id = ?", (product_id,))
+    return f"Deleted product: {row['name']}"
+
+
+def get_product_config(product_id: str) -> dict:
+    """Return full product row including brand config fields."""
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    return dict(row) if row else {}
+
+
 # ── Workstreams ───────────────────────────────────────────────────────────────
+
+def create_workstream(product_id: str, name: str, status: str = "paused") -> str:
+    with _conn() as conn:
+        max_order = conn.execute(
+            "SELECT COALESCE(MAX(display_order), -1) FROM workstreams WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO workstreams (product_id, name, status, display_order) VALUES (?, ?, ?, ?)",
+            (product_id, name, status, max_order + 1),
+        )
+    return f"Created workstream: {name}"
+
+
+def update_workstream_status(product_id: str, name_fragment: str, status: str) -> str:
+    if status not in ("running", "warn", "paused"):
+        return f"Invalid status '{status}'. Must be: running, warn, paused."
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, name FROM workstreams WHERE product_id = ? AND name LIKE ? LIMIT 1",
+            (product_id, f"%{name_fragment}%"),
+        ).fetchone()
+        if not row:
+            return f"No workstream matching '{name_fragment}' found."
+        conn.execute("UPDATE workstreams SET status = ? WHERE id = ?", (status, row["id"]))
+    return f"Updated '{row['name']}' → {status}"
+
+
+def delete_workstream(product_id: str, name_fragment: str) -> str:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, name FROM workstreams WHERE product_id = ? AND name LIKE ? LIMIT 1",
+            (product_id, f"%{name_fragment}%"),
+        ).fetchone()
+        if not row:
+            return f"No workstream matching '{name_fragment}' found."
+        conn.execute("DELETE FROM workstreams WHERE id = ?", (row["id"],))
+    return f"Deleted workstream: {row['name']}"
+
 
 def get_workstreams(product_id: str) -> list[dict]:
     with _conn() as conn:
@@ -133,6 +248,52 @@ def get_workstreams(product_id: str) -> list[dict]:
 
 # ── Objectives ────────────────────────────────────────────────────────────────
 
+def create_objective(
+    product_id: str,
+    text: str,
+    progress_current: int = 0,
+    progress_target: int | None = None,
+) -> str:
+    """Create a new objective for a product. Returns a status string."""
+    with _conn() as conn:
+        max_order = conn.execute(
+            "SELECT COALESCE(MAX(display_order), -1) FROM objectives WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO objectives (product_id, text, progress_current, progress_target, display_order) VALUES (?, ?, ?, ?, ?)",
+            (product_id, text, progress_current, progress_target, max_order + 1),
+        )
+    return f"Created objective: \"{text}\""
+
+
+def update_objective(
+    product_id: str,
+    text_fragment: str,
+    progress_current: int,
+    progress_target: int | None = None,
+) -> str:
+    """Update progress on an objective matched by partial text. Returns a status string."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, text FROM objectives WHERE product_id = ? AND text LIKE ? ORDER BY display_order LIMIT 1",
+            (product_id, f"%{text_fragment}%"),
+        ).fetchone()
+        if not row:
+            return f"No objective matching '{text_fragment}' found for {product_id}."
+        if progress_target is not None:
+            conn.execute(
+                "UPDATE objectives SET progress_current = ?, progress_target = ? WHERE id = ?",
+                (progress_current, progress_target, row["id"]),
+            )
+        else:
+            conn.execute(
+                "UPDATE objectives SET progress_current = ? WHERE id = ?",
+                (progress_current, row["id"]),
+            )
+    return f"Updated: \"{row['text']}\" → {progress_current}"
+
+
 def get_objectives(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
@@ -140,6 +301,18 @@ def get_objectives(product_id: str) -> list[dict]:
             (product_id,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def delete_objective(product_id: str, text_fragment: str) -> str:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, text FROM objectives WHERE product_id = ? AND text LIKE ? LIMIT 1",
+            (product_id, f"%{text_fragment}%"),
+        ).fetchone()
+        if not row:
+            return f"No objective matching '{text_fragment}' found."
+        conn.execute("DELETE FROM objectives WHERE id = ?", (row["id"],))
+    return f"Deleted objective: {row['text']}"
 
 
 # ── Activity events ───────────────────────────────────────────────────────────
@@ -251,3 +424,29 @@ def load_messages(product_id: str, limit: int = 200) -> list[dict]:
             content = r["content"]
         result.append({"role": r["role"], "content": content})
     return result
+
+
+# ── Social drafts ─────────────────────────────────────────────────────────────
+
+def save_social_draft(
+    product_id: str,
+    platform: str,
+    content: str,
+    image_description: str = "",
+    review_item_id: int | None = None,
+) -> int:
+    with _conn() as conn:
+        cursor = conn.execute(
+            "INSERT INTO social_drafts (product_id, platform, content, image_description, review_item_id) VALUES (?, ?, ?, ?, ?)",
+            (product_id, platform, content, image_description, review_item_id),
+        )
+    return cursor.lastrowid
+
+
+def list_social_drafts(product_id: str, status: str = "pending_review") -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM social_drafts WHERE product_id = ? AND status = ? ORDER BY created_at DESC",
+            (product_id, status),
+        ).fetchall()
+    return [dict(r) for r in rows]
