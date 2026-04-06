@@ -28,7 +28,7 @@ COMPANY_INFO = """
 """
 
 
-def get_system_prompt() -> str:
+def get_system_prompt(product_id: str | None = None) -> str:
     current_dt = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
 
     return f"""You are Hannah, the Executive Assistant to Justin Farmer, CEO of JTA Ventures, LLC.

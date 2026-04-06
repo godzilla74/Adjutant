@@ -2,6 +2,7 @@
 import importlib
 import json
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -31,6 +32,8 @@ def test_ws_auth_ok():
         ws.send_json({"type": "auth", "password": "testpass"})
         msg = ws.receive_json()
         assert msg["type"] == "auth_ok"
+        init_msg = ws.receive_json()  # consume init
+        assert init_msg["type"] == "init"
 
 
 def test_ws_auth_fail():
@@ -86,3 +89,60 @@ def test_ws_resolve_review_pending_item():
         assert msg["action"] == "approved"
     pending = db_mod.load_review_items("retainerops", status="pending")
     assert all(i["id"] != item_id for i in pending)
+
+
+def test_ws_directive_echoes_and_returns_hannah_done():
+    from fastapi.testclient import TestClient
+
+    delta = MagicMock()
+    delta.type = "content_block_delta"
+    delta.delta = MagicMock()
+    delta.delta.type = "text_delta"
+    delta.delta.text = "Got it!"
+
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "Got it!"
+    text_block.model_dump = MagicMock(return_value={"type": "text", "text": "Got it!"})
+
+    final = MagicMock()
+    final.stop_reason = "end_turn"
+    final.content = [text_block]
+
+    class FakeStream:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        def __aiter__(self):
+            return self._gen().__aiter__()
+
+        async def _gen(self):
+            yield delta
+
+        async def get_final_message(self):
+            return final
+
+    with patch("backend.main.client.messages.stream", return_value=FakeStream()):
+        with TestClient(get_app()).websocket_connect("/ws") as ws:
+            ws.send_json({"type": "auth", "password": "testpass"})
+            ws.receive_json()  # auth_ok
+            ws.receive_json()  # init
+
+            ws.send_json({"type": "directive", "product_id": "retainerops", "content": "Focus on SEO"})
+
+            events = []
+            for _ in range(3):  # directive_echo, hannah_token, hannah_done
+                try:
+                    events.append(ws.receive_json())
+                except Exception:
+                    break
+
+    types = [e["type"] for e in events]
+    assert "directive_echo" in types
+    assert "hannah_done" in types
+    echo = next(e for e in events if e["type"] == "directive_echo")
+    assert echo["content"] == "Focus on SEO"
+    assert echo["product_id"] == "retainerops"

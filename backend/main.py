@@ -22,7 +22,6 @@ from backend.db import (
     resolve_review_item,
     save_activity_event,
     save_message,
-    save_review_item,
     update_activity_event,
 )
 from core.config import get_system_prompt
@@ -81,7 +80,7 @@ async def _hannah_loop(ws: WebSocket, product_id: str, messages: list) -> tuple[
                     event.type == "content_block_delta"
                     and event.delta.type == "text_delta"
                 ):
-                    await _send(ws, {"type": "hannah_token", "content": event.delta.text})
+                    await _send(ws, {"type": "hannah_token", "product_id": product_id, "content": event.delta.text})
                     accumulated_text += event.delta.text
 
             final = await stream.get_final_message()
@@ -106,6 +105,7 @@ async def _hannah_loop(ws: WebSocket, product_id: str, messages: list) -> tuple[
             break
 
         tool_results = []
+        event_id = None
         for block in final.content:
             if block.type != "tool_use":
                 continue
@@ -142,7 +142,7 @@ async def _hannah_loop(ws: WebSocket, product_id: str, messages: list) -> tuple[
             except Exception as exc:
                 output = f"Error in {block.name}: {exc}"
 
-            if is_agent_task:
+            if is_agent_task and event_id is not None:
                 summary = output[:300].rstrip() + ("…" if len(output) > 300 else "")
                 update_activity_event(event_id, status="done", summary=summary)
                 await _send(ws, {
@@ -229,6 +229,10 @@ async def websocket_endpoint(ws: WebSocket):
 
             elif msg_type == "directive":
                 product_id = msg.get("product_id", active_product_id)
+                known_ids = {p["id"] for p in get_products()}
+                if product_id not in known_ids:
+                    await _send(ws, {"type": "error", "message": f"Unknown product: {product_id}"})
+                    continue
                 active_product_id = product_id
                 content = msg.get("content", "").strip()
                 if not content:
@@ -247,9 +251,12 @@ async def websocket_endpoint(ws: WebSocket):
 
                 messages_by_product[product_id].append({"role": "user", "content": content})
                 save_message(product_id, "user", content)
-                messages_by_product[product_id], _ = await _hannah_loop(
-                    ws, product_id, messages_by_product[product_id]
-                )
+                try:
+                    messages_by_product[product_id], _ = await _hannah_loop(
+                        ws, product_id, messages_by_product[product_id]
+                    )
+                except Exception as exc:
+                    await _send(ws, {"type": "error", "message": f"Agent error: {exc}"})
 
             elif msg_type == "resolve_review":
                 item_id = msg.get("review_item_id")
