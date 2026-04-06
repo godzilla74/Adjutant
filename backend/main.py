@@ -94,11 +94,20 @@ async def _hannah_loop(ws: WebSocket, product_id: str, messages: list) -> tuple[
                 "ts": ts,
             })
 
-        content_serializable = [
-            b.model_dump() if hasattr(b, "model_dump") else b
-            for b in final.content
-        ]
-        messages.append({"role": "assistant", "content": final.content})
+        _BLOCK_KEYS = {
+            "thinking": {"type", "thinking", "signature"},
+            "text":     {"type", "text"},
+            "tool_use": {"type", "id", "name", "input"},
+        }
+        content_serializable = []
+        for b in final.content:
+            if hasattr(b, "model_dump"):
+                d = b.model_dump()
+                allowed = _BLOCK_KEYS.get(d.get("type", ""), set(d.keys()))
+                content_serializable.append({k: v for k, v in d.items() if k in allowed})
+            else:
+                content_serializable.append(b)
+        messages.append({"role": "assistant", "content": content_serializable})
         save_message(product_id, "assistant", content_serializable)
 
         if final.stop_reason != "tool_use":
@@ -174,6 +183,37 @@ async def _hannah_loop(ws: WebSocket, product_id: str, messages: list) -> tuple[
                 except (json.JSONDecodeError, KeyError):
                     pass
 
+            if block.name in ("create_objective", "update_objective"):
+                await _send(ws, _product_data_payload(block.input.get("product_id", product_id)))
+
+            # Product changes — push updated product list to refresh the rail
+            if block.name in ("create_product", "update_product", "delete_product"):
+                await _send(ws, {"type": "init", "products": get_products()})
+
+            # Workstream / objective changes — push product_data refresh
+            if block.name in ("create_workstream", "update_workstream_status", "delete_workstream",
+                              "delete_objective"):
+                await _send(ws, _product_data_payload(block.input.get("product_id", product_id)))
+
+            # Social draft — push review_item_added + product_data refresh
+            if block.name == "draft_social_post":
+                try:
+                    parsed = json.loads(output)
+                    review_id = parsed.get("review_item_id")
+                    pid = block.input.get("product_id", product_id)
+                    if review_id:
+                        item = {
+                            "id": review_id,
+                            "title": f"Post to {block.input.get('platform', '').capitalize()}",
+                            "description": block.input.get("content", "")[:200],
+                            "risk_label": f"Social post · {block.input.get('platform', '')} · public-facing",
+                            "status": "pending",
+                            "created_at": _ts(),
+                        }
+                        await _send(ws, {"type": "review_item_added", "product_id": pid, "item": item})
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": block.id,
@@ -182,6 +222,7 @@ async def _hannah_loop(ws: WebSocket, product_id: str, messages: list) -> tuple[
 
         if tool_results:
             messages.append({"role": "user", "content": tool_results})
+            save_message(product_id, "user", tool_results)
 
     return messages, new_review_items
 
@@ -256,6 +297,7 @@ async def websocket_endpoint(ws: WebSocket):
                         ws, product_id, messages_by_product[product_id]
                     )
                 except Exception as exc:
+                    import traceback; traceback.print_exc()
                     await _send(ws, {"type": "error", "message": f"Agent error: {exc}"})
 
             elif msg_type == "resolve_review":
