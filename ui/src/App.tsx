@@ -11,6 +11,7 @@ export default function App() {
   const [events, setEvents] = useState<AppEvent[]>([])
   const [hannahDraft, setHannahDraft] = useState<string>('')
   const wsRef = useRef<WebSocket | null>(null)
+  const isMounted = useRef(true)
 
   const connect = useCallback(() => {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
@@ -68,13 +69,17 @@ export default function App() {
 
     ws.onclose = () => {
       setConnState('disconnected')
-      setTimeout(connect, 3000)
+      if (isMounted.current) setTimeout(connect, 3000)
     }
   }, [])
 
   useEffect(() => {
+    isMounted.current = true
     connect()
-    return () => wsRef.current?.close()
+    return () => {
+      isMounted.current = false
+      wsRef.current?.close()
+    }
   }, [connect])
 
   const sendAuth = useCallback((password: string) => {
