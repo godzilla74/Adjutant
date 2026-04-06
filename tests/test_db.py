@@ -1,6 +1,5 @@
 # tests/test_db.py
 import importlib
-import json
 import os
 import pytest
 
@@ -134,3 +133,18 @@ def test_activity_events_product_isolation(db):
     assert ro[0]["headline"] == "RO task"
     assert len(ig) == 1
     assert ig[0]["headline"] == "IG task"
+
+
+def test_update_activity_event_preserves_output_preview(db):
+    event_id = db.save_activity_event(
+        product_id="retainerops",
+        agent_type="general",
+        headline="Task with preview",
+        rationale="",
+        status="running",
+        output_preview="Initial preview text",
+    )
+    # Update status without passing output_preview — COALESCE should preserve original
+    db.update_activity_event(event_id, status="done")
+    events = db.load_activity_events("retainerops")
+    assert events[0]["output_preview"] == "Initial preview text"

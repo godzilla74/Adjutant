@@ -87,12 +87,11 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_messages_product
                 ON messages(product_id, id);
         """)
-    _seed_products()
+        _seed_products(conn)
 
 
-def _seed_products() -> None:
-    with _conn() as conn:
-        for p in PRODUCTS:
+def _seed_products(conn: sqlite3.Connection) -> None:
+    for p in PRODUCTS:
             conn.execute(
                 "INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES (?, ?, ?, ?)",
                 (p["id"], p["name"], p["icon_label"], p["color"]),
@@ -207,6 +206,8 @@ def save_review_item(
 
 def resolve_review_item(item_id: int, action: str) -> None:
     """action: 'approved' | 'skipped'"""
+    if action not in ("approved", "skipped"):
+        raise ValueError(f"action must be 'approved' or 'skipped', got {action!r}")
     with _conn() as conn:
         conn.execute(
             "UPDATE review_items SET status = ? WHERE id = ?",
@@ -236,7 +237,7 @@ def save_message(product_id: str, role: str, content) -> None:
         )
 
 
-def load_messages(product_id: str, limit: int = 200) -> list:
+def load_messages(product_id: str, limit: int = 200) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             "SELECT role, content FROM messages WHERE product_id = ? ORDER BY id DESC LIMIT ?",
