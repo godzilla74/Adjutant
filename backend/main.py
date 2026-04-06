@@ -1,8 +1,8 @@
-"""Hannah Mission Control — FastAPI backend."""
+# backend/main.py
+"""Hannah Mission Control — FastAPI backend (multi-product)."""
 
 import json
 import os
-import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -11,7 +11,20 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-from backend.db import init_db, load_events, load_messages, save_event, save_message
+from backend.db import (
+    get_products,
+    get_workstreams,
+    get_objectives,
+    init_db,
+    load_activity_events,
+    load_messages,
+    load_review_items,
+    resolve_review_item,
+    save_activity_event,
+    save_message,
+    save_review_item,
+    update_activity_event,
+)
 from core.config import get_system_prompt
 from core.tools import TOOLS_DEFINITIONS, execute_tool
 
@@ -34,10 +47,23 @@ async def _send(ws: WebSocket, event: dict) -> None:
     await ws.send_text(json.dumps(event))
 
 
+def _product_data_payload(product_id: str) -> dict:
+    return {
+        "type": "product_data",
+        "product_id": product_id,
+        "workstreams": get_workstreams(product_id),
+        "objectives": get_objectives(product_id),
+        "events": load_activity_events(product_id),
+        "review_items": load_review_items(product_id),
+    }
+
+
 # ── Hannah agentic loop ────────────────────────────────────────────────────────
 
-async def _hannah_loop(ws: WebSocket, messages: list) -> list:
-    system = get_system_prompt()
+async def _hannah_loop(ws: WebSocket, product_id: str, messages: list) -> tuple[list, list]:
+    """Run Hannah's agentic loop. Returns (updated messages, new review items)."""
+    system = get_system_prompt(product_id)
+    new_review_items: list[dict] = []
 
     while True:
         accumulated_text = ""
@@ -62,17 +88,19 @@ async def _hannah_loop(ws: WebSocket, messages: list) -> list:
 
         if accumulated_text:
             ts = _ts()
-            await _send(ws, {"type": "hannah_done", "ts": ts})
-            # Persist the assembled message for history replay (not tokens)
-            save_event({"type": "hannah_message", "content": accumulated_text, "ts": ts})
+            await _send(ws, {
+                "type": "hannah_done",
+                "product_id": product_id,
+                "content": accumulated_text,
+                "ts": ts,
+            })
 
-        # Convert Pydantic content blocks to dicts for JSON serialization
         content_serializable = [
             b.model_dump() if hasattr(b, "model_dump") else b
             for b in final.content
         ]
         messages.append({"role": "assistant", "content": final.content})
-        save_message("assistant", content_serializable)
+        save_message(product_id, "assistant", content_serializable)
 
         if final.stop_reason != "tool_use":
             break
@@ -82,23 +110,31 @@ async def _hannah_loop(ws: WebSocket, messages: list) -> list:
             if block.type != "tool_use":
                 continue
 
-            task_id = str(uuid.uuid4())
             is_agent_task = block.name in ("delegate_task", "email_task")
+            is_review = block.name == "create_review_item"
 
             if is_agent_task:
-                description = block.input.get("task", block.name)
+                headline = block.input.get("task", block.name)
+                rationale = block.input.get("context", "")
                 agent_type = block.input.get(
                     "agent_type", "email" if block.name == "email_task" else "general"
                 )
-                ev = {
-                    "type": "task_started",
-                    "id": task_id,
+                event_id = save_activity_event(
+                    product_id=product_id,
+                    agent_type=agent_type,
+                    headline=headline,
+                    rationale=rationale,
+                    status="running",
+                )
+                await _send(ws, {
+                    "type": "activity_started",
+                    "product_id": product_id,
+                    "id": event_id,
                     "agent_type": agent_type,
-                    "description": description,
+                    "headline": headline,
+                    "rationale": rationale,
                     "ts": _ts(),
-                }
-                await _send(ws, ev)
-                save_event(ev)
+                })
 
             try:
                 result = await execute_tool(block.name, block.input)
@@ -107,15 +143,36 @@ async def _hannah_loop(ws: WebSocket, messages: list) -> list:
                 output = f"Error in {block.name}: {exc}"
 
             if is_agent_task:
-                summary = output[:200].rstrip() + ("…" if len(output) > 200 else "")
-                ev = {
-                    "type": "task_done",
-                    "id": task_id,
+                summary = output[:300].rstrip() + ("…" if len(output) > 300 else "")
+                update_activity_event(event_id, status="done", summary=summary)
+                await _send(ws, {
+                    "type": "activity_done",
+                    "product_id": product_id,
+                    "id": event_id,
                     "summary": summary,
                     "ts": _ts(),
-                }
-                await _send(ws, ev)
-                save_event(ev)
+                })
+
+            if is_review:
+                try:
+                    parsed = json.loads(output)
+                    item_id = parsed["id"]
+                    item = {
+                        "id": item_id,
+                        "title": block.input.get("title", ""),
+                        "description": block.input.get("description", ""),
+                        "risk_label": block.input.get("risk_label", ""),
+                        "status": "pending",
+                        "created_at": _ts(),
+                    }
+                    await _send(ws, {
+                        "type": "review_item_added",
+                        "product_id": product_id,
+                        "item": item,
+                    })
+                    new_review_items.append(item)
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
             tool_results.append({
                 "type": "tool_result",
@@ -126,7 +183,7 @@ async def _hannah_loop(ws: WebSocket, messages: list) -> list:
         if tool_results:
             messages.append({"role": "user", "content": tool_results})
 
-    return messages
+    return messages, new_review_items
 
 
 # ── WebSocket endpoint ─────────────────────────────────────────────────────────
@@ -152,28 +209,59 @@ async def websocket_endpoint(ws: WebSocket):
         return
 
     await _send(ws, {"type": "auth_ok"})
+    await _send(ws, {"type": "init", "products": get_products()})
 
-    # Send persisted event history so the feed is populated on load
-    await _send(ws, {"type": "history", "events": load_events()})
-
-    # Restore conversation history so Hannah has full context
-    messages: list = load_messages()
+    # Per-product in-memory message history (loaded from DB on first access)
+    messages_by_product: dict[str, list] = {}
+    active_product_id = "retainerops"
 
     try:
         while True:
             msg = await ws.receive_json()
-            if msg.get("type") != "message":
-                continue
-            content = msg.get("content", "").strip()
-            if not content:
-                continue
-            ts = _ts()
-            ev = {"type": "user_message", "content": content, "ts": ts}
-            await _send(ws, ev)
-            save_event(ev)
-            messages.append({"role": "user", "content": content})
-            save_message("user", content)
-            messages = await _hannah_loop(ws, messages)
+            msg_type = msg.get("type")
+
+            if msg_type == "switch_product":
+                product_id = msg.get("product_id", "retainerops")
+                active_product_id = product_id
+                if product_id not in messages_by_product:
+                    messages_by_product[product_id] = load_messages(product_id)
+                await _send(ws, _product_data_payload(product_id))
+
+            elif msg_type == "directive":
+                product_id = msg.get("product_id", active_product_id)
+                active_product_id = product_id
+                content = msg.get("content", "").strip()
+                if not content:
+                    continue
+
+                ts = _ts()
+                await _send(ws, {
+                    "type": "directive_echo",
+                    "product_id": product_id,
+                    "content": content,
+                    "ts": ts,
+                })
+
+                if product_id not in messages_by_product:
+                    messages_by_product[product_id] = load_messages(product_id)
+
+                messages_by_product[product_id].append({"role": "user", "content": content})
+                save_message(product_id, "user", content)
+                messages_by_product[product_id], _ = await _hannah_loop(
+                    ws, product_id, messages_by_product[product_id]
+                )
+
+            elif msg_type == "resolve_review":
+                item_id = msg.get("review_item_id")
+                action = msg.get("action")  # 'approved' | 'skipped'
+                if item_id and action in ("approved", "skipped"):
+                    resolve_review_item(item_id, action)
+                    await _send(ws, {
+                        "type": "review_resolved",
+                        "review_item_id": item_id,
+                        "action": action,
+                    })
+
     except WebSocketDisconnect:
         pass
 
