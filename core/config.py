@@ -1,7 +1,6 @@
 # core/config.py
 from datetime import datetime
 
-from backend.seed_data import PRODUCTS, WORKSTREAMS, OBJECTIVES
 
 COMPANY_INFO = """
 ## JTA Ventures, LLC
@@ -32,31 +31,57 @@ COMPANY_INFO = """
 
 
 def _product_context(product_id: str) -> str:
-    product = next((p for p in PRODUCTS if p["id"] == product_id), None)
-    if not product:
+    from backend.db import get_objectives, get_workstreams, get_product_config
+
+    config = get_product_config(product_id)
+    if not config:
         return ""
 
-    workstreams = WORKSTREAMS.get(product_id, [])
-    objectives = OBJECTIVES.get(product_id, [])
+    workstreams = get_workstreams(product_id)
+    objectives = get_objectives(product_id)
 
-    ws_lines = "\n".join(f"  - {w['name']} ({w['status']})" for w in workstreams) or "  (none configured)"
+    ws_lines = "\n".join(
+        f"  - {w['name']} ({w['status']})" for w in workstreams
+    ) or "  (none configured)"
+
     obj_lines = "\n".join(
-        f"  - {o['text']} [{o['progress_current']}/{o['progress_target'] or '?'}]"
+        f"  - [{o['id']}] {o['text']} [{o['progress_current']}/{o['progress_target'] or '?'}]"
         for o in objectives
     ) or "  (none configured)"
 
-    return f"""
-## Active Product Context: {product['name']}
+    # Brand config section — only include fields that are set
+    brand_parts = []
+    if config.get("brand_voice"):
+        brand_parts.append(f"- **Voice:** {config['brand_voice']}")
+    if config.get("tone"):
+        brand_parts.append(f"- **Tone:** {config['tone']}")
+    if config.get("writing_style"):
+        brand_parts.append(f"- **Writing style:** {config['writing_style']}")
+    if config.get("target_audience"):
+        brand_parts.append(f"- **Target audience:** {config['target_audience']}")
+    if config.get("social_handles"):
+        brand_parts.append(f"- **Social handles:** {config['social_handles']}")
+    if config.get("hashtags"):
+        brand_parts.append(f"- **Hashtags:** {config['hashtags']}")
+    if config.get("brand_notes"):
+        brand_parts.append(f"- **Brand notes:** {config['brand_notes']}")
 
-Justin is currently focused on **{product['name']}**. All work you do, all agents you spawn, and all context you maintain should be scoped to this product unless Justin explicitly asks otherwise.
+    brand_section = "\n### Brand Configuration\n" + "\n".join(brand_parts) if brand_parts else ""
+
+    return f"""
+## Active Product Context: {config['name']}
+
+Justin is currently focused on **{config['name']}**. All work you do, all agents you spawn, and all context you maintain should be scoped to this product unless Justin explicitly asks otherwise.
 
 ### Workstreams
 {ws_lines}
 
 ### Active Objectives
 {obj_lines}
+{brand_section}
 
 When delegating tasks, include a `context` parameter explaining WHY you are doing this — this becomes the rationale shown to Justin in the activity feed.
+When drafting social content, always apply the brand configuration above.
 When creating review items, be specific about what will happen and why it needs Justin's approval.
 """
 
@@ -83,7 +108,22 @@ As Justin's Executive Assistant, you:
 - **create_review_item** — Add something to Justin's approval queue. Use for anything consequential: emails sending to clients, public-facing posts, significant financial decisions.
 - **save_note** — Persist important decisions, context, or reminders
 - **read_notes** — Retrieve previously saved notes and context
+- **create_objective** — Add a new objective for the current product when Justin defines a new goal
+- **update_objective** — Update the progress on one of Justin's active objectives after completing work that advances it
 - **get_datetime** — Get the current date and time
+- **create_product / update_product / delete_product** — Manage products in MissionControl. Use `update_product` to set brand voice, tone, writing style, target audience, social handles, and hashtags.
+- **create_workstream / update_workstream_status / delete_workstream** — Manage the operational workstreams for a product
+- **delete_objective** — Remove a completed or obsolete objective
+- **draft_social_post** — Draft a post for Instagram, LinkedIn, Twitter, or Facebook. Always uses the product's brand config. Auto-queues for Justin's approval before anything is posted.
+
+## Self-Improvement
+You can extend your own capabilities when you encounter a gap:
+1. **find_skill(query)** — Search skills.sh for agent skills that cover the capability
+2. **install_skill(package)** — Install a skill globally so sub-agents can use it
+3. **add_agent_tool(tool_name, description, agent_instructions)** — Scaffold a new tool that spawns a sub-agent with those instructions; the sub-agent has access to all installed skills
+4. **restart_server()** — Restart to activate new tools (client reconnects automatically)
+
+Use this loop proactively when Justin asks for something you can't do. Always find_skill before attempting to add_agent_tool.
 
 ## Communication Style
 - Professional, direct, and concise — Justin is busy
