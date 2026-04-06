@@ -96,6 +96,37 @@ TOOLS_DEFINITIONS = [
         },
     },
     {
+        "name": "create_review_item",
+        "description": (
+            "Add an item to Justin's approval queue. Use this before taking any consequential, "
+            "irreversible, or public-facing action: sending emails to clients, posting to social "
+            "media, making purchases, or anything that goes out under Justin's name. "
+            "Do NOT use for internal research or drafting."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Short title for the item, e.g. 'LinkedIn post: launch announcement'",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What will happen when approved: who receives it, what it says, timing",
+                },
+                "risk_label": {
+                    "type": "string",
+                    "description": "One short phrase describing the risk, e.g. 'Public-facing · irreversible' or 'Sends from your email · 12 recipients'",
+                },
+                "product_id": {
+                    "type": "string",
+                    "description": "The product this action belongs to",
+                },
+            },
+            "required": ["title", "description", "risk_label", "product_id"],
+        },
+    },
+    {
         "name": "get_datetime",
         "description": "Get the current date and time.",
         "input_schema": {
@@ -124,6 +155,8 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _read_notes(**inputs)
     if name == "email_task":
         return await _email_task(**inputs)
+    if name == "create_review_item":
+        return _create_review_item(**inputs)
     if name == "get_datetime":
         return _get_datetime()
     return f"Unknown tool: {name}"
@@ -173,3 +206,14 @@ def _read_notes(search: str = "") -> str:
 
 def _get_datetime() -> str:
     return datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+
+
+def _create_review_item(title: str, description: str, risk_label: str, product_id: str) -> str:
+    from backend.db import save_review_item
+    item_id = save_review_item(
+        product_id=product_id,
+        title=title,
+        description=description,
+        risk_label=risk_label,
+    )
+    return json.dumps({"id": item_id, "title": title, "status": "pending"})
