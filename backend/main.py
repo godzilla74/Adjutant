@@ -45,6 +45,13 @@ from core.tools import TOOLS_DEFINITIONS, execute_tool
 load_dotenv()
 init_db()
 
+# Model config — loaded from DB at startup, hot-reloadable via API
+from backend.db import get_model_config as _get_model_config
+_mc = _get_model_config()
+HANNAH_MODEL:   str = os.environ.get("HANNAH_MODEL",   _mc["hannah_model"])
+import agents.runner as _runner
+_runner.SUBAGENT_MODEL = os.environ.get("HANNAH_SUBAGENT_MODEL", _mc["subagent_model"])
+
 # ── WebSocket connection registry ─────────────────────────────────────────────
 
 _connections: set[WebSocket] = set()
@@ -260,7 +267,7 @@ async def _hannah_loop(send_fn, product_id: str, messages: list) -> tuple[list, 
         accumulated_text = ""
 
         async with client.messages.stream(
-            model="claude-opus-4-6",
+            model=HANNAH_MODEL,
             max_tokens=8096,
             system=system,
             tools=TOOLS_DEFINITIONS,
@@ -527,6 +534,10 @@ async def websocket_endpoint(ws: WebSocket):
                     "content": content,
                     "ts": _ts(),
                 })
+
+                # Save to directive history for replay
+                from backend.db import save_directive_history
+                save_directive_history(product_id, content)
 
                 # Enqueue and ensure worker is running
                 directive_id = uuid.uuid4().hex[:8]
