@@ -1,14 +1,23 @@
 // ui/src/components/DirectiveBar.tsx
-import { useState, KeyboardEvent } from 'react'
+import { useState, useEffect, KeyboardEvent } from 'react'
 
 interface Props {
   onSend: (content: string) => void
   disabled: boolean
   productName: string
+  prefill?: string
+  onPrefillConsumed?: () => void
 }
 
-export default function DirectiveBar({ onSend, disabled, productName }: Props) {
+export default function DirectiveBar({ onSend, disabled, productName, prefill, onPrefillConsumed }: Props) {
   const [value, setValue] = useState('')
+
+  useEffect(() => {
+    if (prefill) {
+      setValue(prefill)
+      onPrefillConsumed?.()
+    }
+  }, [prefill, onPrefillConsumed])
 
   const submit = () => {
     const trimmed = value.trim()

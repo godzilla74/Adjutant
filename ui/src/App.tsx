@@ -13,6 +13,7 @@ import WorkstreamsPanel from './components/WorkstreamsPanel'
 import ActivityFeed from './components/ActivityFeed'
 import ReviewQueue from './components/ReviewQueue'
 import DirectiveBar from './components/DirectiveBar'
+import DirectiveTemplates from './components/DirectiveTemplates'
 import LiveAgents from './components/LiveAgents'
 import PasswordGate from './components/PasswordGate'
 import SettingsSidebar from './components/SettingsSidebar'
@@ -40,6 +41,7 @@ export default function App() {
   const [hannahDraft,     setHannahDraft]     = useState<string>('')
   const [settingsOpen,    setSettingsOpen]    = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
+  const [directivePrefill, setDirectivePrefill] = useState<string>('')
 
   const { requestPermission, notify } = useNotifications()
 
@@ -326,10 +328,16 @@ export default function App() {
             hannahMessages={hannahMessages[activeProductId] ?? []}
             hannahDraft={hannahDraft}
           />
+          <DirectiveTemplates
+            productId={activeProductId}
+            onSelect={content => setDirectivePrefill(content)}
+          />
           <DirectiveBar
             onSend={sendDirective}
             disabled={connState !== 'ready'}
             productName={activeProduct?.name ?? 'this product'}
+            prefill={directivePrefill}
+            onPrefillConsumed={() => setDirectivePrefill('')}
           />
         </div>
 
