@@ -1,11 +1,15 @@
 // ui/src/components/ActivityCard.tsx
+import { useState } from 'react'
 import { ActivityEvent, AgentType } from '../types'
+
+const SUMMARY_PREVIEW_LEN = 300
 
 const AGENT_LABEL: Record<AgentType, string> = {
   research: 'Research Agent',
   general:  'General Agent',
   email:    'Email Agent',
   content:  'Content Agent',
+  social:   'Social Agent',
 }
 
 const AGENT_ICON: Record<AgentType, string> = {
@@ -13,6 +17,7 @@ const AGENT_ICON: Record<AgentType, string> = {
   general:  '🎯',
   email:    '📧',
   content:  '✍️',
+  social:   '📣',
 }
 
 const AGENT_COLOR: Record<AgentType, string> = {
@@ -20,6 +25,7 @@ const AGENT_COLOR: Record<AgentType, string> = {
   general:  'text-sky-400 bg-sky-950/40',
   email:    'text-amber-400 bg-amber-950/40',
   content:  'text-emerald-400 bg-emerald-950/40',
+  social:   'text-pink-400 bg-pink-950/40',
 }
 
 interface Props {
@@ -27,9 +33,18 @@ interface Props {
 }
 
 export default function ActivityCard({ event }: Props) {
+  const [expanded, setExpanded] = useState(false)
+
   const isRunning    = event.status === 'running'
   const isDone       = event.status === 'done'
   const needsReview  = event.status === 'needs_review'
+
+  // Summary truncation logic
+  const summary = event.summary ?? ''
+  const isLong  = summary.length > SUMMARY_PREVIEW_LEN
+  const displaySummary = isLong && !expanded
+    ? summary.slice(0, SUMMARY_PREVIEW_LEN).trimEnd() + '…'
+    : summary
 
   return (
     <div className={[
@@ -63,13 +78,6 @@ export default function ActivityCard({ event }: Props) {
         </span>
       </div>
 
-      {/* Rationale box */}
-      {event.rationale && (
-        <div className="rounded-lg bg-zinc-950/60 border border-zinc-800/40 px-3 py-2 text-xs text-zinc-500 leading-relaxed">
-          <span className="font-semibold text-zinc-600">Why: </span>{event.rationale}
-        </div>
-      )}
-
       {/* Output preview (needs_review) */}
       {needsReview && event.output_preview && (
         <div className="rounded-lg bg-zinc-950/60 border-l-2 border-zinc-700 px-3 py-2 text-xs text-zinc-400 italic leading-relaxed">
@@ -79,7 +87,17 @@ export default function ActivityCard({ event }: Props) {
 
       {/* Summary (done) */}
       {isDone && event.summary && (
-        <div className="text-xs text-zinc-500 leading-relaxed">{event.summary}</div>
+        <div className="text-xs text-zinc-500 leading-relaxed">
+          <span className="whitespace-pre-wrap">{displaySummary}</span>
+          {isLong && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="ml-1 text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition-colors"
+            >
+              {expanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
