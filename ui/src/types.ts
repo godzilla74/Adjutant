@@ -7,11 +7,25 @@ export interface Product {
   color: string
 }
 
+export interface ProductConfig extends Product {
+  brand_voice?:     string | null
+  tone?:            string | null
+  writing_style?:   string | null
+  target_audience?: string | null
+  social_handles?:  string | null
+  hashtags?:        string | null
+  brand_notes?:     string | null
+}
+
 export interface Workstream {
   id: number
   name: string
   status: 'running' | 'warn' | 'paused'
   display_order: number
+  mission?: string | null
+  schedule?: string | null
+  last_run_at?: string | null
+  next_run_at?: string | null
 }
 
 export interface Objective {
@@ -22,7 +36,7 @@ export interface Objective {
   display_order: number
 }
 
-export type AgentType = 'research' | 'general' | 'email' | 'content'
+export type AgentType = 'research' | 'general' | 'email' | 'content' | 'social'
 
 export interface ActivityEvent {
   id: number
@@ -51,6 +65,11 @@ export interface ProductState {
   review_items: ReviewItem[]
 }
 
+export interface DirectiveItem {
+  id: string
+  content: string
+}
+
 // WebSocket messages from server
 export type ServerMessage =
   | { type: 'auth_ok' }
@@ -64,3 +83,22 @@ export type ServerMessage =
   | { type: 'review_resolved'; review_item_id: number; action: string }
   | { type: 'hannah_token'; product_id: string; content: string }
   | { type: 'hannah_done'; product_id: string; content: string; ts: string }
+  | { type: 'queue_update'; product_id: string; current: DirectiveItem | null; queued: DirectiveItem[] }
+
+export interface DirectiveHistoryItem {
+  id: number
+  content: string
+  created_at: string
+}
+
+export interface ProductOverview {
+  id: string
+  name: string
+  icon_label: string
+  color: string
+  running_ws: number
+  warn_ws: number
+  paused_ws: number
+  pending_reviews: number
+  running_agents: number
+}
