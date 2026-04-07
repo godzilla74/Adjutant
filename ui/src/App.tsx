@@ -17,6 +17,9 @@ import DirectiveTemplates from './components/DirectiveTemplates'
 import LiveAgents from './components/LiveAgents'
 import PasswordGate from './components/PasswordGate'
 import SettingsSidebar from './components/SettingsSidebar'
+import NotesDrawer from './components/NotesDrawer'
+import DirectiveHistoryDrawer from './components/DirectiveHistoryDrawer'
+import OverviewPanel from './components/OverviewPanel'
 
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
 
@@ -42,6 +45,9 @@ export default function App() {
   const [settingsOpen,    setSettingsOpen]    = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
+  const [notesOpen,    setNotesOpen]    = useState(false)
+  const [historyOpen,  setHistoryOpen]  = useState(false)
+  const [showOverview, setShowOverview] = useState(false)
 
   const { requestPermission, notify } = useNotifications()
 
@@ -216,6 +222,7 @@ export default function App() {
 
   const switchProduct = useCallback((productId: string) => {
     setActiveProductId(productId)
+    setShowOverview(false)
     if (!(productId in productStates)) {
       wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: productId }))
     }
@@ -267,6 +274,26 @@ export default function App() {
             <span className="font-semibold text-zinc-100 text-sm">Hannah</span>
             <span className="text-zinc-700">/</span>
             <span className="text-sm text-zinc-400">{activeProduct?.name ?? '…'}</span>
+            {/* Notes button */}
+            <button
+              onClick={() => { setNotesOpen(o => !o); setHistoryOpen(false) }}
+              title="Product notes"
+              className="ml-1 w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            {/* Directive history button */}
+            <button
+              onClick={() => { setHistoryOpen(o => !o); setNotesOpen(false) }}
+              title="Directive history"
+              className="ml-1 w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
             <button
               onClick={() => setSettingsOpen(o => !o)}
               title="Product settings"
@@ -305,49 +332,60 @@ export default function App() {
         {/* Product rail */}
         <ProductRail
           products={products}
-          activeProductId={activeProductId}
+          activeProductId={showOverview ? '__overview__' : activeProductId}
           onSwitch={switchProduct}
+          onOverview={() => setShowOverview(true)}
         />
 
-        {/* Workstreams */}
-        <WorkstreamsPanel
-          workstreams={activeState.workstreams}
-          objectives={activeState.objectives}
-        />
+        {showOverview ? (
+          <OverviewPanel
+            password={sessionStorage.getItem('hannah_pw') ?? ''}
+            onSelectProduct={switchProduct}
+          />
+        ) : (
+          <>
+            {/* Workstreams */}
+            <WorkstreamsPanel
+              workstreams={activeState.workstreams}
+              objectives={activeState.objectives}
+            />
 
-        {/* Activity feed */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <LiveAgents
-            events={activeState.events}
-            currentDirective={queueByProduct[activeProductId]?.current ?? null}
-            onCancelDirective={cancelDirective}
-          />
-          <ActivityFeed
-            events={activeState.events}
-            directives={directives[activeProductId] ?? []}
-            hannahMessages={hannahMessages[activeProductId] ?? []}
-            hannahDraft={hannahDraft}
-          />
-          <DirectiveTemplates
-            productId={activeProductId}
-            onSelect={content => setDirectivePrefill(content)}
-          />
-          <DirectiveBar
-            onSend={sendDirective}
-            disabled={connState !== 'ready'}
-            productName={activeProduct?.name ?? 'this product'}
-            prefill={directivePrefill}
-            onPrefillConsumed={() => setDirectivePrefill('')}
-          />
-        </div>
+            {/* Activity feed */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <LiveAgents
+                events={activeState.events}
+                currentDirective={queueByProduct[activeProductId]?.current ?? null}
+                onCancelDirective={cancelDirective}
+              />
+              <ActivityFeed
+                events={activeState.events}
+                directives={directives[activeProductId] ?? []}
+                hannahMessages={hannahMessages[activeProductId] ?? []}
+                hannahDraft={hannahDraft}
+              />
+              <DirectiveTemplates
+                productId={activeProductId}
+                password={sessionStorage.getItem('hannah_pw') ?? ''}
+                onSelect={content => setDirectivePrefill(content)}
+              />
+              <DirectiveBar
+                onSend={sendDirective}
+                disabled={connState !== 'ready'}
+                productName={activeProduct?.name ?? 'this product'}
+                prefill={directivePrefill}
+                onPrefillConsumed={() => setDirectivePrefill('')}
+              />
+            </div>
 
-        {/* Review queue */}
-        <ReviewQueue
-          items={activeState.review_items.filter(i => i.status === 'pending')}
-          onResolve={resolveReview}
-          queued={queueByProduct[activeProductId]?.queued ?? []}
-          onCancelQueued={cancelDirective}
-        />
+            {/* Review queue */}
+            <ReviewQueue
+              items={activeState.review_items.filter(i => i.status === 'pending')}
+              onResolve={resolveReview}
+              queued={queueByProduct[activeProductId]?.queued ?? []}
+              onCancelQueued={cancelDirective}
+            />
+          </>
+        )}
 
       </div>
 
@@ -361,6 +399,25 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           onRefreshData={() => wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: activeProductId }))}
           onRefreshProducts={() => wsRef.current?.send(JSON.stringify({ type: 'get_products' }))}
+        />
+      )}
+
+      {/* Notes drawer */}
+      {notesOpen && (
+        <NotesDrawer
+          productId={activeProductId}
+          password={sessionStorage.getItem('hannah_pw') ?? ''}
+          onClose={() => setNotesOpen(false)}
+        />
+      )}
+
+      {/* Directive history drawer */}
+      {historyOpen && (
+        <DirectiveHistoryDrawer
+          productId={activeProductId}
+          password={sessionStorage.getItem('hannah_pw') ?? ''}
+          onClose={() => setHistoryOpen(false)}
+          onSelect={content => { setDirectivePrefill(content); setHistoryOpen(false) }}
         />
       )}
     </div>

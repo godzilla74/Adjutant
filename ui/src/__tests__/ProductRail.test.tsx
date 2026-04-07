@@ -14,7 +14,7 @@ const PRODUCTS: Product[] = [
 
 describe('ProductRail', () => {
   it('renders all product icon labels', () => {
-    render(<ProductRail products={PRODUCTS} activeProductId="retainerops" onSwitch={() => {}} />)
+    render(<ProductRail products={PRODUCTS} activeProductId="retainerops" onSwitch={() => {}} onOverview={() => {}} />)
     expect(screen.getByText('RO')).toBeInTheDocument()
     expect(screen.getByText('IG')).toBeInTheDocument()
     expect(screen.getByText('BU')).toBeInTheDocument()
@@ -23,13 +23,13 @@ describe('ProductRail', () => {
 
   it('calls onSwitch with product id when clicked', () => {
     const onSwitch = vi.fn()
-    render(<ProductRail products={PRODUCTS} activeProductId="retainerops" onSwitch={onSwitch} />)
+    render(<ProductRail products={PRODUCTS} activeProductId="retainerops" onSwitch={onSwitch} onOverview={() => {}} />)
     fireEvent.click(screen.getByText('IG'))
     expect(onSwitch).toHaveBeenCalledWith('ignitara')
   })
 
   it('marks active product with aria-current', () => {
-    render(<ProductRail products={PRODUCTS} activeProductId="bullsi" onSwitch={() => {}} />)
+    render(<ProductRail products={PRODUCTS} activeProductId="bullsi" onSwitch={() => {}} onOverview={() => {}} />)
     const buBtn = screen.getByText('BU').closest('button')
     expect(buBtn).toHaveAttribute('aria-current', 'true')
     const igBtn = screen.getByText('IG').closest('button')
