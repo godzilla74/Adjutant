@@ -17,7 +17,7 @@ export default function DirectiveBar({ onSend, disabled, productName, prefill, o
       setValue(prefill)
       onPrefillConsumed?.()
     }
-  }, [prefill, onPrefillConsumed])
+  }, [prefill])
 
   const submit = () => {
     const trimmed = value.trim()

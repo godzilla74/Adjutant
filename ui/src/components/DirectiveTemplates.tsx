@@ -22,7 +22,7 @@ function loadTemplates(productId: string): Template[] {
     const raw = localStorage.getItem(storageKey(productId))
     if (raw) return JSON.parse(raw)
   } catch { /* ignore */ }
-  return DEFAULTS
+  return [...DEFAULTS]
 }
 
 function saveTemplates(productId: string, templates: Template[]) {
@@ -86,7 +86,6 @@ export default function DirectiveTemplates({ productId, onSelect }: Props) {
             if (e.key === 'Enter') addTemplate()
             if (e.key === 'Escape') { setAdding(false); setDraft('') }
           }}
-          onBlur={addTemplate}
           placeholder="Template text…"
           className="text-[11px] bg-zinc-900 border border-zinc-700 text-zinc-300 px-2 py-0.5 rounded-full focus:outline-none focus:ring-1 focus:ring-blue-600 w-44"
         />
