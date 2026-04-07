@@ -87,18 +87,59 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_messages_product
                 ON messages(product_id, id);
 
+            CREATE TABLE IF NOT EXISTS conversation_summaries (
+                product_id          TEXT PRIMARY KEY REFERENCES products(id),
+                summary             TEXT NOT NULL DEFAULT '',
+                last_summarized_id  INTEGER NOT NULL DEFAULT 0,
+                updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS social_drafts (
                 id                INTEGER PRIMARY KEY AUTOINCREMENT,
                 product_id        TEXT NOT NULL REFERENCES products(id),
                 platform          TEXT NOT NULL,
                 content           TEXT NOT NULL,
                 image_description TEXT,
+                image_url         TEXT,
                 status            TEXT NOT NULL DEFAULT 'pending_review',
                 review_item_id    INTEGER REFERENCES review_items(id),
+                post_url          TEXT,
                 created_at        TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_social_drafts_product
                 ON social_drafts(product_id, status);
+
+            CREATE TABLE IF NOT EXISTS directive_templates (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id    TEXT NOT NULL REFERENCES products(id),
+                label         TEXT NOT NULL,
+                content       TEXT NOT NULL,
+                display_order INTEGER NOT NULL DEFAULT 0,
+                created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_directive_templates_product
+                ON directive_templates(product_id, display_order);
+
+            CREATE TABLE IF NOT EXISTS model_config (
+                key        TEXT PRIMARY KEY,
+                value      TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS product_notes (
+                product_id TEXT PRIMARY KEY REFERENCES products(id),
+                content    TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS directive_history (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT NOT NULL REFERENCES products(id),
+                content    TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_directive_history_product
+                ON directive_history(product_id, created_at DESC);
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -113,6 +154,25 @@ def init_db() -> None:
         for col_name, col_type in _brand_cols:
             try:
                 conn.execute(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass  # column already exists
+        # Add new social_drafts columns (idempotent)
+        _social_cols = [("image_url", "TEXT"), ("post_url", "TEXT")]
+        for col_name, col_type in _social_cols:
+            try:
+                conn.execute(f"ALTER TABLE social_drafts ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass  # column already exists
+        # Add autonomous workstream columns (idempotent)
+        _ws_cols = [
+            ("mission",     "TEXT NOT NULL DEFAULT ''"),
+            ("schedule",    "TEXT NOT NULL DEFAULT 'manual'"),
+            ("last_run_at", "TEXT"),
+            ("next_run_at", "TEXT"),
+        ]
+        for col_name, col_type in _ws_cols:
+            try:
+                conn.execute(f"ALTER TABLE workstreams ADD COLUMN {col_name} {col_type}")
             except Exception:
                 pass  # column already exists
         _seed_products(conn)
@@ -225,6 +285,26 @@ def update_workstream_status(product_id: str, name_fragment: str, status: str) -
     return f"Updated '{row['name']}' → {status}"
 
 
+def update_workstream_by_id(ws_id: int, name: str | None = None, status: str | None = None) -> None:
+    sets, vals = [], []
+    if name is not None:
+        sets.append("name = ?"); vals.append(name)
+    if status is not None:
+        if status not in ("running", "warn", "paused"):
+            raise ValueError(f"Invalid status: {status}")
+        sets.append("status = ?"); vals.append(status)
+    if not sets:
+        return
+    vals.append(ws_id)
+    with _conn() as conn:
+        conn.execute(f"UPDATE workstreams SET {', '.join(sets)} WHERE id = ?", vals)
+
+
+def delete_workstream_by_id(ws_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM workstreams WHERE id = ?", (ws_id,))
+
+
 def delete_workstream(product_id: str, name_fragment: str) -> str:
     with _conn() as conn:
         row = conn.execute(
@@ -240,10 +320,55 @@ def delete_workstream(product_id: str, name_fragment: str) -> str:
 def get_workstreams(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, name, status, display_order FROM workstreams WHERE product_id = ? ORDER BY display_order",
+            """SELECT id, name, status, display_order,
+                      mission, schedule, last_run_at, next_run_at
+               FROM workstreams WHERE product_id = ? ORDER BY display_order""",
             (product_id,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_workstream_by_id(ws_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, name, product_id, status, display_order,
+                      mission, schedule, last_run_at, next_run_at
+               FROM workstreams WHERE id = ?""",
+            (ws_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_due_workstreams() -> list[dict]:
+    """Return workstreams whose next_run_at has passed and are not paused."""
+    from datetime import datetime
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT w.id, w.name, w.product_id, w.status,
+                      w.mission, w.schedule, w.last_run_at, w.next_run_at
+               FROM workstreams w
+               WHERE w.next_run_at IS NOT NULL
+                 AND w.next_run_at <= ?
+                 AND w.status != 'paused'
+                 AND w.mission != ''""",
+            (now,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_workstream_fields(ws_id: int, **fields) -> None:
+    """Flexible update for any workstream columns. Pass None to clear a nullable column."""
+    _allowed = {"name", "status", "mission", "schedule", "last_run_at", "next_run_at"}
+    updates = {k: v for k, v in fields.items() if k in _allowed}
+    if not updates:
+        return
+    if "status" in updates and updates["status"] not in ("running", "warn", "paused", None):
+        raise ValueError(f"Invalid status: {updates['status']}")
+    sets = [f"{k} = ?" for k in updates]
+    vals = list(updates.values()) + [ws_id]
+    with _conn() as conn:
+        conn.execute(f"UPDATE workstreams SET {', '.join(sets)} WHERE id = ?", vals)
 
 
 # ── Objectives ────────────────────────────────────────────────────────────────
@@ -303,6 +428,31 @@ def get_objectives(product_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def update_objective_by_id(
+    obj_id: int,
+    text: str | None = None,
+    progress_current: int | None = None,
+    progress_target: int | None = None,
+) -> None:
+    sets, vals = [], []
+    if text is not None:
+        sets.append("text = ?"); vals.append(text)
+    if progress_current is not None:
+        sets.append("progress_current = ?"); vals.append(progress_current)
+    if progress_target is not None:
+        sets.append("progress_target = ?"); vals.append(progress_target)
+    if not sets:
+        return
+    vals.append(obj_id)
+    with _conn() as conn:
+        conn.execute(f"UPDATE objectives SET {', '.join(sets)} WHERE id = ?", vals)
+
+
+def delete_objective_by_id(obj_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM objectives WHERE id = ?", (obj_id,))
+
+
 def delete_objective(product_id: str, text_fragment: str) -> str:
     with _conn() as conn:
         row = conn.execute(
@@ -346,6 +496,23 @@ def update_activity_event(
             "UPDATE activity_events SET status = ?, summary = ?, output_preview = COALESCE(?, output_preview) WHERE id = ?",
             (status, summary, output_preview, event_id),
         )
+
+
+def cancel_running_events(product_id: str) -> list[int]:
+    """Mark all 'running' activity events for a product as 'done' (cancelled).
+    Returns the list of affected event IDs so the caller can broadcast updates."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id FROM activity_events WHERE product_id = ? AND status = 'running'",
+            (product_id,),
+        ).fetchall()
+        ids = [r["id"] for r in rows]
+        if ids:
+            conn.execute(
+                f"UPDATE activity_events SET status = 'done', summary = 'Cancelled.' WHERE id IN ({','.join('?' * len(ids))})",
+                ids,
+            )
+    return ids
 
 
 def load_activity_events(product_id: str, limit: int = 100) -> list[dict]:
@@ -410,7 +577,49 @@ def save_message(product_id: str, role: str, content) -> None:
         )
 
 
-def load_messages(product_id: str, limit: int = 200) -> list[dict]:
+def purge_broken_tool_exchanges(product_id: str) -> int:
+    """Delete any assistant+tool_result pairs where tool_use lacks a matching result. Returns count deleted."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, role, content FROM messages WHERE product_id = ? ORDER BY id ASC",
+            (product_id,),
+        ).fetchall()
+
+    bad_ids: list[int] = []
+    parsed = []
+    for r in rows:
+        try:
+            content = json.loads(r["content"])
+        except Exception:
+            content = r["content"]
+        parsed.append({"id": r["id"], "role": r["role"], "content": content})
+
+    for i, msg in enumerate(parsed):
+        if msg["role"] != "assistant":
+            continue
+        content = msg["content"]
+        if not isinstance(content, list):
+            continue
+        tool_ids = {b["id"] for b in content if isinstance(b, dict) and b.get("type") == "tool_use"}
+        if not tool_ids:
+            continue
+        next_i = i + 1
+        next_content = parsed[next_i]["content"] if next_i < len(parsed) else ""
+        result_ids: set = set()
+        if isinstance(next_content, list):
+            result_ids = {b.get("tool_use_id") for b in next_content
+                          if isinstance(b, dict) and b.get("type") == "tool_result"}
+        if not tool_ids.issubset(result_ids):
+            bad_ids.append(msg["id"])
+            if next_i < len(parsed):
+                bad_ids.append(parsed[next_i]["id"])
+
+    if bad_ids:
+        delete_messages_by_ids(product_id, bad_ids)
+    return len(bad_ids)
+
+
+def load_messages(product_id: str, limit: int = 15) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             "SELECT role, content FROM messages WHERE product_id = ? ORDER BY id DESC LIMIT ?",
@@ -426,6 +635,70 @@ def load_messages(product_id: str, limit: int = 200) -> list[dict]:
     return result
 
 
+def get_messages_for_summary(product_id: str, max_id: int) -> list[dict]:
+    """Return all messages with id <= max_id for summarization."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT role, content FROM messages WHERE product_id = ? AND id <= ? ORDER BY id ASC",
+            (product_id, max_id),
+        ).fetchall()
+    result = []
+    for r in rows:
+        try:
+            content = json.loads(r["content"])
+        except (json.JSONDecodeError, TypeError):
+            content = r["content"]
+        result.append({"role": r["role"], "content": content})
+    return result
+
+
+def count_messages(product_id: str) -> int:
+    with _conn() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE product_id = ?", (product_id,)
+        ).fetchone()[0]
+
+
+def get_oldest_message_ids(product_id: str, n: int) -> list[int]:
+    """Return IDs of the n oldest messages for a product."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id FROM messages WHERE product_id = ? ORDER BY id ASC LIMIT ?",
+            (product_id, n),
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+def delete_messages_by_ids(product_id: str, ids: list[int]) -> None:
+    if not ids:
+        return
+    placeholders = ",".join("?" * len(ids))
+    with _conn() as conn:
+        conn.execute(
+            f"DELETE FROM messages WHERE product_id = ? AND id IN ({placeholders})",
+            [product_id, *ids],
+        )
+
+
+def get_conversation_summary(product_id: str) -> str:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT summary FROM conversation_summaries WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()
+    return row["summary"] if row else ""
+
+
+def save_conversation_summary(product_id: str, summary: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO conversation_summaries (product_id, summary, updated_at)
+               VALUES (?, ?, datetime('now'))
+               ON CONFLICT(product_id) DO UPDATE SET summary=excluded.summary, updated_at=excluded.updated_at""",
+            (product_id, summary),
+        )
+
+
 # ── Social drafts ─────────────────────────────────────────────────────────────
 
 def save_social_draft(
@@ -433,14 +706,38 @@ def save_social_draft(
     platform: str,
     content: str,
     image_description: str = "",
+    image_url: str = "",
     review_item_id: int | None = None,
 ) -> int:
     with _conn() as conn:
         cursor = conn.execute(
-            "INSERT INTO social_drafts (product_id, platform, content, image_description, review_item_id) VALUES (?, ?, ?, ?, ?)",
-            (product_id, platform, content, image_description, review_item_id),
+            "INSERT INTO social_drafts (product_id, platform, content, image_description, image_url, review_item_id) VALUES (?, ?, ?, ?, ?, ?)",
+            (product_id, platform, content, image_description, image_url, review_item_id),
         )
     return cursor.lastrowid
+
+
+def get_social_draft_by_review_item(review_item_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM social_drafts WHERE review_item_id = ? LIMIT 1",
+            (review_item_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_social_draft_status(draft_id: int, status: str, post_url: str | None = None) -> None:
+    with _conn() as conn:
+        if post_url:
+            conn.execute(
+                "UPDATE social_drafts SET status = ?, post_url = ? WHERE id = ?",
+                (status, post_url, draft_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE social_drafts SET status = ? WHERE id = ?",
+                (status, draft_id),
+            )
 
 
 def list_social_drafts(product_id: str, status: str = "pending_review") -> list[dict]:
@@ -448,5 +745,145 @@ def list_social_drafts(product_id: str, status: str = "pending_review") -> list[
         rows = conn.execute(
             "SELECT * FROM social_drafts WHERE product_id = ? AND status = ? ORDER BY created_at DESC",
             (product_id, status),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Directive templates ───────────────────────────────────────────────────────
+
+def get_directive_templates(product_id: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, label, content, display_order FROM directive_templates WHERE product_id = ? ORDER BY display_order, id",
+            (product_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_directive_template(product_id: str, label: str, content: str) -> dict:
+    with _conn() as conn:
+        max_order = conn.execute(
+            "SELECT COALESCE(MAX(display_order), -1) FROM directive_templates WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()[0]
+        cur = conn.execute(
+            "INSERT INTO directive_templates (product_id, label, content, display_order) VALUES (?, ?, ?, ?)",
+            (product_id, label, content, max_order + 1),
+        )
+        row = conn.execute(
+            "SELECT id, label, content, display_order FROM directive_templates WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+    return dict(row)
+
+
+def update_directive_template(template_id: int, label: str, content: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE directive_templates SET label = ?, content = ? WHERE id = ?",
+            (label, content, template_id),
+        )
+
+
+def delete_directive_template(template_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM directive_templates WHERE id = ?", (template_id,))
+
+
+# ── Model config ──────────────────────────────────────────────────────────────
+
+_MODEL_DEFAULTS = {
+    "hannah_model":   "claude-opus-4-6",
+    "subagent_model": "sonnet",
+}
+
+def get_model_config() -> dict:
+    with _conn() as conn:
+        rows = conn.execute("SELECT key, value FROM model_config").fetchall()
+    result = dict(_MODEL_DEFAULTS)
+    for r in rows:
+        result[r["key"]] = r["value"]
+    return result
+
+def set_model_config(key: str, value: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO model_config (key, value, updated_at) VALUES (?, ?, datetime('now')) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (key, value),
+        )
+
+
+# ── Notes ─────────────────────────────────────────────────────────────────────
+
+def get_notes(product_id: str) -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT content, updated_at FROM product_notes WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()
+    if row:
+        return dict(row)
+    return {"content": "", "updated_at": ""}
+
+
+def set_notes(product_id: str, content: str) -> dict:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO product_notes (product_id, content, updated_at)
+               VALUES (?, ?, datetime('now'))
+               ON CONFLICT(product_id) DO UPDATE SET
+                   content    = excluded.content,
+                   updated_at = excluded.updated_at""",
+            (product_id, content),
+        )
+        row = conn.execute(
+            "SELECT content, updated_at FROM product_notes WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()
+    return dict(row)
+
+
+# ── Directive history ─────────────────────────────────────────────────────────
+
+def save_directive_history(product_id: str, content: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO directive_history (product_id, content) VALUES (?, ?)",
+            (product_id, content),
+        )
+
+
+def get_directive_history(product_id: str, limit: int = 20) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, content, created_at
+               FROM directive_history
+               WHERE product_id = ?
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (product_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Overview ──────────────────────────────────────────────────────────────────
+
+def get_overview() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT
+                   p.id, p.name, p.icon_label, p.color,
+                   COALESCE(SUM(CASE WHEN w.status='running' THEN 1 ELSE 0 END), 0) AS running_ws,
+                   COALESCE(SUM(CASE WHEN w.status='warn'    THEN 1 ELSE 0 END), 0) AS warn_ws,
+                   COALESCE(SUM(CASE WHEN w.status='paused'  THEN 1 ELSE 0 END), 0) AS paused_ws,
+                   (SELECT COUNT(*) FROM review_items r
+                    WHERE r.product_id = p.id AND r.status = 'pending') AS pending_reviews,
+                   (SELECT COUNT(*) FROM activity_events ae
+                    WHERE ae.product_id = p.id AND ae.status = 'running') AS running_agents
+               FROM products p
+               LEFT JOIN workstreams w ON w.product_id = p.id
+               GROUP BY p.id
+               ORDER BY p.name"""
         ).fetchall()
     return [dict(r) for r in rows]
