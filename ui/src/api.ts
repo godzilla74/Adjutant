@@ -126,4 +126,7 @@ export const api = {
 
   getOverview: (pw: string) =>
     apiFetch<import('./types').ProductOverview[]>('/api/overview', pw),
+
+  sendDigest: (pw: string) =>
+    apiFetch<{ queued: boolean }>('/api/digest', pw, { method: 'POST' }),
 }

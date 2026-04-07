@@ -12,6 +12,7 @@ vi.mock('../api', () => ({
       { id: 'ignitara', name: 'Ignitara', icon_label: 'IG', color: '#7c3aed',
         running_ws: 0, warn_ws: 0, paused_ws: 3, pending_reviews: 0, running_agents: 0 },
     ]),
+    sendDigest: vi.fn().mockResolvedValue({ queued: true }),
   },
 }))
 
@@ -44,5 +45,13 @@ describe('OverviewPanel', () => {
     await waitFor(() => screen.getByText('RetainerOps'))
     fireEvent.click(screen.getByText('RetainerOps'))
     expect(mockOnSelect).toHaveBeenCalledWith('retainerops')
+  })
+
+  it('calls api.sendDigest when Send Digest button is clicked', async () => {
+    const { api } = await import('../api')
+    render(<OverviewPanel {...defaultProps} />)
+    await waitFor(() => screen.getByText('RetainerOps'))
+    fireEvent.click(screen.getByText('Send Digest'))
+    await waitFor(() => expect(api.sendDigest).toHaveBeenCalledWith('test'))
   })
 })

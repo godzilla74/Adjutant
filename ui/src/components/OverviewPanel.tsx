@@ -30,14 +30,36 @@ function StatusDots({ running, warn, paused }: { running: number; warn: number; 
 
 export default function OverviewPanel({ password, onSelectProduct }: Props) {
   const [products, setProducts] = useState<ProductOverview[]>([])
+  const [sending,  setSending]  = useState(false)
 
   useEffect(() => {
     api.getOverview(password).then(setProducts)
   }, [password])
 
+  async function sendDigest() {
+    setSending(true)
+    try {
+      await api.sendDigest(password)
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest mb-4">All Products</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest">All Products</h2>
+        <button
+          onClick={sendDigest}
+          disabled={sending}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium transition-colors disabled:opacity-50"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          {sending ? 'Sending…' : 'Send Digest'}
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-4">
         {products.map(p => (
           <button
