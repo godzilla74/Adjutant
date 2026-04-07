@@ -249,3 +249,46 @@ def get_directive_history_api(product_id: str, _=Depends(_auth)):
 def get_overview_api(_=Depends(_auth)):
     from backend.db import get_overview
     return get_overview()
+
+
+# ── Email digest ──────────────────────────────────────────────────────────────
+
+def _compile_digest_task(data: dict) -> str:
+    lines = [
+        f"MissionControl Digest — {data['generated_at']}",
+        "",
+        "Use gmail_get_profile to find the user's email address, then compose and",
+        "send a clean summary email to that address.",
+        f"Subject: MissionControl Digest — {data['generated_at']}",
+        "Keep it concise and action-oriented. Here is the data:",
+        "",
+    ]
+    for p in data["products"]:
+        lines.append(f"## {p['product_name']}")
+        ws_parts = [f"{w['name']} ({w['status']})" for w in p["workstreams"]]
+        lines.append("Workstreams: " + (", ".join(ws_parts) if ws_parts else "none"))
+        if p["recent_events"]:
+            lines.append("Recent activity (last 24h):")
+            for ev in p["recent_events"]:
+                lines.append(f"  - {ev['headline']} [{ev['status']}]")
+                if ev.get("summary"):
+                    lines.append(f"    {ev['summary'][:200]}")
+        else:
+            lines.append("Recent activity: none")
+        if p["pending_reviews"]:
+            lines.append(f"Pending reviews ({len(p['pending_reviews'])}):")
+            for r in p["pending_reviews"]:
+                lines.append(f"  - {r['title']} ({r['risk_label']})")
+        lines.append("")
+    return "\n".join(lines)
+
+
+@router.post("/digest", status_code=202)
+async def send_digest_api(_=Depends(_auth)):
+    import asyncio
+    from backend.db import get_digest_data
+    from agents.runner import run_email_agent
+    data = get_digest_data()
+    task_text = _compile_digest_task(data)
+    asyncio.create_task(run_email_agent(task_text))
+    return {"queued": True}

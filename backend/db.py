@@ -887,3 +887,45 @@ def get_overview() -> list[dict]:
                ORDER BY p.name"""
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── Digest ────────────────────────────────────────────────────────────────────
+
+def get_digest_data() -> dict:
+    """Compile cross-product activity data for the email digest."""
+    from datetime import datetime, timedelta
+    cutoff = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    with _conn() as conn:
+        products = conn.execute(
+            "SELECT id, name FROM products ORDER BY name"
+        ).fetchall()
+        result = []
+        for p in products:
+            pid = p["id"]
+            workstreams = conn.execute(
+                """SELECT name, status, schedule, last_run_at
+                   FROM workstreams WHERE product_id = ? ORDER BY display_order""",
+                (pid,),
+            ).fetchall()
+            recent_events = conn.execute(
+                """SELECT headline, status, summary
+                   FROM activity_events
+                   WHERE product_id = ? AND created_at >= ?
+                   ORDER BY created_at DESC LIMIT 10""",
+                (pid, cutoff),
+            ).fetchall()
+            pending_reviews = conn.execute(
+                """SELECT title, risk_label
+                   FROM review_items WHERE product_id = ? AND status = 'pending'""",
+                (pid,),
+            ).fetchall()
+            result.append({
+                "product_name":    p["name"],
+                "workstreams":     [dict(w) for w in workstreams],
+                "recent_events":   [dict(e) for e in recent_events],
+                "pending_reviews": [dict(r) for r in pending_reviews],
+            })
+    return {
+        "products":     result,
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
