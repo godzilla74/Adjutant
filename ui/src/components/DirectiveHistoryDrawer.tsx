@@ -21,7 +21,6 @@ export default function DirectiveHistoryDrawer({ productId, password, onClose, o
 
   function use(content: string) {
     onSelect(content)
-    onClose()
   }
 
   return (

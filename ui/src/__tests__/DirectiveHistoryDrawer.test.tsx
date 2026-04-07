@@ -35,12 +35,12 @@ describe('DirectiveHistoryDrawer', () => {
     expect(screen.getByText('Draft three blog post ideas')).toBeInTheDocument()
   })
 
-  it('calls onSelect and onClose when Use button is clicked', async () => {
+  it('calls onSelect when Use button is clicked', async () => {
     render(<DirectiveHistoryDrawer {...defaultProps} />)
     await waitFor(() => screen.getAllByText('Use'))
     fireEvent.click(screen.getAllByText('Use')[0])
     expect(mockOnSelect).toHaveBeenCalledWith('Research competitor pricing')
-    expect(defaultProps.onClose).toHaveBeenCalled()
+    expect(defaultProps.onClose).not.toHaveBeenCalled()
   })
 
   it('closes when backdrop is clicked', async () => {
