@@ -1,9 +1,11 @@
 // ui/src/App.tsx
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNotifications } from './hooks/useNotifications'
 import {
   Product,
   ProductState,
   ActivityEvent,
+  DirectiveItem,
   ServerMessage,
 } from './types'
 import ProductRail from './components/ProductRail'
@@ -11,7 +13,9 @@ import WorkstreamsPanel from './components/WorkstreamsPanel'
 import ActivityFeed from './components/ActivityFeed'
 import ReviewQueue from './components/ReviewQueue'
 import DirectiveBar from './components/DirectiveBar'
+import LiveAgents from './components/LiveAgents'
 import PasswordGate from './components/PasswordGate'
+import SettingsSidebar from './components/SettingsSidebar'
 
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
 
@@ -34,6 +38,11 @@ export default function App() {
   const [directives,      setDirectives]      = useState<Record<string, DirectiveEntry[]>>({})
   const [hannahMessages,  setHannahMessages]  = useState<Record<string, HannahEntry[]>>({})
   const [hannahDraft,     setHannahDraft]     = useState<string>('')
+  const [settingsOpen,    setSettingsOpen]    = useState(false)
+  const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
+
+  const { requestPermission, notify } = useNotifications()
+
   const wsRef    = useRef<WebSocket | null>(null)
   const isMounted = useRef(true)
 
@@ -52,13 +61,28 @@ export default function App() {
     const ws = new WebSocket(`${proto}://${location.host}/ws`)
     wsRef.current = ws
 
-    ws.onopen = () => setConnState('auth')
+    ws.onopen = () => {
+      const saved = sessionStorage.getItem('hannah_pw')
+      if (saved) {
+        ws.send(JSON.stringify({ type: 'auth', password: saved }))
+      } else {
+        setConnState('auth')
+      }
+    }
 
     ws.onmessage = (e) => {
       const msg: ServerMessage = JSON.parse(e.data)
 
-      if (msg.type === 'auth_ok') { setConnState('ready'); return }
-      if (msg.type === 'auth_fail') { setConnState('auth'); return }
+      if (msg.type === 'auth_ok') {
+        setConnState('ready')
+        requestPermission()
+        return
+      }
+      if (msg.type === 'auth_fail') {
+        sessionStorage.removeItem('hannah_pw')
+        setConnState('auth')
+        return
+      }
 
       if (msg.type === 'init') {
         setProducts(msg.products)
@@ -124,6 +148,7 @@ export default function App() {
             ev.id === msg.id ? { ...ev, status: 'done' as const, summary: msg.summary } : ev
           ),
         }))
+        notify('Agent complete', msg.summary?.slice(0, 80))
         return
       }
 
@@ -131,6 +156,15 @@ export default function App() {
         setProductState(msg.product_id, prev => ({
           ...prev,
           review_items: [...prev.review_items, msg.item],
+        }))
+        notify(`Review needed: ${msg.item.title}`, msg.item.description?.slice(0, 80))
+        return
+      }
+
+      if (msg.type === 'queue_update') {
+        setQueueByProduct(prev => ({
+          ...prev,
+          [msg.product_id]: { current: msg.current, queued: msg.queued },
         }))
         return
       }
@@ -147,6 +181,13 @@ export default function App() {
           }
           return next
         })
+        return
+      }
+
+      if ((msg as { type: string }).type === 'error') {
+        const errMsg = (msg as { type: string; message: string }).message
+        console.error('Server error:', errMsg)
+        alert(`Hannah error: ${errMsg}`)
         return
       }
     }
@@ -167,6 +208,7 @@ export default function App() {
   }, [connect])
 
   const sendAuth = useCallback((password: string) => {
+    sessionStorage.setItem('hannah_pw', password)
     wsRef.current?.send(JSON.stringify({ type: 'auth', password }))
   }, [])
 
@@ -182,6 +224,14 @@ export default function App() {
       type: 'directive',
       product_id: activeProductId,
       content,
+    }))
+  }, [activeProductId])
+
+  const cancelDirective = useCallback((directiveId: string) => {
+    wsRef.current?.send(JSON.stringify({
+      type: 'cancel_directive',
+      product_id: activeProductId,
+      directive_id: directiveId,
     }))
   }, [activeProductId])
 
@@ -215,6 +265,16 @@ export default function App() {
             <span className="font-semibold text-zinc-100 text-sm">Hannah</span>
             <span className="text-zinc-700">/</span>
             <span className="text-sm text-zinc-400">{activeProduct?.name ?? '…'}</span>
+            <button
+              onClick={() => setSettingsOpen(o => !o)}
+              title="Product settings"
+              className="ml-1 w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-5">
@@ -255,6 +315,11 @@ export default function App() {
 
         {/* Activity feed */}
         <div className="flex-1 flex flex-col overflow-hidden">
+          <LiveAgents
+            events={activeState.events}
+            currentDirective={queueByProduct[activeProductId]?.current ?? null}
+            onCancelDirective={cancelDirective}
+          />
           <ActivityFeed
             events={activeState.events}
             directives={directives[activeProductId] ?? []}
@@ -272,9 +337,24 @@ export default function App() {
         <ReviewQueue
           items={activeState.review_items.filter(i => i.status === 'pending')}
           onResolve={resolveReview}
+          queued={queueByProduct[activeProductId]?.queued ?? []}
+          onCancelQueued={cancelDirective}
         />
 
       </div>
+
+      {/* Settings sidebar */}
+      {settingsOpen && (
+        <SettingsSidebar
+          productId={activeProductId}
+          workstreams={activeState.workstreams}
+          objectives={activeState.objectives}
+          password={sessionStorage.getItem('hannah_pw') ?? ''}
+          onClose={() => setSettingsOpen(false)}
+          onRefreshData={() => wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: activeProductId }))}
+          onRefreshProducts={() => wsRef.current?.send(JSON.stringify({ type: 'get_products' }))}
+        />
+      )}
     </div>
   )
 }
