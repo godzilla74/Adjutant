@@ -1,6 +1,7 @@
 // ui/src/App.tsx
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNotifications } from './hooks/useNotifications'
+import { api } from './api'
 import {
   Product,
   ProductState,
@@ -350,6 +351,7 @@ export default function App() {
             <WorkstreamsPanel
               workstreams={activeState.workstreams}
               objectives={activeState.objectives}
+              onRunNow={wsId => api.triggerWorkstreamRun(pw, wsId).catch(() => {})}
             />
 
             {/* Activity feed */}
