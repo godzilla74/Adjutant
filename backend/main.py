@@ -67,6 +67,7 @@ _worker_tasks:     dict[str, asyncio.Task] = {}
 
 _last_active_product: str = "retainerops"
 _telegram_bot = None  # set in lifespan; module-level so _broadcast can reach it
+_mcp_manager = None  # set in lifespan; module-level so manage_mcp_server tool can reach it
 
 
 async def _broadcast(event: dict) -> None:
@@ -100,9 +101,11 @@ async def _handle_telegram_directive(product_id: str, content: str) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _telegram_bot
+    global _telegram_bot, _mcp_manager
     from backend.scheduler import scheduler_loop, register_broadcast
     from backend.telegram import TelegramBot
+    from backend.mcp_manager import MCPManager
+    from backend.db import list_all_mcp_servers
     register_broadcast(_broadcast)
     scheduler_task = asyncio.create_task(scheduler_loop(_broadcast, interval_seconds=60))
 
@@ -117,8 +120,13 @@ async def lifespan(app: FastAPI):
     )
     telegram_task = asyncio.create_task(_telegram_bot.start())
 
+    _mcp_manager = MCPManager()
+    stdio_servers = [s for s in list_all_mcp_servers() if s["type"] == "stdio" and s["enabled"]]
+    await _mcp_manager.start(stdio_servers)
+
     yield
 
+    await _mcp_manager.stop()
     tasks_to_cancel = [scheduler_task, telegram_task, *_worker_tasks.values()]
     for t in tasks_to_cancel:
         t.cancel()
@@ -298,17 +306,40 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
     system = get_system_prompt(product_id)
     new_review_items: list[dict] = []
 
+    # Load MCP servers for this product
+    from backend.db import list_mcp_servers as _list_mcp_servers
+    import json as _json_mcp
+    _all_servers = _list_mcp_servers(product_id)
+    _enabled_servers = [s for s in _all_servers if s["enabled"]]
+
+    _remote_mcp = [
+        {
+            "type": "url",
+            "url": s["url"],
+            "name": s["name"],
+            **(_json_mcp.loads(s["env"] or "{}")),
+        }
+        for s in _enabled_servers if s["type"] == "remote"
+    ]
+    _stdio_tools = _mcp_manager.get_tools() if _mcp_manager else []
+    _all_tools = TOOLS_DEFINITIONS + _stdio_tools
+
     while True:
         accumulated_text = ""
 
-        async with client.messages.stream(
+        _stream_kwargs: dict = dict(
             model=AGENT_MODEL,
             max_tokens=8096,
             system=system,
-            tools=TOOLS_DEFINITIONS,
+            tools=_all_tools,
             messages=messages,
             thinking={"type": "adaptive"},
-        ) as stream:
+        )
+        if _remote_mcp:
+            _stream_kwargs["mcp_servers"] = _remote_mcp
+            _stream_kwargs["extra_headers"] = {"anthropic-beta": "mcp-client-2025-04-04"}
+
+        async with client.messages.stream(**_stream_kwargs) as stream:
             async for event in stream:
                 if (
                     event.type == "content_block_delta"
@@ -373,8 +404,11 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
                 })
 
             try:
-                result = await execute_tool(block.name, block.input)
-                output = result if isinstance(result, str) else json.dumps(result)
+                if block.name.startswith("mcp__") and _mcp_manager is not None:
+                    output = await _mcp_manager.execute_tool(block.name, block.input)
+                else:
+                    result = await execute_tool(block.name, block.input)
+                    output = result if isinstance(result, str) else json.dumps(result)
             except Exception as exc:
                 output = f"Error in {block.name}: {exc}"
 
