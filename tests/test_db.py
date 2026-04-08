@@ -184,7 +184,6 @@ def test_seed_uses_env_var_product_when_set(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
     monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_ID", "acme-corp")
     monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_NAME", "Acme Corp")
-    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_DESC", "We make everything.")
     import backend.db as db_mod
     importlib.reload(db_mod)
     db_mod.init_db()
@@ -204,3 +203,17 @@ def test_seed_falls_back_to_hardcoded_when_env_not_set(tmp_path, monkeypatch):
     products = db_mod.get_products()
     ids = [p["id"] for p in products]
     assert "retainerops" in ids
+
+
+def test_seed_icon_label_single_word_product(tmp_path, monkeypatch):
+    """Single-word product names get a 2-char icon label from first two letters."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_ID", "acme")
+    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_NAME", "Acme")
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    products = db_mod.get_products()
+    acme = next(p for p in products if p["id"] == "acme")
+    assert len(acme["icon_label"]) == 2
+    assert acme["icon_label"] == "AC"

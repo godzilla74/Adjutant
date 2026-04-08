@@ -59,10 +59,14 @@ OBJECTIVES = {
 
 def get_seed_products():
     """Return products for initial DB seed. Uses installer env vars if present."""
-    product_id   = os.environ.get("ADJUTANT_SEED_PRODUCT_ID")
+    product_id = os.environ.get("ADJUTANT_SEED_PRODUCT_ID")
     product_name = os.environ.get("ADJUTANT_SEED_PRODUCT_NAME")
     if product_id and product_name:
-        icon_label = "".join(w[0].upper() for w in product_name.split()[:2]) or "XX"
+        words = product_name.split()
+        if len(words) >= 2:
+            icon_label = words[0][0].upper() + words[1][0].upper()
+        else:
+            icon_label = (words[0][:2].upper() if words else "XX")
         return [{"id": product_id, "name": product_name, "icon_label": icon_label, "color": "#2563eb"}]
     return PRODUCTS
 
