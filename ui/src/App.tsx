@@ -354,7 +354,15 @@ export default function App() {
             <WorkstreamsPanel
               workstreams={activeState.workstreams}
               objectives={activeState.objectives}
-              onRunNow={wsId => api.triggerWorkstreamRun(pw, wsId).catch(() => {})}
+              password={pw}
+              onWorkstreamUpdated={(wsId, patch) => {
+                setProductState(activeProductId, prev => ({
+                  ...prev,
+                  workstreams: prev.workstreams.map(ws =>
+                    ws.id === wsId ? { ...ws, ...patch } : ws
+                  ),
+                }))
+              }}
             />
 
             {/* Activity feed */}
