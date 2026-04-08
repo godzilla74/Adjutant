@@ -56,6 +56,10 @@ switch ($Command) {
         }
     }
     "telegram" {
+        if ($args[0] -ne "setup") {
+            Write-Host "Usage: adjutant telegram setup"
+            exit 1
+        }
         Write-Host ""
         Write-Host "Setting up Telegram remote access..."
 
