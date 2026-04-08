@@ -371,6 +371,72 @@ TOOLS_DEFINITIONS = [
             "required": [],
         },
     },
+    {
+        "name": "manage_mcp_server",
+        "description": (
+            "Add, remove, enable, disable, or list MCP (Model Context Protocol) servers. "
+            "Before adding any server: (1) use browser_task to read its documentation "
+            "and identify the endpoint URL and required credentials, (2) confirm with the "
+            "user whether the server should be global (all products) or scoped to a specific "
+            "product. For remote servers, store auth credentials in the env field as "
+            '{"authorization_token": "Bearer <token>"}. '
+            "For stdio servers, store additional env vars needed by the process."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["add", "remove", "enable", "disable", "list"],
+                    "description": "Action to perform",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Display name (required for add)",
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["remote", "stdio"],
+                    "description": "'remote' for HTTP/SSE servers, 'stdio' for local process servers",
+                },
+                "url": {
+                    "type": "string",
+                    "description": "SSE/HTTP endpoint URL (required for remote type)",
+                },
+                "command": {
+                    "type": "string",
+                    "description": "Executable command (required for stdio type, e.g. 'npx')",
+                },
+                "args": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Command arguments for stdio servers",
+                },
+                "env": {
+                    "type": "object",
+                    "description": (
+                        "Credentials and config. For remote: HTTP headers "
+                        '(e.g. {"authorization_token": "Bearer xxx"}). '
+                        "For stdio: extra env vars for the process."
+                    ),
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": ["global", "product"],
+                    "description": "global = all products; product = specific product only",
+                },
+                "product_id": {
+                    "type": "string",
+                    "description": "Required when scope is 'product'",
+                },
+                "server_id": {
+                    "type": "integer",
+                    "description": "Server ID — required for remove, enable, disable",
+                },
+            },
+            "required": ["action"],
+        },
+    },
 ]
 
 # Load extensions and append their definitions
@@ -380,6 +446,107 @@ TOOLS_DEFINITIONS.extend(_load_extensions())
 
 NOTES_DIR = Path.home() / ".hannah" / "notes"
 NOTES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ── MCP server management ─────────────────────────────────────────────────────
+
+async def _manage_mcp_server(
+    action: str,
+    name: str | None = None,
+    type: str | None = None,
+    url: str | None = None,
+    command: str | None = None,
+    args: list | None = None,
+    env: dict | None = None,
+    scope: str | None = None,
+    product_id: str | None = None,
+    server_id: int | None = None,
+) -> str:
+    import json as _json
+    from backend.db import (
+        add_mcp_server, list_mcp_servers, list_all_mcp_servers,
+        get_mcp_server, update_mcp_server, delete_mcp_server,
+    )
+
+    if action == "list":
+        servers = list_mcp_servers(product_id) if product_id else list_all_mcp_servers()
+        if not servers:
+            return "No MCP servers configured."
+        lines = ["Configured MCP servers:"]
+        for s in servers:
+            status = "enabled" if s["enabled"] else "disabled"
+            scope_str = "global" if s["scope"] == "global" else f"product:{s['product_id']}"
+            lines.append(f"  [{s['id']}] {s['name']} ({s['type']}, {scope_str}, {status})")
+        return "\n".join(lines)
+
+    elif action == "add":
+        if not name or not type or not scope:
+            return "Error: name, type, and scope are required for add."
+        if type == "remote" and not url:
+            return "Error: url is required for remote type."
+        if type == "stdio" and not command:
+            return "Error: command is required for stdio type."
+        if scope == "product" and not product_id:
+            return "Error: product_id is required when scope is 'product'."
+
+        env_json = _json.dumps(env) if env else None
+        args_json = _json.dumps(args) if args else None
+
+        sid = add_mcp_server(
+            name=name, type=type, url=url, command=command,
+            args=args_json, env=env_json, scope=scope, product_id=product_id,
+        )
+
+        if type == "stdio":
+            import backend.main as _main
+            if _main._mcp_manager is not None:
+                config = get_mcp_server(sid)
+                await _main._mcp_manager.add_server(config)
+
+        mode = "active" if type == "remote" else "connecting"
+        return f"MCP server '{name}' added (id: {sid}). It is now {mode}."
+
+    elif action == "remove":
+        if server_id is None:
+            return "Error: server_id is required for remove."
+        server = get_mcp_server(server_id)
+        if not server:
+            return f"Error: no server with id {server_id}."
+        if server["type"] == "stdio":
+            import backend.main as _main
+            if _main._mcp_manager is not None:
+                await _main._mcp_manager.remove_server(server_id)
+        delete_mcp_server(server_id)
+        return f"Removed MCP server '{server['name']}'."
+
+    elif action == "enable":
+        if server_id is None:
+            return "Error: server_id is required for enable."
+        server = get_mcp_server(server_id)
+        if not server:
+            return f"Error: no server with id {server_id}."
+        update_mcp_server(server_id, enabled=True)
+        if server["type"] == "stdio":
+            import backend.main as _main
+            if _main._mcp_manager is not None:
+                config = get_mcp_server(server_id)
+                await _main._mcp_manager.add_server(config)
+        return f"Enabled MCP server '{server['name']}'."
+
+    elif action == "disable":
+        if server_id is None:
+            return "Error: server_id is required for disable."
+        server = get_mcp_server(server_id)
+        if not server:
+            return f"Error: no server with id {server_id}."
+        update_mcp_server(server_id, enabled=False)
+        if server["type"] == "stdio":
+            import backend.main as _main
+            if _main._mcp_manager is not None:
+                await _main._mcp_manager.remove_server(server_id)
+        return f"Disabled MCP server '{server['name']}'."
+
+    return f"Unknown action: {action}"
 
 
 # ── Executor ──────────────────────────────────────────────────────────────────
@@ -426,6 +593,8 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _add_agent_tool(**inputs)
     if name == "restart_server":
         return _restart_server()
+    if name == "manage_mcp_server":
+        return await _manage_mcp_server(**inputs)
     if name in _EXTENSION_EXECUTORS:
         return await _EXTENSION_EXECUTORS[name](inputs)
     return f"Unknown tool: {name}"
