@@ -95,7 +95,7 @@ When creating review items, be specific about what will happen and why it needs 
 def get_system_prompt(product_id: str = "retainerops") -> str:
     agent_name = os.environ.get("AGENT_NAME", "Hannah")
     owner_name = os.environ.get("AGENT_OWNER_NAME", "the user")
-    owner_bio  = os.environ.get("AGENT_OWNER_BIO") or COMPANY_INFO
+    owner_bio = os.environ.get("AGENT_OWNER_BIO") or COMPANY_INFO
 
     current_dt = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
 
