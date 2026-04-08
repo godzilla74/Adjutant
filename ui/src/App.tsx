@@ -274,7 +274,7 @@ export default function App() {
         <div className="flex items-center h-full">
           {/* Rail spacer */}
           <div className="w-14 h-full border-r border-zinc-800/60 flex items-center justify-center flex-shrink-0">
-            <span className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center">H</span>
+            <span className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center">{agentName[0]?.toUpperCase() ?? 'A'}</span>
           </div>
           <div className="flex items-center gap-2 pl-4">
             <span className="font-semibold text-zinc-100 text-sm">{agentName}</span>
