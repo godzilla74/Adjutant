@@ -117,6 +117,19 @@ export default function SettingsSidebar({
     bot_username: string | null
   } | null>(null)
 
+  // MCP Servers
+  const [mcpOpen,        setMcpOpen]        = useState(false)
+  const [mcpServers,     setMcpServers]      = useState<{
+    id: number; name: string; type: string; url: string | null;
+    command: string | null; scope: string; product_id: string | null; enabled: number;
+  }[]>([])
+  const [mcpProductFilter, setMcpProductFilter] = useState<string>('')
+  const [mcpAddForm, setMcpAddForm] = useState<{
+    scope: 'global' | 'product'; name: string; type: 'remote' | 'stdio';
+    url: string; command: string; args: string; product_id: string;
+  }>({ scope: 'global', name: '', type: 'remote', url: '', command: '', args: '', product_id: '' })
+  const [mcpAddOpen, setMcpAddOpen] = useState<'global' | 'product' | null>(null)
+
   // Product info form
   const [name,      setName]      = useState('')
   const [iconLabel, setIconLabel] = useState('')
@@ -168,6 +181,13 @@ export default function SettingsSidebar({
       .then(s => setTelegramStatus(s))
       .catch(() => {/* non-fatal */})
   }, [password])
+
+  useEffect(() => {
+    if (!mcpOpen) return
+    api.getMcpServers(password)
+      .then(s => setMcpServers(s))
+      .catch(() => {/* non-fatal */})
+  }, [password, mcpOpen])
 
   // Load agent config on mount
   useEffect(() => {
@@ -329,6 +349,34 @@ export default function SettingsSidebar({
     })
     setEditingObjId(null)
     onRefreshData()
+  }
+
+  const handleMcpToggle = async (id: number, enabled: boolean) => {
+    await api.updateMcpServer(password, id, !enabled).catch(() => null)
+    setMcpServers(prev => prev.map(s => s.id === id ? { ...s, enabled: enabled ? 0 : 1 } : s))
+  }
+
+  const handleMcpDelete = async (id: number) => {
+    await api.deleteMcpServer(password, id).catch(() => null)
+    setMcpServers(prev => prev.filter(s => s.id !== id))
+  }
+
+  const handleMcpAdd = async (scope: 'global' | 'product') => {
+    const f = mcpAddForm
+    const payload: Parameters<typeof api.addMcpServer>[1] = {
+      name: f.name, type: f.type, scope,
+      ...(f.type === 'remote' ? { url: f.url } : {
+        command: f.command,
+        args: f.args ? f.args.split(' ') : [],
+      }),
+      ...(scope === 'product' ? { product_id: f.product_id } : {}),
+    }
+    const created = await api.addMcpServer(password, payload).catch(() => null)
+    if (created) {
+      setMcpServers(prev => [...prev, created as typeof prev[0]])
+      setMcpAddOpen(null)
+      setMcpAddForm({ scope: 'global', name: '', type: 'remote', url: '', command: '', args: '', product_id: '' })
+    }
   }
 
   return (
@@ -771,6 +819,153 @@ export default function SettingsSidebar({
               )}
             </div>
           )}
+          {/* ── MCP Servers ──────────────────────────────────────────────── */}
+          <SectionHeader
+            title="MCP Servers"
+            open={mcpOpen}
+            onToggle={() => setMcpOpen(o => !o)}
+          />
+          {mcpOpen && (() => {
+            const globalServers  = mcpServers.filter(s => s.scope === 'global')
+            const productServers = mcpServers.filter(s => s.scope === 'product' && (!mcpProductFilter || s.product_id === mcpProductFilter))
+            const McpRow = ({ s }: { s: typeof mcpServers[0] }) => (
+              <div key={s.id} className="flex items-center gap-2 py-1">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.enabled ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+                <span className="text-xs text-zinc-300 flex-1 truncate">{s.name}</span>
+                <span className="text-xs text-zinc-600 font-mono">{s.type}</span>
+                <button
+                  onClick={() => handleMcpToggle(s.id, !!s.enabled)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 px-1"
+                  title={s.enabled ? 'Disable' : 'Enable'}
+                >
+                  {s.enabled ? 'on' : 'off'}
+                </button>
+                <button
+                  onClick={() => handleMcpDelete(s.id)}
+                  className="text-xs text-zinc-600 hover:text-red-400 px-1"
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+            const AddForm = ({ scope }: { scope: 'global' | 'product' }) => (
+              <div className="mt-2 space-y-2 border border-zinc-700 rounded p-3">
+                <input
+                  className="w-full bg-zinc-800 text-xs text-zinc-200 rounded px-2 py-1 border border-zinc-700"
+                  placeholder="Server name"
+                  value={mcpAddForm.name}
+                  onChange={e => setMcpAddForm(f => ({ ...f, name: e.target.value }))}
+                />
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 bg-zinc-800 text-xs text-zinc-200 rounded px-2 py-1 border border-zinc-700"
+                    value={mcpAddForm.type}
+                    onChange={e => setMcpAddForm(f => ({ ...f, type: e.target.value as 'remote' | 'stdio' }))}
+                  >
+                    <option value="remote">Remote (HTTP/SSE)</option>
+                    <option value="stdio">Local (stdio)</option>
+                  </select>
+                </div>
+                {mcpAddForm.type === 'remote' ? (
+                  <input
+                    className="w-full bg-zinc-800 text-xs text-zinc-200 rounded px-2 py-1 border border-zinc-700"
+                    placeholder="Endpoint URL"
+                    value={mcpAddForm.url}
+                    onChange={e => setMcpAddForm(f => ({ ...f, url: e.target.value }))}
+                  />
+                ) : (
+                  <>
+                    <input
+                      className="w-full bg-zinc-800 text-xs text-zinc-200 rounded px-2 py-1 border border-zinc-700"
+                      placeholder="Command (e.g. npx)"
+                      value={mcpAddForm.command}
+                      onChange={e => setMcpAddForm(f => ({ ...f, command: e.target.value }))}
+                    />
+                    <input
+                      className="w-full bg-zinc-800 text-xs text-zinc-200 rounded px-2 py-1 border border-zinc-700"
+                      placeholder="Args (space-separated)"
+                      value={mcpAddForm.args}
+                      onChange={e => setMcpAddForm(f => ({ ...f, args: e.target.value }))}
+                    />
+                  </>
+                )}
+                {scope === 'product' && (
+                  <input
+                    className="w-full bg-zinc-800 text-xs text-zinc-200 rounded px-2 py-1 border border-zinc-700"
+                    placeholder="Product ID"
+                    value={mcpAddForm.product_id}
+                    onChange={e => setMcpAddForm(f => ({ ...f, product_id: e.target.value }))}
+                  />
+                )}
+                <p className="text-xs text-zinc-600">Credentials: tell Hannah to add this server — she'll ask for them.</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleMcpAdd(scope)}
+                    className="flex-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded px-2 py-1"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => setMcpAddOpen(null)}
+                    className="text-xs text-zinc-600 hover:text-zinc-400 px-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )
+            return (
+              <div className="border-b border-zinc-800/60">
+                {/* Global servers */}
+                <div className="px-4 pt-3 pb-2">
+                  <p className="text-xs text-zinc-500 font-medium mb-2">Global</p>
+                  {globalServers.length === 0
+                    ? <p className="text-xs text-zinc-600">None configured</p>
+                    : globalServers.map(s => <McpRow key={s.id} s={s} />)
+                  }
+                  {mcpAddOpen === 'global'
+                    ? <AddForm scope="global" />
+                    : (
+                      <button
+                        onClick={() => setMcpAddOpen('global')}
+                        className="mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+                      >
+                        + Add global server
+                      </button>
+                    )
+                  }
+                </div>
+                {/* Per-product servers */}
+                <div className="px-4 pt-2 pb-3 border-t border-zinc-800/40">
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs text-zinc-500 font-medium">Per-product</p>
+                    <input
+                      className="flex-1 bg-zinc-800 text-xs text-zinc-400 rounded px-2 py-0.5 border border-zinc-700"
+                      placeholder="Filter by product ID"
+                      value={mcpProductFilter}
+                      onChange={e => setMcpProductFilter(e.target.value)}
+                    />
+                  </div>
+                  {productServers.length === 0
+                    ? <p className="text-xs text-zinc-600">None configured</p>
+                    : productServers.map(s => <McpRow key={s.id} s={s} />)
+                  }
+                  {mcpAddOpen === 'product'
+                    ? <AddForm scope="product" />
+                    : (
+                      <button
+                        onClick={() => setMcpAddOpen('product')}
+                        className="mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+                      >
+                        + Add product server
+                      </button>
+                    )
+                  }
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </aside>
     </>
