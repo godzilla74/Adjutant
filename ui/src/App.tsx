@@ -25,7 +25,7 @@ import OverviewPanel from './components/OverviewPanel'
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
 
 interface DirectiveEntry { type: 'directive'; content: string; ts: string }
-interface HannahEntry   { type: 'hannah';    content: string; ts: string }
+interface AgentEntry    { type: 'agent';     content: string; ts: string }
 
 // Per-product UI state
 const EMPTY_STATE: ProductState = {
@@ -41,8 +41,9 @@ export default function App() {
   const [activeProductId, setActiveProductId] = useState<string>('retainerops')
   const [productStates,   setProductStates]   = useState<Record<string, ProductState>>({})
   const [directives,      setDirectives]      = useState<Record<string, DirectiveEntry[]>>({})
-  const [hannahMessages,  setHannahMessages]  = useState<Record<string, HannahEntry[]>>({})
-  const [hannahDraft,     setHannahDraft]     = useState<string>('')
+  const [agentMessages,   setAgentMessages]   = useState<Record<string, AgentEntry[]>>({})
+  const [agentDraft,      setAgentDraft]      = useState<string>('')
+  const [agentName,       setAgentName]       = useState<string>('Hannah')
   const [settingsOpen,    setSettingsOpen]    = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
@@ -71,7 +72,7 @@ export default function App() {
     wsRef.current = ws
 
     ws.onopen = () => {
-      const saved = sessionStorage.getItem('hannah_pw')
+      const saved = sessionStorage.getItem('agent_pw')
       if (saved) {
         ws.send(JSON.stringify({ type: 'auth', password: saved }))
       } else {
@@ -85,10 +86,12 @@ export default function App() {
       if (msg.type === 'auth_ok') {
         setConnState('ready')
         requestPermission()
+        const saved = sessionStorage.getItem('agent_pw') ?? ''
+        api.getAgentConfig(saved).then(cfg => setAgentName(cfg.agent_name)).catch(() => {})
         return
       }
       if (msg.type === 'auth_fail') {
-        sessionStorage.removeItem('hannah_pw')
+        sessionStorage.removeItem('agent_pw')
         setConnState('auth')
         return
       }
@@ -118,16 +121,16 @@ export default function App() {
         return
       }
 
-      if (msg.type === 'hannah_token') {
-        setHannahDraft(prev => prev + msg.content)
+      if (msg.type === 'agent_token') {
+        setAgentDraft(prev => prev + msg.content)
         return
       }
 
-      if (msg.type === 'hannah_done') {
-        setHannahDraft('')
-        setHannahMessages(prev => ({
+      if (msg.type === 'agent_done') {
+        setAgentDraft('')
+        setAgentMessages(prev => ({
           ...prev,
-          [msg.product_id]: [...(prev[msg.product_id] ?? []), { type: 'hannah', content: msg.content, ts: msg.ts }],
+          [msg.product_id]: [...(prev[msg.product_id] ?? []), { type: 'agent', content: msg.content, ts: msg.ts }],
         }))
         return
       }
@@ -196,7 +199,7 @@ export default function App() {
       if ((msg as { type: string }).type === 'error') {
         const errMsg = (msg as { type: string; message: string }).message
         console.error('Server error:', errMsg)
-        alert(`Hannah error: ${errMsg}`)
+        alert(`${agentName} error: ${errMsg}`)
         return
       }
     }
@@ -217,7 +220,7 @@ export default function App() {
   }, [connect])
 
   const sendAuth = useCallback((password: string) => {
-    sessionStorage.setItem('hannah_pw', password)
+    sessionStorage.setItem('agent_pw', password)
     wsRef.current?.send(JSON.stringify({ type: 'auth', password }))
   }, [])
 
@@ -257,7 +260,7 @@ export default function App() {
     return <PasswordGate onSubmit={sendAuth} connecting={connState === 'connecting'} />
   }
 
-  const pw = sessionStorage.getItem('hannah_pw') ?? ''
+  const pw = sessionStorage.getItem('agent_pw') ?? ''
 
   // Header stats
   const activeAgentCount = activeState.events.filter(e => e.status === 'running').length
@@ -274,7 +277,7 @@ export default function App() {
             <span className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center">H</span>
           </div>
           <div className="flex items-center gap-2 pl-4">
-            <span className="font-semibold text-zinc-100 text-sm">Hannah</span>
+            <span className="font-semibold text-zinc-100 text-sm">{agentName}</span>
             <span className="text-zinc-700">/</span>
             <span className="text-sm text-zinc-400">{activeProduct?.name ?? '…'}</span>
             {/* Notes button */}
@@ -364,8 +367,9 @@ export default function App() {
               <ActivityFeed
                 events={activeState.events}
                 directives={directives[activeProductId] ?? []}
-                hannahMessages={hannahMessages[activeProductId] ?? []}
-                hannahDraft={hannahDraft}
+                agentMessages={agentMessages[activeProductId] ?? []}
+                agentDraft={agentDraft}
+                agentName={agentName}
               />
               <DirectiveTemplates
                 productId={activeProductId}
@@ -376,6 +380,7 @@ export default function App() {
                 onSend={sendDirective}
                 disabled={connState !== 'ready'}
                 productName={activeProduct?.name ?? 'this product'}
+                agentName={agentName}
                 prefill={directivePrefill}
                 onPrefillConsumed={() => setDirectivePrefill('')}
               />
