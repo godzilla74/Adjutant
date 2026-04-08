@@ -81,8 +81,8 @@ export type ServerMessage =
   | { type: 'activity_done'; product_id: string; id: number; summary: string; ts: string }
   | { type: 'review_item_added'; product_id: string; item: ReviewItem }
   | { type: 'review_resolved'; review_item_id: number; action: string }
-  | { type: 'hannah_token'; product_id: string; content: string }
-  | { type: 'hannah_done'; product_id: string; content: string; ts: string }
+  | { type: 'agent_token'; product_id: string; content: string }
+  | { type: 'agent_done'; product_id: string; content: string; ts: string }
   | { type: 'queue_update'; product_id: string; current: DirectiveItem | null; queued: DirectiveItem[] }
 
 export interface DirectiveHistoryItem {

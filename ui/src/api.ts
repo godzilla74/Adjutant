@@ -10,7 +10,7 @@ async function apiFetch<T>(
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'X-Hannah-Password': password,
+      'X-Agent-Password': password,
       ...(options?.headers ?? {}),
     },
   })
@@ -101,11 +101,11 @@ export const api = {
   deleteTemplate: (pw: string, templateId: number) =>
     apiFetch<void>(`/api/templates/${templateId}`, pw, { method: 'DELETE' }),
 
-  getModelConfig: (pw: string) =>
-    apiFetch<{ hannah_model: string; subagent_model: string }>('/api/model-config', pw),
+  getAgentConfig: (pw: string) =>
+    apiFetch<{ agent_model: string; subagent_model: string; agent_name: string }>('/api/agent-config', pw),
 
-  updateModelConfig: (pw: string, data: { hannah_model?: string; subagent_model?: string }) =>
-    apiFetch<{ hannah_model: string; subagent_model: string }>('/api/model-config', pw, {
+  updateAgentConfig: (pw: string, data: { agent_model?: string; subagent_model?: string; agent_name?: string }) =>
+    apiFetch<{ agent_model: string; subagent_model: string; agent_name: string }>('/api/agent-config', pw, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
