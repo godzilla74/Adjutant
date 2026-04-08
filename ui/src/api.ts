@@ -134,4 +134,31 @@ export const api = {
     apiFetch<{ configured: boolean; connected: boolean; bot_username: string | null }>(
       '/api/telegram/status', pw,
     ),
+
+  getMcpServers: (pw: string, productId?: string) =>
+    apiFetch<{
+      id: number; name: string; type: string; url: string | null;
+      command: string | null; args: string | null; scope: string;
+      product_id: string | null; enabled: number; created_at: string;
+    }[]>(
+      `/api/mcp-servers${productId ? `?product_id=${productId}` : ''}`, pw,
+    ),
+
+  addMcpServer: (pw: string, payload: {
+    name: string; type: string; url?: string; command?: string;
+    args?: string[]; env?: Record<string, string>; scope: string; product_id?: string;
+  }) =>
+    apiFetch<{ id: number; name: string; type: string; scope: string; enabled: number }>(
+      '/api/mcp-servers', pw,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+
+  updateMcpServer: (pw: string, id: number, enabled: boolean) =>
+    apiFetch<{ id: number; name: string; enabled: number }>(
+      `/api/mcp-servers/${id}`, pw,
+      { method: 'PATCH', body: JSON.stringify({ enabled }) },
+    ),
+
+  deleteMcpServer: (pw: string, id: number) =>
+    apiFetch<void>(`/api/mcp-servers/${id}`, pw, { method: 'DELETE' }),
 }

@@ -54,6 +54,20 @@ class ObjectiveUpdate(BaseModel):
     progress_target:  int | None = None
 
 
+class McpServerCreate(BaseModel):
+    name: str
+    type: str
+    url: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict | None = None
+    scope: str
+    product_id: str | None = None
+
+class McpServerUpdate(BaseModel):
+    enabled: bool
+
+
 # ── Product config ────────────────────────────────────────────────────────────
 
 @router.get("/products/{product_id}/config")
@@ -320,3 +334,77 @@ async def get_telegram_status(_=Depends(_auth)):
     except Exception:
         pass
     return {"configured": True, "connected": False, "bot_username": None}
+
+
+# ── MCP Servers ───────────────────────────────────────────────────────────────
+
+@router.get("/mcp-servers")
+def list_mcp_servers_api(product_id: str | None = None, _=Depends(_auth)):
+    from backend.db import list_mcp_servers, list_all_mcp_servers
+    servers = list_mcp_servers(product_id) if product_id else list_all_mcp_servers()
+    # Never return credentials
+    return [{k: v for k, v in s.items() if k != "env"} for s in servers]
+
+
+@router.post("/mcp-servers", status_code=201)
+async def create_mcp_server_api(body: McpServerCreate, _=Depends(_auth)):
+    import json as _json
+    from backend.db import add_mcp_server, get_mcp_server
+    if body.type not in ("remote", "stdio"):
+        raise HTTPException(status_code=422, detail="type must be 'remote' or 'stdio'")
+    if body.scope not in ("global", "product"):
+        raise HTTPException(status_code=422, detail="scope must be 'global' or 'product'")
+    if body.type == "remote" and not body.url:
+        raise HTTPException(status_code=422, detail="url required for remote type")
+    if body.type == "stdio" and not body.command:
+        raise HTTPException(status_code=422, detail="command required for stdio type")
+
+    env_json = _json.dumps(body.env) if body.env else None
+    args_json = _json.dumps(body.args) if body.args else None
+
+    sid = add_mcp_server(
+        name=body.name, type=body.type, url=body.url,
+        command=body.command, args=args_json, env=env_json,
+        scope=body.scope, product_id=body.product_id,
+    )
+
+    if body.type == "stdio":
+        import backend.main as _main
+        if _main._mcp_manager is not None:
+            config = get_mcp_server(sid)
+            await _main._mcp_manager.add_server(config)
+
+    config = get_mcp_server(sid)
+    return {k: v for k, v in config.items() if k != "env"}
+
+
+@router.patch("/mcp-servers/{server_id}")
+async def update_mcp_server_api(server_id: int, body: McpServerUpdate, _=Depends(_auth)):
+    from backend.db import get_mcp_server, update_mcp_server
+    server = get_mcp_server(server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    update_mcp_server(server_id, enabled=body.enabled)
+    if server["type"] == "stdio":
+        import backend.main as _main
+        if _main._mcp_manager is not None:
+            if body.enabled:
+                config = get_mcp_server(server_id)
+                await _main._mcp_manager.add_server(config)
+            else:
+                await _main._mcp_manager.remove_server(server_id)
+    updated = get_mcp_server(server_id)
+    return {k: v for k, v in updated.items() if k != "env"}
+
+
+@router.delete("/mcp-servers/{server_id}", status_code=204)
+async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
+    from backend.db import get_mcp_server, delete_mcp_server
+    server = get_mcp_server(server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    if server["type"] == "stdio":
+        import backend.main as _main
+        if _main._mcp_manager is not None:
+            await _main._mcp_manager.remove_server(server_id)
+    delete_mcp_server(server_id)
