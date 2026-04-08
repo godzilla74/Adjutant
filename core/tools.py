@@ -195,7 +195,7 @@ TOOLS_DEFINITIONS = [
     },
     {
         "name": "create_product",
-        "description": "Create a new product in MissionControl. Use when Justin wants to add a new business or product to track.",
+        "description": "Create a new product in Adjutant. Use when Justin wants to add a new business or product to track.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -302,6 +302,7 @@ TOOLS_DEFINITIONS = [
                 "platform":           {"type": "string", "description": "e.g. 'instagram', 'linkedin', 'twitter', 'facebook'"},
                 "content":            {"type": "string", "description": "The post text, ready to publish"},
                 "image_description":  {"type": "string", "description": "Description of the image/visual to pair with this post (optional)"},
+                "image_url":          {"type": "string", "description": "Public URL of an image to attach (required for Instagram, optional for others)"},
             },
             "required": ["product_id", "platform", "content"],
         },
@@ -351,7 +352,7 @@ TOOLS_DEFINITIONS = [
     {
         "name": "restart_server",
         "description": (
-            "Restart the MissionControl server to pick up new extensions or code changes. "
+            "Restart the Adjutant server to pick up new extensions or code changes. "
             "The client will reconnect automatically within a few seconds. "
             "Call this after add_agent_tool or any code modification."
         ),
@@ -558,7 +559,7 @@ async def execute(inputs: dict) -> str:
 def _restart_server() -> str:
     import subprocess
     subprocess.Popen(
-        "sleep 3 && systemctl --user restart missioncontrol",
+        "sleep 3 && systemctl --user restart adjutant",
         shell=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -606,13 +607,15 @@ def _delete_objective(product_id: str, text_fragment: str) -> str:
     from backend.db import delete_objective
     return delete_objective(product_id, text_fragment)
 
-async def _draft_social_post(product_id: str, platform: str, content: str, image_description: str = "") -> str:
+async def _draft_social_post(product_id: str, platform: str, content: str, image_description: str = "", image_url: str = "") -> str:
     from backend.db import save_social_draft, save_review_item
     # Create review item first
     risk = f"Social post · {platform} · public-facing · irreversible once posted"
     description = f"**Platform:** {platform}\n\n**Content:**\n{content}"
     if image_description:
         description += f"\n\n**Image:** {image_description}"
+    if image_url:
+        description += f"\n\n**Image URL:** {image_url}"
     review_id = save_review_item(
         product_id=product_id,
         title=f"Post to {platform.capitalize()}",
@@ -625,6 +628,7 @@ async def _draft_social_post(product_id: str, platform: str, content: str, image
         platform=platform,
         content=content,
         image_description=image_description,
+        image_url=image_url,
         review_item_id=review_id,
     )
     return json.dumps({

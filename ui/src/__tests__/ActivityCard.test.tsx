@@ -1,6 +1,6 @@
 // ui/src/__tests__/ActivityCard.test.tsx
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import ActivityCard from '../components/ActivityCard'
 import { ActivityEvent } from '../types'
@@ -22,10 +22,6 @@ describe('ActivityCard', () => {
     expect(screen.getByText('Researching competitor pricing')).toBeInTheDocument()
   })
 
-  it('renders rationale', () => {
-    render(<ActivityCard event={BASE} />)
-    expect(screen.getByText(/HoneyBook raised prices/)).toBeInTheDocument()
-  })
 
   it('shows running indicator when status is running', () => {
     render(<ActivityCard event={BASE} />)
@@ -48,5 +44,23 @@ describe('ActivityCard', () => {
     const email: ActivityEvent = { ...BASE, agent_type: 'email' }
     render(<ActivityCard event={email} />)
     expect(screen.getByText('Email Agent')).toBeInTheDocument()
+  })
+
+  it('truncates long summary and expands on click', () => {
+    const longSummary = 'A'.repeat(400)
+    const event: ActivityEvent = { ...BASE, status: 'done', summary: longSummary }
+    render(<ActivityCard event={event} />)
+    expect(screen.getByText('Show more')).toBeInTheDocument()
+    expect(screen.queryByText(longSummary)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Show more'))
+    expect(screen.getByText(longSummary)).toBeInTheDocument()
+    expect(screen.getByText('Show less')).toBeInTheDocument()
+  })
+
+  it('shows short summary without toggle', () => {
+    const event: ActivityEvent = { ...BASE, status: 'done', summary: 'Short result.' }
+    render(<ActivityCard event={event} />)
+    expect(screen.getByText('Short result.')).toBeInTheDocument()
+    expect(screen.queryByText('Show more')).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 # backend/api.py
-"""REST API for MissionControl settings — product config, workstreams, objectives."""
+"""REST API for Adjutant settings — product config, workstreams, objectives."""
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Header
@@ -258,11 +258,11 @@ def get_overview_api(_=Depends(_auth)):
 
 def _compile_digest_task(data: dict) -> str:
     lines = [
-        f"MissionControl Digest — {data['generated_at']}",
+        f"Adjutant Digest — {data['generated_at']}",
         "",
         "Use gmail_get_profile to find the user's email address, then compose and",
         "send a clean summary email to that address.",
-        f"Subject: MissionControl Digest — {data['generated_at']}",
+        f"Subject: Adjutant Digest — {data['generated_at']}",
         "Keep it concise and action-oriented. Here is the data:",
         "",
     ]

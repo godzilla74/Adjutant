@@ -16,7 +16,7 @@ export default function PasswordGate({ onSubmit, connecting }: Props) {
   return (
     <div className="flex h-full items-center justify-center bg-zinc-950">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-72">
-        <h1 className="text-xl font-semibold text-zinc-100 text-center">MissionControl</h1>
+        <h1 className="text-xl font-semibold text-zinc-100 text-center">Adjutant</h1>
         <input
           type="password"
           placeholder="Password"

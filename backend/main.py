@@ -1,5 +1,5 @@
 # backend/main.py
-"""MissionControl — FastAPI backend (multi-product)."""
+"""Adjutant — FastAPI backend (multi-product)."""
 
 import asyncio
 import json

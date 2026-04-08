@@ -10,7 +10,7 @@ from typing import Optional
 from backend.seed_data import OBJECTIVES, PRODUCTS, WORKSTREAMS
 
 _db_path_override = os.environ.get("AGENT_DB")
-DB_PATH = Path(_db_path_override) if _db_path_override else Path.home() / ".hannah" / "missioncontrol.db"
+DB_PATH = Path(_db_path_override) if _db_path_override else Path.home() / ".hannah" / "adjutant.db"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 

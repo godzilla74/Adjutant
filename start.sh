@@ -4,6 +4,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Kill any existing instance
+pkill -f "uvicorn backend.main" 2>/dev/null && echo "Stopped existing server." || true
+
 # Python venv
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
@@ -21,14 +24,16 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# Build React UI
-if [ -d "ui/node_modules" ]; then
-    echo "Building UI..."
-    cd ui && npm run build && cd ..
-else
-    echo "WARNING: ui/node_modules not found. Run 'cd ui && npm install' first."
+# Build React UI (skip with --no-build)
+if [[ "$*" != *--no-build* ]]; then
+    if [ -d "ui/node_modules" ]; then
+        echo "Building UI..."
+        cd ui && npm run build && cd ..
+    else
+        echo "WARNING: ui/node_modules not found. Run 'cd ui && npm install' first."
+    fi
 fi
 
 PORT=${HANNAH_PORT:-8001}
 echo "Starting Hannah on http://0.0.0.0:$PORT"
-.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port "$PORT"
+exec .venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port "$PORT"
