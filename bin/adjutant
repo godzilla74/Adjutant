@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# adjutant — Adjutant CLI
+set -e
+
+ADJUTANT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OS="$(uname -s)"
+
+case "$OS" in
+    Darwin*)
+        PLIST="$HOME/Library/LaunchAgents/ai.adjutantapp.plist"
+        LOG_FILE="$HOME/Library/Application Support/Adjutant/adjutant.log"
+        svc_start()   { launchctl load "$PLIST" 2>/dev/null || launchctl kickstart -k "gui/$(id -u)/ai.adjutantapp"; }
+        svc_stop()    { launchctl unload "$PLIST" 2>/dev/null || true; }
+        svc_restart() { launchctl kickstart -k "gui/$(id -u)/ai.adjutantapp"; }
+        svc_remove()  {
+            launchctl unload "$PLIST" 2>/dev/null || true
+            rm -f "$PLIST"
+            rm -rf "$HOME/Library/Application Support/Adjutant"
+        }
+        ;;
+    *)
+        LOG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/Adjutant/adjutant.log"
+        svc_start()   { systemctl --user start adjutant; }
+        svc_stop()    { systemctl --user stop adjutant; }
+        svc_restart() { systemctl --user restart adjutant; }
+        svc_remove()  {
+            systemctl --user stop adjutant 2>/dev/null || true
+            systemctl --user disable adjutant 2>/dev/null || true
+            rm -f "$HOME/.config/systemd/user/adjutant.service"
+            systemctl --user daemon-reload
+            rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/Adjutant"
+        }
+        ;;
+esac
+
+case "$1" in
+    start)
+        svc_start
+        echo "Adjutant started."
+        ;;
+    stop)
+        svc_stop
+        echo "Adjutant stopped."
+        ;;
+    restart)
+        svc_restart
+        echo "Adjutant restarted."
+        ;;
+    logs)
+        tail -f "$LOG_FILE"
+        ;;
+    update)
+        echo "Updating Adjutant..."
+        cd "$ADJUTANT_DIR"
+        git pull
+        .venv/bin/pip install --quiet -r requirements.txt
+        cd ui && npm install --silent && npm run build --silent && cd ..
+        svc_restart
+        echo "Adjutant updated and restarted."
+        ;;
+    uninstall)
+        echo ""
+        echo "This will permanently remove Adjutant and all your data."
+        read -p "Type 'uninstall' to confirm: " CONFIRM
+        if [ "$CONFIRM" = "uninstall" ]; then
+            svc_remove
+            rm -f "$HOME/.local/bin/adjutant"
+            rm -rf "$ADJUTANT_DIR"
+            echo "Adjutant has been uninstalled."
+        else
+            echo "Uninstall cancelled."
+        fi
+        ;;
+    *)
+        echo "Usage: adjutant {start|stop|restart|update|logs|uninstall}"
+        exit 1
+        ;;
+esac
