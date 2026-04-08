@@ -13,7 +13,7 @@ const makeEvent = (
   id: number,
   agent_type: 'research' | 'general',
   headline: string,
-  status: 'done' | 'running' = 'done',
+  status: ActivityEvent['status'] = 'done',
 ): ActivityEvent => ({
   id,
   agent_type,

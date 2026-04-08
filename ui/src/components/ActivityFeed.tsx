@@ -54,7 +54,7 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
     if (activeTab === 'chat') {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [chatEntries.length, agentDraft, activeTab])
+  }, [directives.length, agentMessages.length, agentDraft, activeTab])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
