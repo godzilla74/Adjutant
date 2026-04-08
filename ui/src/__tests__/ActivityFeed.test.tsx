@@ -113,6 +113,12 @@ describe('ActivityFeed — Activity tab', () => {
     expect(screen.queryByText('Drafting quarterly goals')).not.toBeInTheDocument()
   })
 
+  it('shows empty state when events array is empty', () => {
+    render(<ActivityFeed {...BASE_PROPS} events={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: /activity/i }))
+    expect(screen.getByText('No agent activity yet.')).toBeInTheDocument()
+  })
+
   it('clears filter chip on second click', () => {
     render(<ActivityFeed {...BASE_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: /activity/i }))
