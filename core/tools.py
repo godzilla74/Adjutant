@@ -558,13 +558,20 @@ async def execute(inputs: dict) -> str:
 
 def _restart_server() -> str:
     import subprocess
+    import sys
+    if sys.platform == "darwin":
+        cmd = "sleep 3 && launchctl kickstart -k gui/$(id -u)/ai.adjutantapp"
+    elif sys.platform == "win32":
+        cmd = "timeout 3 && schtasks /run /tn Adjutant"
+    else:  # Linux
+        cmd = "sleep 3 && systemctl --user restart adjutant"
     subprocess.Popen(
-        "sleep 3 && systemctl --user restart adjutant",
+        cmd,
         shell=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    return "Server restart scheduled in 3 seconds. The connection will drop and reconnect automatically."
+    return "Server restart initiated — client will reconnect in a few seconds."
 
 
 def _create_objective(product_id: str, text: str, progress_current: int = 0, progress_target: int | None = None) -> str:
