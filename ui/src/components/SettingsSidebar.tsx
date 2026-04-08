@@ -109,6 +109,14 @@ export default function SettingsSidebar({
   const [wsOpen,      setWsOpen]      = useState(true)
   const [objOpen,     setObjOpen]     = useState(true)
 
+  // Remote Access
+  const [remoteOpen,       setRemoteOpen]       = useState(false)
+  const [telegramStatus,   setTelegramStatus]   = useState<{
+    configured: boolean
+    connected: boolean
+    bot_username: string | null
+  } | null>(null)
+
   // Product info form
   const [name,      setName]      = useState('')
   const [iconLabel, setIconLabel] = useState('')
@@ -154,6 +162,12 @@ export default function SettingsSidebar({
   const [editingObjId, setEditingObjId] = useState<number | null>(null)
   const [editObjCur,   setEditObjCur]   = useState('')
   const [editObjTgt,   setEditObjTgt]   = useState('')
+
+  useEffect(() => {
+    api.getTelegramStatus(password)
+      .then(s => setTelegramStatus(s))
+      .catch(() => {/* non-fatal */})
+  }, [password])
 
   // Load agent config on mount
   useEffect(() => {
@@ -705,6 +719,55 @@ export default function SettingsSidebar({
               )}
               {objectives.length === 0 && !addingObj && (
                 <div className="px-4 py-3 text-xs text-zinc-700">No objectives yet.</div>
+              )}
+            </div>
+          )}
+          {/* ── Remote Access ─────────────────────────────────────────── */}
+          <SectionHeader
+            title="Remote Access"
+            open={remoteOpen}
+            onToggle={() => setRemoteOpen(o => !o)}
+          />
+          {remoteOpen && (
+            <div className="px-4 py-4 space-y-3 border-b border-zinc-800/60">
+              {telegramStatus === null ? (
+                <p className="text-xs text-zinc-600">Checking…</p>
+              ) : telegramStatus.connected ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                    <span className="text-sm text-zinc-200">
+                      Connected as <span className="font-mono text-emerald-400">@{telegramStatus.bot_username}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-500">
+                    Message your bot on Telegram to chat with your assistant from anywhere.
+                    Use <span className="font-mono text-zinc-400">for ProductName: message</span> to target a specific product.
+                  </p>
+                </div>
+              ) : telegramStatus.configured ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                    <span className="text-sm text-zinc-400">Token set but bot unreachable</span>
+                  </div>
+                  <p className="text-xs text-zinc-500">
+                    Check your <span className="font-mono text-zinc-400">TELEGRAM_BOT_TOKEN</span> in config.env and restart.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-zinc-400">Connect Telegram to chat with your assistant from anywhere — no port forwarding required.</p>
+                  <ol className="space-y-2 text-xs text-zinc-500 list-decimal list-inside leading-relaxed">
+                    <li>Message <span className="font-mono text-zinc-400">@BotFather</span> on Telegram → <span className="font-mono text-zinc-400">/newbot</span> → copy the token</li>
+                    <li>Add to your <span className="font-mono text-zinc-400">config.env</span>:<br />
+                      <span className="font-mono text-zinc-400 ml-4">TELEGRAM_BOT_TOKEN=your_token</span>
+                    </li>
+                    <li>Message your new bot once (any text)</li>
+                    <li>Run <span className="font-mono text-zinc-400">adjutant telegram setup</span></li>
+                    <li>Run <span className="font-mono text-zinc-400">adjutant restart</span></li>
+                  </ol>
+                </div>
               )}
             </div>
           )}
