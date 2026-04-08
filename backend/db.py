@@ -153,6 +153,22 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_directive_history_product
                 ON directive_history(product_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS mcp_servers (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                type       TEXT NOT NULL,
+                url        TEXT,
+                command    TEXT,
+                args       TEXT,
+                env        TEXT,
+                scope      TEXT NOT NULL DEFAULT 'global',
+                product_id TEXT,
+                enabled    INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_mcp_servers_scope
+                ON mcp_servers(scope, product_id);
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -958,3 +974,66 @@ def get_digest_data() -> dict:
         "products":     result,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
+
+
+# ── MCP Servers ───────────────────────────────────────────────────────────────
+
+def add_mcp_server(
+    name: str,
+    type: str,
+    url: str | None,
+    command: str | None,
+    args: str | None,
+    env: str | None,
+    scope: str,
+    product_id: str | None,
+) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO mcp_servers (name, type, url, command, args, env, scope, product_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, type, url, command, args, env, scope, product_id),
+        )
+        return cur.lastrowid
+
+
+def list_mcp_servers(product_id: str) -> list[dict]:
+    """Return all MCP servers for a product: globals + product-scoped."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT * FROM mcp_servers
+               WHERE scope = 'global'
+               OR (scope = 'product' AND product_id = ?)
+               ORDER BY scope DESC, id ASC""",
+            (product_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def list_all_mcp_servers() -> list[dict]:
+    """Return every MCP server regardless of scope (used by Settings UI)."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM mcp_servers ORDER BY scope DESC, id ASC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_mcp_server(id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM mcp_servers WHERE id = ?", (id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def update_mcp_server(id: int, enabled: bool) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE mcp_servers SET enabled = ? WHERE id = ?", (int(enabled), id)
+        )
+
+
+def delete_mcp_server(id: int) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM mcp_servers WHERE id = ?", (id,))
