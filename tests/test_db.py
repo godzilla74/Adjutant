@@ -6,7 +6,7 @@ import pytest
 
 @pytest.fixture
 def db(tmp_path, monkeypatch):
-    monkeypatch.setenv("HANNAH_DB", str(tmp_path / "test.db"))
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
     import backend.db as db_mod
     importlib.reload(db_mod)
     db_mod.init_db()
@@ -148,3 +148,21 @@ def test_update_activity_event_preserves_output_preview(db):
     db.update_activity_event(event_id, status="done")
     events = db.load_activity_events("retainerops")
     assert events[0]["output_preview"] == "Initial preview text"
+
+
+def test_init_db_cleans_stale_running_events(db):
+    # Insert a stale running event directly
+    with db._conn() as conn:
+        conn.execute(
+            "INSERT INTO activity_events (product_id, agent_type, headline, status) "
+            "VALUES ('retainerops', 'research', 'Stale task', 'running')"
+        )
+    # Re-run init_db (simulates restart)
+    db.init_db()
+    # Verify it's now done
+    with db._conn() as conn:
+        row = conn.execute(
+            "SELECT status FROM activity_events WHERE headline = 'Stale task'"
+        ).fetchone()
+    assert row is not None
+    assert row[0] == 'done'

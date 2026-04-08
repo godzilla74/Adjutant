@@ -185,6 +185,11 @@ def init_db() -> None:
             "VALUES ('agent_name', 'Hannah', datetime('now')) "
             "ON CONFLICT(key) DO NOTHING"
         )
+        # On restart, mark any stale running events as done
+        conn.execute(
+            "UPDATE activity_events SET status = 'done' WHERE status = 'running'"
+        )
+        conn.commit()
         _seed_products(conn)
 
 
