@@ -14,8 +14,9 @@ def test_adjutant_config_env_var_is_loaded(tmp_path, monkeypatch):
     monkeypatch.setenv("ADJUTANT_CONFIG", str(config_file))
     monkeypatch.delenv("AGENT_DB", raising=False)
 
-    # Reload db module so it picks up env from the config file
+    import backend.bootstrap as bootstrap_mod
     import backend.db as db_mod
-    importlib.reload(db_mod)
+    importlib.reload(bootstrap_mod)  # re-runs load_dotenv with the new ADJUTANT_CONFIG
+    importlib.reload(db_mod)         # re-reads AGENT_DB now that it's been loaded
 
     assert str(db_mod.DB_PATH) == str(db_file)

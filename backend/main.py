@@ -9,17 +9,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-# Load config before importing any backend modules that read env vars at import time.
-# Honours ADJUTANT_CONFIG set by the installer/service; falls back to .env for dev.
-_config_path = os.environ.get("ADJUTANT_CONFIG", ".env")
-load_dotenv(_config_path)
-
 import anthropic
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
+# local — bootstrap MUST be first; it runs load_dotenv() before any other local import
+import backend.bootstrap  # noqa: F401 — side-effect import
 from backend.db import (
     get_products,
     get_workstreams,
