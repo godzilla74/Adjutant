@@ -72,6 +72,12 @@ describe('ActivityFeed — Chat tab (default)', () => {
   it('shows empty state when no chat entries', () => {
     render(<ActivityFeed {...BASE_PROPS} directives={[]} agentMessages={[]} />)
     expect(screen.getByText('No activity yet')).toBeInTheDocument()
+    expect(screen.getByText('Give Hannah a directive below to get started.')).toBeInTheDocument()
+  })
+
+  it('shows agentDraft with cursor on chat tab', () => {
+    render(<ActivityFeed {...BASE_PROPS} agentDraft="Thinking about this..." />)
+    expect(screen.getByText(/Thinking about this\.\.\./)).toBeInTheDocument()
   })
 })
 
