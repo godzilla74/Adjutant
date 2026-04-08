@@ -8,6 +8,7 @@ interface Props {
   onResolve: (id: number, action: 'approved' | 'skipped') => void
   queued: DirectiveItem[]
   onCancelQueued: (id: string) => void
+  agentName: string
 }
 
 function truncate(s: string, max = 52) {
@@ -111,7 +112,7 @@ function QueuedStack({ queued, onCancel }: { queued: DirectiveItem[]; onCancel: 
   )
 }
 
-export default function ReviewQueue({ items, onResolve, queued, onCancelQueued }: Props) {
+export default function ReviewQueue({ items, onResolve, queued, onCancelQueued, agentName }: Props) {
   return (
     <aside className="w-72 flex-shrink-0 border-l border-zinc-800/60 flex flex-col bg-zinc-950">
       <div className="px-4 py-3 border-b border-zinc-800/60 flex items-center justify-between flex-shrink-0">
@@ -126,7 +127,7 @@ export default function ReviewQueue({ items, onResolve, queued, onCancelQueued }
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5">
         {items.length === 0 ? (
           <div className="text-xs text-zinc-700 text-center mt-8 leading-relaxed px-2">
-            Nothing pending.<br />Hannah will surface items<br />that need your sign-off.
+            Nothing pending.<br />{agentName} will surface items<br />that need your sign-off.
           </div>
         ) : (
           items.map(item => (

@@ -87,7 +87,10 @@ export default function App() {
         setConnState('ready')
         requestPermission()
         const saved = sessionStorage.getItem('agent_pw') ?? ''
-        api.getAgentConfig(saved).then(cfg => setAgentName(cfg.agent_name)).catch(() => {})
+        api.getAgentConfig(saved).then(cfg => {
+          setAgentName(cfg.agent_name)
+          document.title = cfg.agent_name
+        }).catch(() => {})
         return
       }
       if (msg.type === 'auth_fail') {
@@ -371,6 +374,7 @@ export default function App() {
                 events={activeState.events}
                 currentDirective={queueByProduct[activeProductId]?.current ?? null}
                 onCancelDirective={cancelDirective}
+                agentName={agentName}
               />
               <ActivityFeed
                 events={activeState.events}
@@ -400,6 +404,7 @@ export default function App() {
               onResolve={resolveReview}
               queued={queueByProduct[activeProductId]?.queued ?? []}
               onCancelQueued={cancelDirective}
+              agentName={agentName}
             />
           </>
         )}

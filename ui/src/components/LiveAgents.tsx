@@ -34,9 +34,10 @@ interface Props {
   events: ActivityEvent[]
   currentDirective: DirectiveItem | null
   onCancelDirective: (id: string) => void
+  agentName: string
 }
 
-export default function LiveAgents({ events, currentDirective, onCancelDirective }: Props) {
+export default function LiveAgents({ events, currentDirective, onCancelDirective, agentName }: Props) {
   const running = events.filter(e => e.status === 'running')
   const [, tick] = useState(0)
 
@@ -105,7 +106,7 @@ export default function LiveAgents({ events, currentDirective, onCancelDirective
       {running.length === 0 && currentDirective && (
         <div className="text-[10px] text-zinc-700 flex items-center gap-1.5">
           <span className="w-1 h-1 rounded-full bg-zinc-700 animate-pulse" />
-          Hannah is thinking…
+          {agentName} is thinking…
         </div>
       )}
     </div>

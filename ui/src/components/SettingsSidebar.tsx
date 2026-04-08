@@ -898,7 +898,7 @@ export default function SettingsSidebar({
                     onChange={e => setMcpAddForm(f => ({ ...f, product_id: e.target.value }))}
                   />
                 )}
-                <p className="text-xs text-zinc-600">Credentials: tell Hannah to add this server — she'll ask for them.</p>
+                <p className="text-xs text-zinc-600">Credentials: tell {agentName} to add this server — she'll ask for them.</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleMcpAdd(scope)}
