@@ -11,6 +11,10 @@ def db(tmp_path, monkeypatch):
     import backend.db as db_mod
     importlib.reload(db_mod)
     db_mod.init_db()
+    # Create test products so FK constraints pass in tests that use these IDs
+    with db_mod._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('retainerops', 'RetainerOps', 'RO', '#2563eb')")
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('ignitara', 'Ignitara', 'IG', '#ea580c')")
     return db_mod
 
 
@@ -24,28 +28,34 @@ def test_default_db_path_uses_os_convention(monkeypatch):
     assert "adjutant" in path_str.lower()
 
 
-def test_products_seeded(db):
-    products = db.get_products()
+def test_no_hardcoded_products_seeded(tmp_path, monkeypatch):
+    """Without installer env vars, no products should be auto-seeded."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    monkeypatch.delenv("ADJUTANT_SEED_PRODUCT_ID", raising=False)
+    monkeypatch.delenv("ADJUTANT_SEED_PRODUCT_NAME", raising=False)
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    assert db_mod.get_products() == []
+
+
+def test_installer_product_seeded(db, monkeypatch):
+    """With installer env vars set, the specified product is seeded."""
+    import importlib
+    import backend.seed_data as sd
+    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_ID", "testco")
+    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_NAME", "Test Company")
+    importlib.reload(sd)
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    products = db_mod.get_products()
     ids = [p["id"] for p in products]
-    assert "retainerops" in ids
-    assert "ignitara" in ids
-    assert "bullsi" in ids
-    assert "eligibility" in ids
-    assert all("name" in p and "icon_label" in p and "color" in p for p in products)
-
-
-def test_workstreams_seeded(db):
-    ws = db.get_workstreams("retainerops")
-    names = [w["name"] for w in ws]
-    assert "Marketing" in names
-    assert "Growth" in names
-    assert all("status" in w and "display_order" in w for w in ws)
-
-
-def test_objectives_seeded(db):
-    objs = db.get_objectives("retainerops")
-    assert len(objs) >= 1
-    assert all("text" in o and "progress_current" in o for o in objs)
+    assert "testco" in ids
+    p = next(p for p in products if p["id"] == "testco")
+    assert p["name"] == "Test Company"
+    assert p["icon_label"] == "TC"
+    assert "color" in p
 
 
 def test_save_and_load_activity_event(db):
@@ -193,16 +203,16 @@ def test_seed_uses_env_var_product_when_set(tmp_path, monkeypatch):
     assert "retainerops" not in ids
 
 
-def test_seed_falls_back_to_hardcoded_when_env_not_set(tmp_path, monkeypatch):
-    """Without ADJUTANT_SEED_PRODUCT_ID, init_db seeds the hardcoded products."""
+def test_seed_empty_when_no_env_vars(tmp_path, monkeypatch):
+    """Without ADJUTANT_SEED_PRODUCT_ID, init_db seeds no products."""
     monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
     monkeypatch.delenv("ADJUTANT_SEED_PRODUCT_ID", raising=False)
+    monkeypatch.delenv("ADJUTANT_SEED_PRODUCT_NAME", raising=False)
     import backend.db as db_mod
     importlib.reload(db_mod)
     db_mod.init_db()
     products = db_mod.get_products()
-    ids = [p["id"] for p in products]
-    assert "retainerops" in ids
+    assert products == []
 
 
 def test_seed_icon_label_single_word_product(tmp_path, monkeypatch):

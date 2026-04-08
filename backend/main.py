@@ -37,6 +37,8 @@ from backend.db import (
     get_messages_for_summary,
     purge_broken_tool_exchanges,
     cancel_running_events,
+    create_workstream,
+    create_objective,
 )
 from backend.social_poster import publish_social_draft
 from backend.api import router as api_router
@@ -97,6 +99,70 @@ async def _handle_telegram_directive(product_id: str, content: str) -> None:
     await _broadcast(_queue_payload(product_id))
 
 
+# ── First-run workspace bootstrap ────────────────────────────────────────────
+
+async def _bootstrap_product_workspace() -> None:
+    """On first install, generate contextual workstreams + objectives via AI.
+
+    Only runs when ADJUTANT_SEED_PRODUCT_ID is set (i.e. installer context) and
+    the product has no workstreams yet.  Safe to call on every startup — it
+    exits immediately once workstreams exist.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    product_id   = os.environ.get("ADJUTANT_SEED_PRODUCT_ID", "").strip()
+    product_name = os.environ.get("ADJUTANT_SEED_PRODUCT_NAME", "").strip()
+    product_desc = os.environ.get("ADJUTANT_SEED_PRODUCT_DESC", "").strip()
+
+    if not product_id or not product_name:
+        return  # dev environment — nothing to bootstrap
+
+    if get_workstreams(product_id):
+        return  # already bootstrapped
+
+    try:
+        ai = anthropic.AsyncAnthropic()
+        response = await ai.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=600,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"You are setting up a business workspace for an AI executive assistant.\n\n"
+                    f"Business: {product_name}\n"
+                    f"Description: {product_desc or 'No description provided'}\n\n"
+                    "Generate 3-5 relevant workstreams (ongoing operational areas) and "
+                    "2-3 concrete starter objectives (measurable goals to get started).\n\n"
+                    "Return JSON only, no explanation:\n"
+                    '{"workstreams": ["Marketing", "Sales", "Product"], '
+                    '"objectives": ['
+                    '{"text": "Reach first 10 paying customers", "target": 10}, '
+                    '{"text": "Launch MVP", "target": null}'
+                    "]}"
+                ),
+            }],
+        )
+        data = json.loads(response.content[0].text)
+
+        for i, name in enumerate(data.get("workstreams", [])):
+            status = "running" if i < 2 else "paused"
+            create_workstream(product_id, str(name), status)
+
+        for obj in data.get("objectives", []):
+            create_objective(
+                product_id,
+                text=str(obj.get("text", "")),
+                progress_target=obj.get("target"),
+            )
+
+        logger.info("Bootstrapped workspace for %s: %d workstreams, %d objectives",
+                    product_name, len(data.get("workstreams", [])), len(data.get("objectives", [])))
+
+    except Exception as e:
+        logger.warning("Workspace bootstrap failed (non-fatal): %s", e)
+
+
 # ── App lifespan (starts scheduler) ──────────────────────────────────────────
 
 @asynccontextmanager
@@ -123,6 +189,8 @@ async def lifespan(app: FastAPI):
     _mcp_manager = MCPManager()
     stdio_servers = [s for s in list_all_mcp_servers() if s["type"] == "stdio" and s["enabled"]]
     await _mcp_manager.start(stdio_servers)
+
+    await _bootstrap_product_workspace()
 
     yield
 
