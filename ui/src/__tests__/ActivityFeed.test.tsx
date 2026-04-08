@@ -30,8 +30,9 @@ const EVENTS = [
 const EMPTY_PROPS = {
   events: EVENTS,
   directives: [],
-  hannahMessages: [],
-  hannahDraft: '',
+  agentMessages: [],
+  agentDraft: '',
+  agentName: 'Hannah',
 }
 
 describe('ActivityFeed filtering', () => {
@@ -62,5 +63,19 @@ describe('ActivityFeed filtering', () => {
     fireEvent.click(screen.getByText('Research'))
     fireEvent.click(screen.getByText('Research'))
     expect(screen.getByText('Drafting quarterly goals')).toBeInTheDocument()
+  })
+})
+
+describe('ActivityFeed agentName', () => {
+  it('renders agentName as byline on agent messages', () => {
+    render(<ActivityFeed
+      events={[]}
+      directives={[]}
+      agentMessages={[{ type: 'agent', content: 'Hello!', ts: '2026-04-08 10:00:00' }]}
+      agentDraft=""
+      agentName="Aria"
+    />)
+    expect(screen.getByText('Aria')).toBeInTheDocument()
+    expect(screen.getByText('Hello!')).toBeInTheDocument()
   })
 })

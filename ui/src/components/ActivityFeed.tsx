@@ -4,14 +4,15 @@ import { ActivityEvent, AgentType } from '../types'
 import ActivityCard from './ActivityCard'
 
 interface DirectiveEntry { type: 'directive'; content: string; ts: string }
-interface HannahEntry    { type: 'hannah';    content: string; ts: string }
-type FeedEntry = ActivityEvent | DirectiveEntry | HannahEntry
+interface AgentEntry     { type: 'agent';     content: string; ts: string }
+type FeedEntry = ActivityEvent | DirectiveEntry | AgentEntry
 
 interface Props {
   events: ActivityEvent[]
   directives: DirectiveEntry[]
-  hannahMessages: HannahEntry[]
-  hannahDraft: string
+  agentMessages: AgentEntry[]
+  agentDraft: string
+  agentName: string
 }
 
 const FILTER_TYPES: { label: string; value: AgentType }[] = [
@@ -24,7 +25,7 @@ const FILTER_TYPES: { label: string; value: AgentType }[] = [
 
 const parseTs = (ts: string) => new Date(ts.replace(' ', 'T')).getTime()
 
-export default function ActivityFeed({ events, directives, hannahMessages, hannahDraft }: Props) {
+export default function ActivityFeed({ events, directives, agentMessages, agentDraft, agentName }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState<AgentType | null>(null)
@@ -32,7 +33,7 @@ export default function ActivityFeed({ events, directives, hannahMessages, hanna
   const feed: FeedEntry[] = [
     ...events,
     ...directives,
-    ...hannahMessages,
+    ...agentMessages,
   ].sort((a, b) => {
     const ta = parseTs('created_at' in a ? a.created_at : a.ts)
     const tb = parseTs('created_at' in b ? b.created_at : b.ts)
@@ -59,7 +60,7 @@ export default function ActivityFeed({ events, directives, hannahMessages, hanna
     if (!isFiltering) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [events.length, directives.length, hannahMessages.length, hannahDraft, isFiltering])
+  }, [events.length, directives.length, agentMessages.length, agentDraft, isFiltering])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -118,10 +119,10 @@ export default function ActivityFeed({ events, directives, hannahMessages, hanna
               </div>
             )
           }
-          if (entry.type === 'hannah') {
+          if (entry.type === 'agent') {
             return (
-              <div key={`hannah-${entry.ts}`} className="max-w-xl">
-                <div className="text-xs text-zinc-600 mb-1">Hannah</div>
+              <div key={`agent-${entry.ts}`} className="max-w-xl">
+                <div className="text-xs text-zinc-600 mb-1">{agentName}</div>
                 <div className="rounded-xl rounded-tl-sm bg-zinc-800/60 border border-zinc-700/40 px-4 py-2.5 text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
                   {entry.content}
                 </div>
@@ -131,17 +132,17 @@ export default function ActivityFeed({ events, directives, hannahMessages, hanna
           return null
         })}
 
-        {hannahDraft && (
+        {agentDraft && (
           <div className="max-w-xl">
-            <div className="text-xs text-zinc-600 mb-1">Hannah</div>
+            <div className="text-xs text-zinc-600 mb-1">{agentName}</div>
             <div className="rounded-xl rounded-tl-sm bg-zinc-800/60 border border-zinc-700/40 px-4 py-2.5 text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
-              {hannahDraft}
+              {agentDraft}
               <span className="inline-block w-0.5 h-4 bg-zinc-400 ml-0.5 animate-pulse align-middle" />
             </div>
           </div>
         )}
 
-        {filtered.length === 0 && !hannahDraft && (
+        {filtered.length === 0 && !agentDraft && (
           isFiltering ? (
             <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm py-20">
               No activity matches your filter.
@@ -151,7 +152,7 @@ export default function ActivityFeed({ events, directives, hannahMessages, hanna
               <div className="text-4xl opacity-30">🛰</div>
               <div className="text-sm font-medium text-zinc-600">No activity yet</div>
               <div className="text-xs text-center leading-relaxed">
-                Give Hannah a directive below to get started.
+                Give {agentName} a directive below to get started.
               </div>
             </div>
           )

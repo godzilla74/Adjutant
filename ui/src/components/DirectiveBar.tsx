@@ -5,11 +5,12 @@ interface Props {
   onSend: (content: string) => void
   disabled: boolean
   productName: string
+  agentName: string
   prefill?: string
   onPrefillConsumed?: () => void
 }
 
-export default function DirectiveBar({ onSend, disabled, productName, prefill, onPrefillConsumed }: Props) {
+export default function DirectiveBar({ onSend, disabled, productName, agentName, prefill, onPrefillConsumed }: Props) {
   const [value, setValue] = useState('')
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export default function DirectiveBar({ onSend, disabled, productName, prefill, o
   return (
     <div className="flex-shrink-0 border-t border-zinc-800/60 px-5 py-3 bg-zinc-950 flex items-center gap-3">
       <span className="text-xs text-zinc-600 whitespace-nowrap flex-shrink-0">
-        Direct Hannah →
+        Direct {agentName} →
       </span>
       <input
         type="text"
