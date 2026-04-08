@@ -177,3 +177,30 @@ def test_init_db_cleans_stale_running_events(db):
         ).fetchone()
     assert row is not None
     assert row[0] == 'done'
+
+
+def test_seed_uses_env_var_product_when_set(tmp_path, monkeypatch):
+    """When ADJUTANT_SEED_PRODUCT_ID is set, init_db seeds with that product only."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_ID", "acme-corp")
+    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_NAME", "Acme Corp")
+    monkeypatch.setenv("ADJUTANT_SEED_PRODUCT_DESC", "We make everything.")
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    products = db_mod.get_products()
+    ids = [p["id"] for p in products]
+    assert "acme-corp" in ids
+    assert "retainerops" not in ids
+
+
+def test_seed_falls_back_to_hardcoded_when_env_not_set(tmp_path, monkeypatch):
+    """Without ADJUTANT_SEED_PRODUCT_ID, init_db seeds the hardcoded products."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    monkeypatch.delenv("ADJUTANT_SEED_PRODUCT_ID", raising=False)
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    products = db_mod.get_products()
+    ids = [p["id"] for p in products]
+    assert "retainerops" in ids

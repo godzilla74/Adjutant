@@ -1,6 +1,8 @@
 # backend/seed_data.py
 """Static seed data for products, workstreams, and objectives."""
 
+import os
+
 PRODUCTS = [
     {"id": "retainerops", "name": "RetainerOps",        "icon_label": "RO", "color": "#2563eb"},
     {"id": "ignitara",    "name": "Ignitara",            "icon_label": "IG", "color": "#ea580c"},
@@ -53,3 +55,27 @@ OBJECTIVES = {
         {"text": "First pilot clinic signed",              "progress_current": 0, "progress_target": 1,  "display_order": 1},
     ],
 }
+
+
+def get_seed_products():
+    """Return products for initial DB seed. Uses installer env vars if present."""
+    product_id   = os.environ.get("ADJUTANT_SEED_PRODUCT_ID")
+    product_name = os.environ.get("ADJUTANT_SEED_PRODUCT_NAME")
+    if product_id and product_name:
+        icon_label = "".join(w[0].upper() for w in product_name.split()[:2]) or "XX"
+        return [{"id": product_id, "name": product_name, "icon_label": icon_label, "color": "#2563eb"}]
+    return PRODUCTS
+
+
+def get_seed_workstreams():
+    """Return workstreams for initial DB seed. Empty for new user installs."""
+    if os.environ.get("ADJUTANT_SEED_PRODUCT_ID"):
+        return {}
+    return WORKSTREAMS
+
+
+def get_seed_objectives():
+    """Return objectives for initial DB seed. Empty for new user installs."""
+    if os.environ.get("ADJUTANT_SEED_PRODUCT_ID"):
+        return {}
+    return OBJECTIVES

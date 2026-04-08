@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from backend.seed_data import OBJECTIVES, PRODUCTS, WORKSTREAMS
+from backend.seed_data import get_seed_products, get_seed_workstreams, get_seed_objectives
 
 
 def _default_db_path() -> Path:
@@ -207,25 +207,28 @@ def init_db() -> None:
 
 
 def _seed_products(conn: sqlite3.Connection) -> None:
-    for p in PRODUCTS:
+    products    = get_seed_products()
+    workstreams = get_seed_workstreams()
+    objectives  = get_seed_objectives()
+
+    for p in products:
+        existing = conn.execute("SELECT id FROM products WHERE id = ?", (p["id"],)).fetchone()
+        if not existing:
             conn.execute(
-                "INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES (?, ?, ?, ?)",
+                "INSERT INTO products (id, name, icon_label, color) VALUES (?, ?, ?, ?)",
                 (p["id"], p["name"], p["icon_label"], p["color"]),
             )
-            existing = conn.execute(
-                "SELECT COUNT(*) FROM workstreams WHERE product_id = ?", (p["id"],)
-            ).fetchone()[0]
-            if existing == 0:
-                for ws in WORKSTREAMS.get(p["id"], []):
-                    conn.execute(
-                        "INSERT INTO workstreams (product_id, name, status, display_order) VALUES (?, ?, ?, ?)",
-                        (p["id"], ws["name"], ws["status"], ws["display_order"]),
-                    )
-                for obj in OBJECTIVES.get(p["id"], []):
-                    conn.execute(
-                        "INSERT INTO objectives (product_id, text, progress_current, progress_target, display_order) VALUES (?, ?, ?, ?, ?)",
-                        (p["id"], obj["text"], obj["progress_current"], obj["progress_target"], obj["display_order"]),
-                    )
+            for ws in workstreams.get(p["id"], []):
+                conn.execute(
+                    "INSERT INTO workstreams (product_id, name, status, display_order) VALUES (?, ?, ?, ?)",
+                    (p["id"], ws["name"], ws["status"], ws["display_order"]),
+                )
+            for obj in objectives.get(p["id"], []):
+                conn.execute(
+                    "INSERT INTO objectives (product_id, text, progress_current, progress_target, display_order) VALUES (?, ?, ?, ?, ?)",
+                    (p["id"], obj["text"], obj["progress_current"], obj["progress_target"], obj["display_order"]),
+                )
+    conn.commit()
 
 
 # ── Products ──────────────────────────────────────────────────────────────────
