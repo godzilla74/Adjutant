@@ -3,19 +3,23 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import ActivityFeed from '../components/ActivityFeed'
+import { ActivityEvent } from '../types'
 
-// jsdom doesn't implement scrollIntoView
 beforeAll(() => {
   window.HTMLElement.prototype.scrollIntoView = () => {}
 })
-import { ActivityEvent } from '../types'
 
-const makeEvent = (id: number, agent_type: 'research' | 'general', headline: string): ActivityEvent => ({
+const makeEvent = (
+  id: number,
+  agent_type: 'research' | 'general',
+  headline: string,
+  status: 'done' | 'running' = 'done',
+): ActivityEvent => ({
   id,
   agent_type,
   headline,
   rationale: '',
-  status: 'done',
+  status,
   output_preview: null,
   summary: 'Result summary',
   created_at: `2026-04-07 10:00:0${id}`,
@@ -27,31 +31,76 @@ const EVENTS = [
   makeEvent(3, 'research', 'Checking domain availability'),
 ]
 
-const EMPTY_PROPS = {
-  events: EVENTS,
-  directives: [],
-  agentMessages: [],
-  agentDraft: '',
-  agentName: 'Hannah',
+const DIRECTIVES = [
+  { type: 'directive' as const, content: 'Draft a content plan', ts: '2026-04-08 10:00:01' },
+]
+
+const AGENT_MESSAGES = [
+  { type: 'agent' as const, content: 'On it!', ts: '2026-04-08 10:00:02' },
+]
+
+const BASE_PROPS = {
+  events:        EVENTS,
+  directives:    DIRECTIVES,
+  agentMessages: AGENT_MESSAGES,
+  agentDraft:    '',
+  agentName:     'Hannah',
 }
 
-describe('ActivityFeed filtering', () => {
-  it('shows all events by default', () => {
-    render(<ActivityFeed {...EMPTY_PROPS} />)
+describe('ActivityFeed — Chat tab (default)', () => {
+  it('shows directive bubbles', () => {
+    render(<ActivityFeed {...BASE_PROPS} />)
+    expect(screen.getByText('Draft a content plan')).toBeInTheDocument()
+  })
+
+  it('shows agent message bubbles', () => {
+    render(<ActivityFeed {...BASE_PROPS} />)
+    expect(screen.getByText('On it!')).toBeInTheDocument()
+  })
+
+  it('does NOT show activity event headlines on chat tab', () => {
+    render(<ActivityFeed {...BASE_PROPS} />)
+    expect(screen.queryByText('Researching competitor pricing')).not.toBeInTheDocument()
+  })
+
+  it('renders agentName as byline on agent messages', () => {
+    render(<ActivityFeed {...BASE_PROPS} agentName="Aria" />)
+    expect(screen.getByText('Aria')).toBeInTheDocument()
+    expect(screen.getByText('On it!')).toBeInTheDocument()
+  })
+
+  it('shows empty state when no chat entries', () => {
+    render(<ActivityFeed {...BASE_PROPS} directives={[]} agentMessages={[]} />)
+    expect(screen.getByText('No activity yet')).toBeInTheDocument()
+  })
+})
+
+describe('ActivityFeed — Activity tab', () => {
+  it('shows events after switching to Activity tab', () => {
+    render(<ActivityFeed {...BASE_PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     expect(screen.getByText('Researching competitor pricing')).toBeInTheDocument()
     expect(screen.getByText('Drafting quarterly goals')).toBeInTheDocument()
   })
 
+  it('does NOT show directives or agent messages on activity tab', () => {
+    render(<ActivityFeed {...BASE_PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: /activity/i }))
+    expect(screen.queryByText('Draft a content plan')).not.toBeInTheDocument()
+    expect(screen.queryByText('On it!')).not.toBeInTheDocument()
+  })
+
   it('filters by search text', () => {
-    render(<ActivityFeed {...EMPTY_PROPS} />)
-    const input = screen.getByPlaceholderText('Search activity…')
-    fireEvent.change(input, { target: { value: 'competitor' } })
+    render(<ActivityFeed {...BASE_PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: /activity/i }))
+    fireEvent.change(screen.getByPlaceholderText('Search activity…'), { target: { value: 'competitor' } })
     expect(screen.getByText('Researching competitor pricing')).toBeInTheDocument()
     expect(screen.queryByText('Drafting quarterly goals')).not.toBeInTheDocument()
   })
 
   it('filters by agent type chip', () => {
-    render(<ActivityFeed {...EMPTY_PROPS} />)
+    render(<ActivityFeed {...BASE_PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     fireEvent.click(screen.getByText('Research'))
     expect(screen.getByText('Researching competitor pricing')).toBeInTheDocument()
     expect(screen.getByText('Checking domain availability')).toBeInTheDocument()
@@ -59,23 +108,23 @@ describe('ActivityFeed filtering', () => {
   })
 
   it('clears filter chip on second click', () => {
-    render(<ActivityFeed {...EMPTY_PROPS} />)
+    render(<ActivityFeed {...BASE_PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     fireEvent.click(screen.getByText('Research'))
     fireEvent.click(screen.getByText('Research'))
     expect(screen.getByText('Drafting quarterly goals')).toBeInTheDocument()
   })
 })
 
-describe('ActivityFeed agentName', () => {
-  it('renders agentName as byline on agent messages', () => {
-    render(<ActivityFeed
-      events={[]}
-      directives={[]}
-      agentMessages={[{ type: 'agent', content: 'Hello!', ts: '2026-04-08 10:00:00' }]}
-      agentDraft=""
-      agentName="Aria"
-    />)
-    expect(screen.getByText('Aria')).toBeInTheDocument()
-    expect(screen.getByText('Hello!')).toBeInTheDocument()
+describe('ActivityFeed — tab badge', () => {
+  it('shows running count badge when agents are running', () => {
+    const running = makeEvent(99, 'research', 'Running task', 'running')
+    render(<ActivityFeed {...BASE_PROPS} events={[...EVENTS, running]} />)
+    expect(screen.getByText('(1)')).toBeInTheDocument()
+  })
+
+  it('shows no badge when no agents are running', () => {
+    render(<ActivityFeed {...BASE_PROPS} />)
+    expect(screen.queryByText(/\(\d+\)/)).not.toBeInTheDocument()
   })
 })
