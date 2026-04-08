@@ -77,6 +77,18 @@ def test_add_requires_command_for_stdio(db, monkeypatch):
     assert "command is required" in result.lower()
 
 
+def test_add_requires_product_id_when_scope_product(db, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(db.DB_PATH))
+    with patch("backend.main._mcp_manager", None, create=True):
+        from core.tools import _manage_mcp_server
+        result = _run(_manage_mcp_server(
+            action="add", name="Test", type="remote",
+            url="https://example.com", scope="product",
+            # product_id intentionally missing
+        ))
+    assert "product_id is required" in result.lower()
+
+
 def test_remove_server(db, monkeypatch):
     monkeypatch.setenv("AGENT_DB", str(db.DB_PATH))
     sid = db.add_mcp_server(
