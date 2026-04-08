@@ -2,6 +2,7 @@
 """REST API for Adjutant settings — product config, workstreams, objectives."""
 import os
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 
@@ -295,3 +296,27 @@ async def send_digest_api(_=Depends(_auth)):
     task_text = _compile_digest_task(data)
     asyncio.create_task(run_email_agent(task_text))
     return {"queued": True}
+
+
+# ── Telegram ──────────────────────────────────────────────────────────────────
+
+@router.get("/telegram/status")
+async def get_telegram_status(_=Depends(_auth)):
+    """Return Telegram configuration and connectivity status."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat_id:
+        return {"configured": False, "connected": False, "bot_username": None}
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            data = resp.json()
+            if data.get("ok"):
+                return {
+                    "configured": True,
+                    "connected": True,
+                    "bot_username": data["result"].get("username"),
+                }
+    except Exception:
+        pass
+    return {"configured": True, "connected": False, "bot_username": None}
