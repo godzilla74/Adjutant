@@ -2,6 +2,7 @@
 import importlib
 import os
 import pytest
+import sys
 
 
 @pytest.fixture
@@ -11,6 +12,16 @@ def db(tmp_path, monkeypatch):
     importlib.reload(db_mod)
     db_mod.init_db()
     return db_mod
+
+
+def test_default_db_path_uses_os_convention(monkeypatch):
+    """When AGENT_DB is not set, DB_PATH should use OS user data dir, not ~/.hannah."""
+    monkeypatch.delenv("AGENT_DB", raising=False)
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    path_str = str(db_mod.DB_PATH)
+    assert ".hannah" not in path_str
+    assert "adjutant" in path_str.lower()
 
 
 def test_products_seeded(db):

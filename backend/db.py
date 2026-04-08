@@ -9,8 +9,21 @@ from typing import Optional
 
 from backend.seed_data import OBJECTIVES, PRODUCTS, WORKSTREAMS
 
+
+def _default_db_path() -> Path:
+    import sys
+    if sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support" / "Adjutant"
+    elif sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA", str(Path.home()))) / "Adjutant"
+    else:  # Linux and anything else
+        base = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "Adjutant"
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "adjutant.db"
+
+
 _db_path_override = os.environ.get("AGENT_DB")
-DB_PATH = Path(_db_path_override) if _db_path_override else Path.home() / ".hannah" / "adjutant.db"
+DB_PATH = Path(_db_path_override) if _db_path_override else _default_db_path()
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
