@@ -7,6 +7,13 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
+
+# Load config before reading env vars — honours ADJUTANT_CONFIG set by the
+# installer/service; falls back to .env for local dev.
+_config_path = os.environ.get("ADJUTANT_CONFIG", ".env")
+load_dotenv(_config_path)
+
 from backend.seed_data import OBJECTIVES, PRODUCTS, WORKSTREAMS
 
 _db_path_override = os.environ.get("AGENT_DB")
