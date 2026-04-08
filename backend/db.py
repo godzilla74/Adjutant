@@ -175,6 +175,16 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE workstreams ADD COLUMN {col_name} {col_type}")
             except Exception:
                 pass  # column already exists
+        # Migrate: rename hannah_model key → agent_model (idempotent)
+        conn.execute(
+            "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
+        )
+        # Seed agent_name default if missing (idempotent)
+        conn.execute(
+            "INSERT INTO model_config (key, value, updated_at) "
+            "VALUES ('agent_name', 'Hannah', datetime('now')) "
+            "ON CONFLICT(key) DO NOTHING"
+        )
         _seed_products(conn)
 
 
@@ -813,14 +823,6 @@ def set_agent_config(key: str, value: str) -> None:
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
             (key, value),
         )
-
-# Legacy aliases kept for backward compatibility
-def get_model_config() -> dict:
-    return get_agent_config()
-
-def set_model_config(key: str, value: str) -> None:
-    set_agent_config(key, value)
-
 
 # ── Notes ─────────────────────────────────────────────────────────────────────
 
