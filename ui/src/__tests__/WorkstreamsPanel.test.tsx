@@ -33,7 +33,7 @@ const WS_SCHEDULED: Workstream[] = [
   },
   {
     id: 11, name: 'Outreach', status: 'paused', display_order: 1,
-    mission: 'Build outreach list', schedule: 'weekly',
+    mission: '', schedule: 'weekly',
     next_run_at: null, last_run_at: null,
   },
 ]
@@ -89,6 +89,14 @@ describe('WorkstreamsPanel — run button', () => {
     await waitFor(() => {
       expect(api.triggerWorkstreamRun).toHaveBeenCalledWith('test-pw', 10)
     })
+  })
+
+  it('does not show play button for workstream without a mission', () => {
+    render(<WorkstreamsPanel {...DEFAULT_PROPS} />)
+    // Only one play button should exist — for WS_SCHEDULED[0] (Growth, has mission)
+    // WS_SCHEDULED[1] (Outreach, mission: '') should NOT have one
+    const playButtons = screen.queryAllByTitle('Run now')
+    expect(playButtons).toHaveLength(1)
   })
 })
 
@@ -150,6 +158,6 @@ describe('WorkstreamsPanel — inline edit', () => {
     expect(screen.getByDisplayValue('Growth')).toBeInTheDocument()
     fireEvent.click(gears[1]) // open second — first should close
     expect(screen.queryByDisplayValue('Growth')).not.toBeInTheDocument()
-    expect(screen.getByDisplayValue('Build outreach list')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Outreach')).toBeInTheDocument()
   })
 })

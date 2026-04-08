@@ -132,24 +132,26 @@ export default function WorkstreamsPanel({ workstreams, objectives, password, on
                 </span>
               </span>
               {/* Hover icon row: play + gear */}
-              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 flex-shrink-0 transition-opacity">
-                {/* Play / Run Now */}
-                <button
-                  title="Run now"
-                  onClick={() => handleRunNow(ws.id)}
-                  className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors"
-                >
-                  {runningWsId === ws.id ? (
-                    <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M5 3l14 9-14 9V3z" />
-                    </svg>
-                  )}
-                </button>
+              <div className={`flex items-center gap-0.5 flex-shrink-0 transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                {/* Play / Run Now — only shown when workstream has a mission */}
+                {ws.mission?.trim() && (
+                  <button
+                    title="Run now"
+                    onClick={() => handleRunNow(ws.id)}
+                    className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors"
+                  >
+                    {runningWsId === ws.id ? (
+                      <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M5 3l14 9-14 9V3z" />
+                      </svg>
+                    )}
+                  </button>
+                )}
                 {/* Gear / Edit */}
                 <button
                   title="Edit workstream"
