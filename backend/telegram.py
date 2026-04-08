@@ -1,7 +1,6 @@
 # backend/telegram.py
 """Telegram bot integration — polling loop, message routing, review item approval."""
 import asyncio
-import json
 import logging
 import re
 from typing import Callable, Awaitable
@@ -61,7 +60,7 @@ class TelegramBot:
         """Send a message to TELEGRAM_CHAT_ID. Returns message_id or None."""
         payload: dict = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"}
         if reply_markup is not None:
-            payload["reply_markup"] = json.dumps(reply_markup)
+            payload["reply_markup"] = reply_markup
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(self._url("sendMessage"), json=payload)
