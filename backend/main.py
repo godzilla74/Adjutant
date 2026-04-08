@@ -65,6 +65,9 @@ _running_tasks:    dict[str, asyncio.Task | None] = {}  # inner _agent_loop task
 _worker_events:    dict[str, asyncio.Event] = {}
 _worker_tasks:     dict[str, asyncio.Task] = {}
 
+_last_active_product: str = "retainerops"
+_telegram_bot = None  # set in lifespan; module-level so _broadcast can reach it
+
 
 async def _broadcast(event: dict) -> None:
     """Push an event to every connected WebSocket client."""
@@ -75,18 +78,48 @@ async def _broadcast(event: dict) -> None:
         except Exception:
             dead.add(ws)
     _connections.difference_update(dead)
+    if _telegram_bot is not None:
+        try:
+            await _telegram_bot.notify(event)
+        except Exception:
+            pass
+
+
+async def _handle_telegram_directive(product_id: str, content: str) -> None:
+    """Inject a Telegram message into the directive queue, same as the web UI."""
+    global _last_active_product
+    _last_active_product = product_id
+    _ensure_worker(product_id)
+    directive_id = uuid.uuid4().hex[:8]
+    _directive_queues[product_id].append({"id": directive_id, "content": content})
+    _worker_events[product_id].set()
+    await _broadcast(_queue_payload(product_id))
 
 
 # ── App lifespan (starts scheduler) ──────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _telegram_bot
     from backend.scheduler import scheduler_loop, register_broadcast
+    from backend.telegram import TelegramBot
     register_broadcast(_broadcast)
     scheduler_task = asyncio.create_task(scheduler_loop(_broadcast, interval_seconds=60))
+
+    _telegram_bot = TelegramBot(
+        token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+        chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+        directive_callback=_handle_telegram_directive,
+        products_fn=get_products,
+        last_active_product_fn=lambda: _last_active_product,
+        resolve_review_fn=resolve_review_item,
+        broadcast_fn=_broadcast,
+    )
+    telegram_task = asyncio.create_task(_telegram_bot.start())
+
     yield
-    # Cancel scheduler + all product workers
-    tasks_to_cancel = [scheduler_task, *_worker_tasks.values()]
+
+    tasks_to_cancel = [scheduler_task, telegram_task, *_worker_tasks.values()]
     for t in tasks_to_cancel:
         t.cancel()
     await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
@@ -525,6 +558,8 @@ async def websocket_endpoint(ws: WebSocket):
                     await _send(ws, {"type": "error", "message": f"Unknown product: {product_id}"})
                     continue
                 active_product_id = product_id
+                global _last_active_product
+                _last_active_product = product_id
                 content = msg.get("content", "").strip()
                 if not content:
                     continue
