@@ -8,9 +8,9 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api")
 
 
-def _auth(x_hannah_password: str | None = Header(None, alias="X-Hannah-Password")) -> None:
-    password = os.environ.get("HANNAH_PASSWORD", "")
-    if not password or x_hannah_password != password:
+def _auth(x_agent_password: str | None = Header(None, alias="X-Agent-Password")) -> None:
+    password = os.environ.get("AGENT_PASSWORD", "")
+    if not password or x_agent_password != password:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -186,35 +186,38 @@ def delete_template(template_id: int, _=Depends(_auth)):
     delete_directive_template(template_id)
 
 
-# ── Model config ──────────────────────────────────────────────────────────────
+# ── Agent config ──────────────────────────────────────────────────────────────
 
-class ModelConfigUpdate(BaseModel):
-    hannah_model:   str | None = None
+class AgentConfigUpdate(BaseModel):
+    agent_model:    str | None = None
     subagent_model: str | None = None
+    agent_name:     str | None = None
 
 
-@router.get("/model-config")
-def get_model_config_api(_=Depends(_auth)):
-    from backend.db import get_model_config
-    return get_model_config()
+@router.get("/agent-config")
+def get_agent_config_api(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    return get_agent_config()
 
 
-@router.put("/model-config")
-def update_model_config_api(body: ModelConfigUpdate, _=Depends(_auth)):
-    from backend.db import set_model_config, get_model_config
+@router.put("/agent-config")
+def update_agent_config_api(body: AgentConfigUpdate, _=Depends(_auth)):
+    from backend.db import set_agent_config, get_agent_config
     import agents.runner as runner
     import backend.main as main_module
 
-    if body.hannah_model is not None:
-        set_model_config("hannah_model", body.hannah_model)
-        # Hot-reload: update the running process immediately
-        main_module.HANNAH_MODEL = body.hannah_model
+    if body.agent_model is not None:
+        set_agent_config("agent_model", body.agent_model)
+        main_module.AGENT_MODEL = body.agent_model
 
     if body.subagent_model is not None:
-        set_model_config("subagent_model", body.subagent_model)
+        set_agent_config("subagent_model", body.subagent_model)
         runner.SUBAGENT_MODEL = body.subagent_model
 
-    return get_model_config()
+    if body.agent_name is not None:
+        set_agent_config("agent_name", body.agent_name)
+
+    return get_agent_config()
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────────

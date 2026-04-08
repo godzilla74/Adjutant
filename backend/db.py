@@ -9,7 +9,7 @@ from typing import Optional
 
 from backend.seed_data import OBJECTIVES, PRODUCTS, WORKSTREAMS
 
-_db_path_override = os.environ.get("HANNAH_DB")
+_db_path_override = os.environ.get("AGENT_DB")
 DB_PATH = Path(_db_path_override) if _db_path_override else Path.home() / ".hannah" / "missioncontrol.db"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -790,28 +790,36 @@ def delete_directive_template(template_id: int) -> None:
         conn.execute("DELETE FROM directive_templates WHERE id = ?", (template_id,))
 
 
-# ── Model config ──────────────────────────────────────────────────────────────
+# ── Agent / Model config ──────────────────────────────────────────────────────
 
-_MODEL_DEFAULTS = {
-    "hannah_model":   "claude-opus-4-6",
+_AGENT_CONFIG_DEFAULTS = {
+    "agent_model":    "claude-opus-4-6",
     "subagent_model": "sonnet",
+    "agent_name":     "Hannah",
 }
 
-def get_model_config() -> dict:
+def get_agent_config() -> dict:
     with _conn() as conn:
         rows = conn.execute("SELECT key, value FROM model_config").fetchall()
-    result = dict(_MODEL_DEFAULTS)
+    result = dict(_AGENT_CONFIG_DEFAULTS)
     for r in rows:
         result[r["key"]] = r["value"]
     return result
 
-def set_model_config(key: str, value: str) -> None:
+def set_agent_config(key: str, value: str) -> None:
     with _conn() as conn:
         conn.execute(
             "INSERT INTO model_config (key, value, updated_at) VALUES (?, ?, datetime('now')) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
             (key, value),
         )
+
+# Legacy aliases kept for backward compatibility
+def get_model_config() -> dict:
+    return get_agent_config()
+
+def set_model_config(key: str, value: str) -> None:
+    set_agent_config(key, value)
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────────

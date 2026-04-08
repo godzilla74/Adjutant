@@ -1,5 +1,5 @@
 # backend/main.py
-"""Hannah Mission Control — FastAPI backend (multi-product)."""
+"""MissionControl — FastAPI backend (multi-product)."""
 
 import asyncio
 import json
@@ -46,11 +46,11 @@ load_dotenv()
 init_db()
 
 # Model config — loaded from DB at startup, hot-reloadable via API
-from backend.db import get_model_config as _get_model_config
-_mc = _get_model_config()
-HANNAH_MODEL:   str = os.environ.get("HANNAH_MODEL",   _mc["hannah_model"])
+from backend.db import get_agent_config as _get_agent_config
+_mc = _get_agent_config()
+AGENT_MODEL: str = os.environ.get("AGENT_MODEL", _mc["agent_model"])
 import agents.runner as _runner
-_runner.SUBAGENT_MODEL = os.environ.get("HANNAH_SUBAGENT_MODEL", _mc["subagent_model"])
+_runner.SUBAGENT_MODEL = os.environ.get("AGENT_SUBAGENT_MODEL", _mc["subagent_model"])
 
 # ── WebSocket connection registry ─────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ _connections: set[WebSocket] = set()
 
 _directive_queues: dict[str, list[dict]] = {}   # {product_id: [{id, content}, ...]}
 _current_directive: dict[str, dict | None] = {}  # {product_id: directive | None}
-_running_tasks:    dict[str, asyncio.Task | None] = {}  # inner _hannah_loop task
+_running_tasks:    dict[str, asyncio.Task | None] = {}  # inner _agent_loop task
 _worker_events:    dict[str, asyncio.Event] = {}
 _worker_tasks:     dict[str, asyncio.Task] = {}
 
@@ -97,7 +97,7 @@ app.include_router(api_router)
 
 UI_DIST = Path(__file__).parent.parent / "ui" / "dist"
 
-HANNAH_PASSWORD = os.environ.get("HANNAH_PASSWORD", "")
+AGENT_PASSWORD = os.environ.get("AGENT_PASSWORD", "")
 client = anthropic.AsyncAnthropic()
 
 
@@ -237,13 +237,15 @@ async def _maybe_compact(product_id: str) -> None:
         for m in all_msgs_to_check
     )
 
+    from backend.db import get_agent_config as _gac
+    _agent_name = _gac()["agent_name"]
     resp = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         messages=[{
             "role": "user",
             "content": (
-                "You are summarizing a conversation between a user and Hannah, an AI executive assistant. "
+                f"You are summarizing a conversation between a user and {_agent_name}, an AI executive assistant. "
                 "Produce a compact context block covering: decisions made, tasks assigned or completed, "
                 "key facts shared about products/workstreams/goals, ongoing work, and any user preferences. "
                 "Be concise but comprehensive — this summary replaces the full history.\n\n"
@@ -256,10 +258,10 @@ async def _maybe_compact(product_id: str) -> None:
     delete_messages_by_ids(product_id, ids_to_remove)
 
 
-# ── Hannah agentic loop ────────────────────────────────────────────────────────
+# ── Agent agentic loop ────────────────────────────────────────────────────────
 
-async def _hannah_loop(send_fn, product_id: str, messages: list) -> tuple[list, list]:
-    """Run Hannah's agentic loop. Returns (updated messages, new review items)."""
+async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, list]:
+    """Run the agent loop. Returns (updated messages, new review items)."""
     system = get_system_prompt(product_id)
     new_review_items: list[dict] = []
 
@@ -267,7 +269,7 @@ async def _hannah_loop(send_fn, product_id: str, messages: list) -> tuple[list, 
         accumulated_text = ""
 
         async with client.messages.stream(
-            model=HANNAH_MODEL,
+            model=AGENT_MODEL,
             max_tokens=8096,
             system=system,
             tools=TOOLS_DEFINITIONS,
@@ -279,7 +281,7 @@ async def _hannah_loop(send_fn, product_id: str, messages: list) -> tuple[list, 
                     event.type == "content_block_delta"
                     and event.delta.type == "text_delta"
                 ):
-                    await send_fn({"type": "hannah_token", "product_id": product_id, "content": event.delta.text})
+                    await send_fn({"type": "agent_token", "product_id": product_id, "content": event.delta.text})
                     accumulated_text += event.delta.text
 
             final = await stream.get_final_message()
@@ -287,7 +289,7 @@ async def _hannah_loop(send_fn, product_id: str, messages: list) -> tuple[list, 
         if accumulated_text:
             ts = _ts()
             await send_fn({
-                "type": "hannah_done",
+                "type": "agent_done",
                 "product_id": product_id,
                 "content": accumulated_text,
                 "ts": ts,
@@ -430,7 +432,7 @@ async def _product_worker(product_id: str) -> None:
             save_message(product_id, "user", directive["content"])
 
             try:
-                inner = asyncio.create_task(_hannah_loop(_broadcast, product_id, messages))
+                inner = asyncio.create_task(_agent_loop(_broadcast, product_id, messages))
                 _running_tasks[product_id] = inner
                 await inner
             except asyncio.CancelledError:
@@ -475,8 +477,8 @@ async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
     _connections.add(ws)
 
-    if not HANNAH_PASSWORD:
-        await _send(ws, {"type": "auth_fail", "reason": "HANNAH_PASSWORD not set"})
+    if not AGENT_PASSWORD:
+        await _send(ws, {"type": "auth_fail", "reason": "AGENT_PASSWORD not set"})
         await ws.close()
         return
 
@@ -486,7 +488,7 @@ async def websocket_endpoint(ws: WebSocket):
         await ws.close()
         return
 
-    if msg.get("type") != "auth" or msg.get("password") != HANNAH_PASSWORD:
+    if msg.get("type") != "auth" or msg.get("password") != AGENT_PASSWORD:
         await _send(ws, {"type": "auth_fail", "reason": "Invalid password"})
         await ws.close()
         return
