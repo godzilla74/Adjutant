@@ -71,8 +71,72 @@ case "$1" in
             echo "Uninstall cancelled."
         fi
         ;;
+    telegram)
+        if [ "$2" != "setup" ]; then
+            echo "Usage: adjutant telegram setup"
+            exit 1
+        fi
+        echo ""
+        echo "Setting up Telegram remote access..."
+
+        # Determine config file path
+        if [ "$OS" = "Darwin" ]; then
+            CONFIG_FILE="$HOME/Library/Application Support/Adjutant/config.env"
+        else
+            CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/Adjutant/config.env"
+        fi
+
+        if [ ! -f "$CONFIG_FILE" ]; then
+            echo "Config file not found at: $CONFIG_FILE"
+            echo "Run the installer first."
+            exit 1
+        fi
+
+        TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
+        if [ -z "$TOKEN" ]; then
+            echo "TELEGRAM_BOT_TOKEN not set in config."
+            echo ""
+            echo "Steps:"
+            echo "  1. Message @BotFather on Telegram → /newbot → copy the token"
+            echo "  2. Add to $CONFIG_FILE:"
+            echo "       TELEGRAM_BOT_TOKEN=your_token_here"
+            echo "  3. Run 'adjutant telegram setup' again"
+            exit 1
+        fi
+
+        echo "Token found. Checking for recent messages..."
+        RESPONSE=$(curl -s "https://api.telegram.org/bot${TOKEN}/getUpdates?limit=10")
+        CHAT_ID=$(echo "$RESPONSE" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+msgs = [u.get('message', {}) for u in data.get('result', [])]
+msgs = [m for m in msgs if m.get('from')]
+print(msgs[-1]['from']['id'] if msgs else '')
+" 2>/dev/null)
+
+        if [ -z "$CHAT_ID" ]; then
+            echo ""
+            echo "No recent messages found."
+            echo "  1. Open Telegram and find your bot (search its username)"
+            echo "  2. Send any message to it"
+            echo "  3. Run 'adjutant telegram setup' again"
+            exit 1
+        fi
+
+        # Update or append TELEGRAM_CHAT_ID
+        if grep -q "^TELEGRAM_CHAT_ID=" "$CONFIG_FILE"; then
+            sed -i.bak "s|^TELEGRAM_CHAT_ID=.*|TELEGRAM_CHAT_ID=${CHAT_ID}|" "$CONFIG_FILE"
+            rm -f "${CONFIG_FILE}.bak"
+        else
+            echo "TELEGRAM_CHAT_ID=${CHAT_ID}" >> "$CONFIG_FILE"
+        fi
+
+        echo ""
+        echo "✓ Telegram configured! Chat ID: ${CHAT_ID}"
+        echo "Run 'adjutant restart' to activate."
+        ;;
     *)
-        echo "Usage: adjutant {start|stop|restart|update|logs|uninstall}"
+        echo "Usage: adjutant {start|stop|restart|update|logs|uninstall|telegram}"
         exit 1
         ;;
 esac
