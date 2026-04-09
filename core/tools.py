@@ -135,7 +135,7 @@ TOOLS_DEFINITIONS = [
                 },
                 "description": {
                     "type": "string",
-                    "description": "What will happen when approved: who receives it, what it says, timing",
+                    "description": "2-3 sentence summary of what will happen when approved: who receives it, what it says, timing. Do not paste full content here — that belongs in the activity feed.",
                 },
                 "risk_label": {
                     "type": "string",

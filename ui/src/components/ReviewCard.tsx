@@ -1,4 +1,5 @@
 // ui/src/components/ReviewCard.tsx
+import { useState } from 'react'
 import { ReviewItem } from '../types'
 
 interface Props {
@@ -6,11 +7,29 @@ interface Props {
   onResolve: (id: number, action: 'approved' | 'skipped') => void
 }
 
+const TRUNCATE_AT = 120
+
 export default function ReviewCard({ item, onResolve }: Props) {
+  const [expanded, setExpanded] = useState(false)
+  const long = item.description && item.description.length > TRUNCATE_AT
+  const displayDesc = long && !expanded
+    ? item.description.slice(0, TRUNCATE_AT).trimEnd() + '…'
+    : item.description
+
   return (
     <div className="rounded-xl border border-amber-900/50 bg-amber-950/10 p-3 flex flex-col gap-2.5">
       <div className="text-sm font-semibold text-zinc-200 leading-snug">{item.title}</div>
-      <div className="text-xs text-zinc-400 leading-relaxed">{item.description}</div>
+      <div className="text-xs text-zinc-400 leading-relaxed">
+        {displayDesc}
+        {long && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="ml-1 text-zinc-600 hover:text-zinc-400 underline underline-offset-2"
+          >
+            {expanded ? 'less' : 'more'}
+          </button>
+        )}
+      </div>
       {item.risk_label && (
         <div className="flex items-center gap-1 text-xs text-amber-500">
           <span className="w-1 h-1 rounded-full bg-amber-500 flex-shrink-0" />
