@@ -218,6 +218,24 @@ async def _send(ws: WebSocket, event: dict) -> None:
 
 
 def _product_data_payload(product_id: str) -> dict:
+    # Reconstruct chat history from stored messages
+    raw_messages = load_messages(product_id, limit=100)
+    chat_history = []
+    for msg in raw_messages:
+        role = msg.get("role")
+        content = msg.get("content")
+        ts = msg.get("ts", "")
+        if role == "user" and isinstance(content, str):
+            # Plain string = a user directive
+            chat_history.append({"type": "directive", "content": content, "ts": ts})
+        elif role == "assistant" and isinstance(content, list):
+            # Extract text blocks from assistant response
+            text = " ".join(
+                b["text"] for b in content
+                if isinstance(b, dict) and b.get("type") == "text" and b.get("text")
+            ).strip()
+            if text:
+                chat_history.append({"type": "agent", "content": text, "ts": ts})
     return {
         "type": "product_data",
         "product_id": product_id,
@@ -225,6 +243,7 @@ def _product_data_payload(product_id: str) -> dict:
         "objectives": get_objectives(product_id),
         "events": load_activity_events(product_id),
         "review_items": load_review_items(product_id),
+        "chat_history": chat_history,
     }
 
 
@@ -645,7 +664,7 @@ async def websocket_endpoint(ws: WebSocket):
     await _send(ws, {"type": "auth_ok"})
     await _send(ws, {"type": "init", "products": get_products()})
 
-    active_product_id = "retainerops"
+    active_product_id = ""
 
     # Send current queue state for all active products on connect
     for pid, directive in _current_directive.items():
@@ -661,7 +680,7 @@ async def websocket_endpoint(ws: WebSocket):
                 await _send(ws, {"type": "init", "products": get_products()})
 
             elif msg_type == "switch_product":
-                product_id = msg.get("product_id", "retainerops")
+                product_id = msg.get("product_id", active_product_id)
                 active_product_id = product_id
                 await _send(ws, _product_data_payload(product_id))
                 # Also send current queue state for this product

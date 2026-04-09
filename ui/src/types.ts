@@ -75,7 +75,7 @@ export type ServerMessage =
   | { type: 'auth_ok' }
   | { type: 'auth_fail'; reason: string }
   | { type: 'init'; products: Product[] }
-  | { type: 'product_data'; product_id: string; workstreams: Workstream[]; objectives: Objective[]; events: ActivityEvent[]; review_items: ReviewItem[] }
+  | { type: 'product_data'; product_id: string; workstreams: Workstream[]; objectives: Objective[]; events: ActivityEvent[]; review_items: ReviewItem[]; chat_history?: Array<{ type: 'directive' | 'agent'; content: string; ts: string }> }
   | { type: 'directive_echo'; product_id: string; content: string; ts: string }
   | { type: 'activity_started'; product_id: string; id: number; agent_type: AgentType; headline: string; rationale: string; ts: string }
   | { type: 'activity_done'; product_id: string; id: number; summary: string; ts: string }

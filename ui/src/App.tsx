@@ -116,6 +116,16 @@ export default function App() {
           events: msg.events,
           review_items: msg.review_items,
         }))
+        if (msg.chat_history?.length) {
+          const dirs: DirectiveEntry[] = msg.chat_history
+            .filter(e => e.type === 'directive')
+            .map(e => ({ type: 'directive' as const, content: e.content, ts: e.ts }))
+          const agents: AgentEntry[] = msg.chat_history
+            .filter(e => e.type === 'agent')
+            .map(e => ({ type: 'agent' as const, content: e.content, ts: e.ts }))
+          setDirectives(prev => ({ ...prev, [msg.product_id]: dirs }))
+          setAgentMessages(prev => ({ ...prev, [msg.product_id]: agents }))
+        }
         return
       }
 

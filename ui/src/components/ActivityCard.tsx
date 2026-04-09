@@ -66,17 +66,27 @@ export default function ActivityCard({ event }: Props) {
             {AGENT_LABEL[event.agent_type]}
           </span>
         </div>
-        <span className="flex-shrink-0 text-xs text-zinc-600">
-          {needsReview
-            ? <span className="text-amber-500">⚠ review</span>
-            : isRunning
-              ? <span className="text-amber-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block" />
-                  running
-                </span>
-              : 'done'
-          }
-        </span>
+        <div className="flex-shrink-0 flex flex-col items-end gap-0.5">
+          <span className="text-xs text-zinc-600">
+            {needsReview
+              ? <span className="text-amber-500">⚠ review</span>
+              : isRunning
+                ? <span className="text-amber-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+                    running
+                  </span>
+                : 'done'
+            }
+          </span>
+          {event.created_at && (
+            <span className="text-[10px] text-zinc-700">
+              {new Date(event.created_at.replace(' ', 'T')).toLocaleString(undefined, {
+                month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit',
+              })}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Output preview (needs_review) */}
