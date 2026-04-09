@@ -47,12 +47,10 @@ from core.tools import TOOLS_DEFINITIONS, execute_tool
 
 init_db()
 
-# Model config — loaded from DB at startup, hot-reloadable via API
+# Model config is read fresh per invocation in _agent_loop so settings changes
+# take effect without a restart. These imports are needed at module level.
 from backend.db import get_agent_config as _get_agent_config
-_mc = _get_agent_config()
-AGENT_MODEL: str = os.environ.get("AGENT_MODEL", _mc["agent_model"])
 import agents.runner as _runner
-_runner.SUBAGENT_MODEL = os.environ.get("AGENT_SUBAGENT_MODEL", _mc["subagent_model"])
 
 # ── WebSocket connection registry ─────────────────────────────────────────────
 
@@ -392,11 +390,16 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
     _stdio_tools = _mcp_manager.get_tools() if _mcp_manager else []
     _all_tools = TOOLS_DEFINITIONS + _stdio_tools
 
+    # Read model config fresh so Settings changes take effect without restart
+    _live_cfg = _get_agent_config()
+    _agent_model = os.environ.get("AGENT_MODEL", _live_cfg["agent_model"])
+    _runner.SUBAGENT_MODEL = os.environ.get("AGENT_SUBAGENT_MODEL", _live_cfg["subagent_model"])
+
     while True:
         accumulated_text = ""
 
         _stream_kwargs: dict = dict(
-            model=AGENT_MODEL,
+            model=_agent_model,
             max_tokens=8096,
             system=system,
             tools=_all_tools,
