@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Dark rounded background -->
+  <rect width="32" height="32" rx="7" fill="#18181b"/>
+  <!-- Amber A mark -->
+  <path d="M16 6L7 26h4l1.8-4.5h6.4L21 26h4L16 6zm0 6.2l2.2 6.3h-4.4L16 12.2z" fill="#f59e0b"/>
+  <!-- Subtle amber dot / rank pip -->
+  <circle cx="16" cy="7.5" r="1.5" fill="#f59e0b" opacity="0.4"/>
+</svg>
