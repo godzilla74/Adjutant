@@ -43,13 +43,22 @@ switch ($Command) {
     }
     "uninstall" {
         Write-Host ""
-        Write-Host "This will permanently remove Adjutant and all your data."
+        Write-Host "This will permanently remove Adjutant."
         $Confirm = Read-Host "Type 'uninstall' to confirm"
         if ($Confirm -eq "uninstall") {
+            $DelData = Read-Host "Delete your configuration and data (DB, logs, credentials)? [y/N]"
             Stop-Adjutant -ErrorAction SilentlyContinue
             Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-            Remove-Item -Recurse -Force "$env:APPDATA\Adjutant" -ErrorAction SilentlyContinue
+            if ($DelData -match '^[Yy]$') {
+                Remove-Item -Recurse -Force "$env:APPDATA\Adjutant" -ErrorAction SilentlyContinue
+            }
             Remove-Item -Recurse -Force $AdjutantDir -ErrorAction SilentlyContinue
+            $CliDir = "$env:USERPROFILE\.local\bin"
+            $UserPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+            if ($UserPath -like "*$CliDir*") {
+                $NewPath = ($UserPath -split ";" | Where-Object { $_ -ne $CliDir }) -join ";"
+                [Environment]::SetEnvironmentVariable("PATH", $NewPath, "User")
+            }
             Write-Host "Adjutant has been uninstalled."
         } else {
             Write-Host "Uninstall cancelled."
