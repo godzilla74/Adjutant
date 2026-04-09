@@ -66,6 +66,9 @@ case "$1" in
             svc_remove
             rm -f "$HOME/.local/bin/adjutant"
             rm -rf "$ADJUTANT_DIR"
+            for RC in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile"; do
+                [ -f "$RC" ] && sed -i.bak '/export PATH="\$HOME\/.local\/bin:\$PATH"/d' "$RC" 2>/dev/null && rm -f "${RC}.bak" || true
+            done
             echo "Adjutant has been uninstalled."
         else
             echo "Uninstall cancelled."
