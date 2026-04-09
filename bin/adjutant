@@ -2,7 +2,7 @@
 # adjutant — Adjutant CLI
 set -e
 
-ADJUTANT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ADJUTANT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 OS="$(uname -s)"
 
 case "$OS" in
@@ -53,7 +53,7 @@ case "$1" in
         echo "Updating Adjutant..."
         cd "$ADJUTANT_DIR"
         git fetch origin main && git reset --hard FETCH_HEAD
-        .venv/bin/pip install --quiet -r requirements.txt
+        .venv/bin/python -m pip install --quiet -r requirements.txt
         cd ui && npm install --silent && npm run build --silent && cd ..
         svc_restart
         echo "Adjutant updated and restarted."
