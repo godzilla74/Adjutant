@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ActivityEvent, AgentType } from '../types'
 import ActivityCard from './ActivityCard'
+import MarkdownContent from './MarkdownContent'
 
 interface DirectiveEntry { type: 'directive'; content: string; ts: string }
 interface AgentEntry     { type: 'agent';     content: string; ts: string }
@@ -103,8 +104,8 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
             return (
               <div key={`agent-${entry.ts}`} className="max-w-xl">
                 <div className="text-xs text-zinc-600 mb-1">{agentName}</div>
-                <div className="rounded-xl rounded-tl-sm bg-zinc-800/60 border border-zinc-700/40 px-4 py-2.5 text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                  {entry.content}
+                <div className="rounded-xl rounded-tl-sm bg-zinc-800/60 border border-zinc-700/40 px-4 py-2.5 text-sm text-zinc-300 leading-relaxed">
+                  <MarkdownContent>{entry.content}</MarkdownContent>
                 </div>
               </div>
             )

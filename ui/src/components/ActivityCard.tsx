@@ -1,6 +1,6 @@
 // ui/src/components/ActivityCard.tsx
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import MarkdownContent from './MarkdownContent'
 import { ActivityEvent, AgentType } from '../types'
 
 const SUMMARY_PREVIEW_LEN = 300
@@ -81,15 +81,15 @@ export default function ActivityCard({ event }: Props) {
 
       {/* Output preview (needs_review) */}
       {needsReview && event.output_preview && (
-        <div className="rounded-lg bg-zinc-950/60 border-l-2 border-zinc-700 px-3 py-2 text-xs text-zinc-400 italic leading-relaxed prose prose-xs prose-invert max-w-none">
-          <ReactMarkdown>{event.output_preview}</ReactMarkdown>
+        <div className="rounded-lg bg-zinc-950/60 border-l-2 border-zinc-700 px-3 py-2">
+          <MarkdownContent className="text-xs text-zinc-400 leading-relaxed">{event.output_preview}</MarkdownContent>
         </div>
       )}
 
       {/* Summary (done) */}
       {isDone && event.summary && (
-        <div className="text-xs text-zinc-500 leading-relaxed prose prose-xs prose-invert max-w-none">
-          <ReactMarkdown>{displaySummary}</ReactMarkdown>
+        <div className="text-xs text-zinc-500 leading-relaxed">
+          <MarkdownContent>{displaySummary}</MarkdownContent>
           {isLong && (
             <button
               onClick={() => setExpanded(!expanded)}
