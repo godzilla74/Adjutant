@@ -3,32 +3,6 @@ import os
 from datetime import datetime
 
 
-COMPANY_INFO = """
-## JTA Ventures, LLC
-
-**Legal entity:** JTA Ventures, LLC (customers do not know this name — products operate under their own brands)
-
-### Products
-
-**Ignitara** (ignitara.com)
-- Primary revenue-generating product
-- White-label platform built on GoHighLevel (gohighlevel.com)
-- Provides marketing automation, CRM, and business management tools for clients
-
-**Bullsi** (bullsi.app)
-- SaaS platform for coaches
-- Enables coaches to create custom KPIs and track student progress and performance
-
-**RetainerOps** (retainerops.com)
-- SaaS product currently launching
-- Designed for solopreneurs, consultants, and fractional CXOs
-- Manages retainer-based client relationships and business operations
-
-**Eligibility Console** (eligibility.ignitara.com)
-- SaaS product for AI agents
-- Enables real-time medical and dental insurance eligibility verification
-- Targeted at healthcare AI applications and agent workflows
-"""
 
 
 def _product_context(product_id: str) -> str:
@@ -92,10 +66,10 @@ When creating review items, be specific about what will happen and why it needs 
 """
 
 
-def get_system_prompt(product_id: str = "retainerops") -> str:
+def get_system_prompt(product_id: str = "") -> str:
     agent_name = os.environ.get("AGENT_NAME", "Hannah")
     owner_name = os.environ.get("AGENT_OWNER_NAME", "the user")
-    owner_bio = os.environ.get("AGENT_OWNER_BIO") or COMPANY_INFO
+    owner_bio = os.environ.get("AGENT_OWNER_BIO", "")
 
     current_dt = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
 

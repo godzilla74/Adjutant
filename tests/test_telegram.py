@@ -8,28 +8,28 @@ import pytest
 from backend.telegram import TelegramBot, _parse_product_id
 
 PRODUCTS = [
-    {"id": "retainerops", "name": "RetainerOps"},
-    {"id": "bullsi",      "name": "Bullsi"},
+    {"id": "alpha",   "name": "Alpha"},
+    {"id": "beta",    "name": "Beta"},
 ]
 
 
 # ── _parse_product_id ────────────────────────────────────────────────────────
 
 def test_parse_product_id_with_prefix():
-    pid, msg = _parse_product_id("for RetainerOps: what's the status?", PRODUCTS)
-    assert pid == "retainerops"
+    pid, msg = _parse_product_id("for Alpha: what's the status?", PRODUCTS)
+    assert pid == "alpha"
     assert msg == "what's the status?"
 
 
 def test_parse_product_id_case_insensitive():
-    pid, msg = _parse_product_id("FOR RETAINEROPS: hello", PRODUCTS)
-    assert pid == "retainerops"
+    pid, msg = _parse_product_id("FOR ALPHA: hello", PRODUCTS)
+    assert pid == "alpha"
     assert msg == "hello"
 
 
 def test_parse_product_id_partial_match():
-    pid, msg = _parse_product_id("for retainer: update me", PRODUCTS)
-    assert pid == "retainerops"
+    pid, msg = _parse_product_id("for alph: update me", PRODUCTS)
+    assert pid == "alpha"
     assert msg == "update me"
 
 
@@ -54,7 +54,7 @@ def _make_bot():
         chat_id="123456",
         directive_callback=AsyncMock(),
         products_fn=lambda: PRODUCTS,
-        last_active_product_fn=lambda: "retainerops",
+        last_active_product_fn=lambda: "alpha",
         resolve_review_fn=MagicMock(),
         broadcast_fn=AsyncMock(),
     )
@@ -67,21 +67,21 @@ def _make_bot():
 
 def test_notify_agent_done_sends_for_pending_product():
     bot = _make_bot()
-    bot._pending_products.add("retainerops")
-    asyncio.run(bot.notify({"type": "agent_done", "product_id": "retainerops", "content": "Done!"}))
+    bot._pending_products.add("alpha")
+    asyncio.run(bot.notify({"type": "agent_done", "product_id": "alpha", "content": "Done!"}))
     bot.send_message.assert_awaited_once_with("Done!")
-    assert "retainerops" not in bot._pending_products
+    assert "alpha" not in bot._pending_products
 
 
 def test_notify_agent_done_ignores_non_pending():
     bot = _make_bot()
-    asyncio.run(bot.notify({"type": "agent_done", "product_id": "retainerops", "content": "Done!"}))
+    asyncio.run(bot.notify({"type": "agent_done", "product_id": "alpha", "content": "Done!"}))
     bot.send_message.assert_not_awaited()
 
 
 def test_notify_activity_done_always_sends():
     bot = _make_bot()
-    asyncio.run(bot.notify({"type": "activity_done", "product_id": "retainerops", "summary": "Research complete."}))
+    asyncio.run(bot.notify({"type": "activity_done", "product_id": "alpha", "summary": "Research complete."}))
     bot.send_message.assert_awaited_once()
     call_text = bot.send_message.call_args[0][0]
     assert "Research complete." in call_text
@@ -90,7 +90,7 @@ def test_notify_activity_done_always_sends():
 def test_notify_review_item_sends_with_buttons():
     bot = _make_bot()
     item = {"id": 42, "title": "Email to client", "description": "Send invoice.", "risk_label": "financial"}
-    asyncio.run(bot.notify({"type": "review_item_added", "product_id": "retainerops", "item": item}))
+    asyncio.run(bot.notify({"type": "review_item_added", "product_id": "alpha", "item": item}))
     bot.send_message.assert_awaited_once()
     _, kwargs = bot.send_message.call_args
     markup = json.loads(kwargs["reply_markup"]) if isinstance(kwargs.get("reply_markup"), str) else kwargs.get("reply_markup")
@@ -142,11 +142,11 @@ def test_handle_message_injects_directive():
     bot = _make_bot()
     message = {
         "from": {"id": 123456},
-        "text": "for RetainerOps: update me",
+        "text": "for Alpha: update me",
     }
     asyncio.run(bot._handle_message(message))
-    bot._directive_callback.assert_awaited_once_with("retainerops", "update me")
-    assert "retainerops" in bot._pending_products
+    bot._directive_callback.assert_awaited_once_with("alpha", "update me")
+    assert "alpha" in bot._pending_products
 
 
 def test_handle_message_wrong_chat_id_ignored():

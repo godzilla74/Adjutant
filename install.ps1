@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 $AdjutantDir = "$env:USERPROFILE\adjutant"
-$RepoUrl = "https://github.com/jtaventures/adjutant.git"
+$RepoUrl = "https://github.com/godzilla74/Adjutant.git"
 $ConfigDir = "$env:APPDATA\Adjutant"
 $ConfigFile = "$ConfigDir\config.env"
 $DbFile = "$ConfigDir\adjutant.db"

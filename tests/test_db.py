@@ -13,8 +13,8 @@ def db(tmp_path, monkeypatch):
     db_mod.init_db()
     # Create test products so FK constraints pass in tests that use these IDs
     with db_mod._conn() as conn:
-        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('retainerops', 'RetainerOps', 'RO', '#2563eb')")
-        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('ignitara', 'Ignitara', 'IG', '#ea580c')")
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('test-product', 'Test Product', 'TP', '#2563eb')")
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('test-product-2', 'Test Product 2', 'T2', '#ea580c')")
     return db_mod
 
 
@@ -60,7 +60,7 @@ def test_installer_product_seeded(db, monkeypatch):
 
 def test_save_and_load_activity_event(db):
     event_id = db.save_activity_event(
-        product_id="retainerops",
+        product_id="test-product",
         agent_type="research",
         headline="Researching competitors",
         rationale="Need pricing data",
@@ -68,7 +68,7 @@ def test_save_and_load_activity_event(db):
     )
     assert isinstance(event_id, int)
 
-    events = db.load_activity_events("retainerops")
+    events = db.load_activity_events("test-product")
     assert len(events) == 1
     ev = events[0]
     assert ev["headline"] == "Researching competitors"
@@ -79,28 +79,28 @@ def test_save_and_load_activity_event(db):
 
 def test_update_activity_event(db):
     event_id = db.save_activity_event(
-        product_id="retainerops",
+        product_id="test-product",
         agent_type="research",
         headline="Research task",
         rationale="",
         status="running",
     )
     db.update_activity_event(event_id, status="done", summary="Found 4 competitors")
-    events = db.load_activity_events("retainerops")
+    events = db.load_activity_events("test-product")
     assert events[0]["status"] == "done"
     assert events[0]["summary"] == "Found 4 competitors"
 
 
 def test_save_and_load_review_item(db):
     item_id = db.save_review_item(
-        product_id="retainerops",
+        product_id="test-product",
         title="LinkedIn post",
         description="Launch announcement draft",
         risk_label="Public-facing · irreversible",
     )
     assert isinstance(item_id, int)
 
-    items = db.load_review_items("retainerops")
+    items = db.load_review_items("test-product")
     assert len(items) == 1
     item = items[0]
     assert item["title"] == "LinkedIn post"
@@ -110,55 +110,55 @@ def test_save_and_load_review_item(db):
 
 def test_resolve_review_item(db):
     item_id = db.save_review_item(
-        product_id="retainerops",
+        product_id="test-product",
         title="Test item",
         description="desc",
         risk_label="risk",
     )
     db.resolve_review_item(item_id, "approved")
-    items = db.load_review_items("retainerops")
+    items = db.load_review_items("test-product")
     # pending items not shown
     assert all(i["id"] != item_id or i["status"] == "approved" for i in items)
     # confirmed by loading with status filter
-    pending = db.load_review_items("retainerops", status="pending")
+    pending = db.load_review_items("test-product", status="pending")
     assert all(i["id"] != item_id for i in pending)
 
 
 def test_messages_product_isolation(db):
-    db.save_message("retainerops", "user", "hello from RO")
-    db.save_message("ignitara", "user", "hello from IG")
+    db.save_message("test-product", "user", "hello from P1")
+    db.save_message("test-product-2", "user", "hello from P2")
 
-    ro_msgs = db.load_messages("retainerops")
-    ig_msgs = db.load_messages("ignitara")
+    ro_msgs = db.load_messages("test-product")
+    ig_msgs = db.load_messages("test-product-2")
 
     assert len(ro_msgs) == 1
-    assert ro_msgs[0]["content"] == "hello from RO"
+    assert ro_msgs[0]["content"] == "hello from P1"
     assert len(ig_msgs) == 1
-    assert ig_msgs[0]["content"] == "hello from IG"
+    assert ig_msgs[0]["content"] == "hello from P2"
 
 
 def test_messages_json_roundtrip(db):
-    db.save_message("retainerops", "assistant", [{"type": "text", "text": "hi"}])
-    msgs = db.load_messages("retainerops")
+    db.save_message("test-product", "assistant", [{"type": "text", "text": "hi"}])
+    msgs = db.load_messages("test-product")
     assert msgs[0]["content"] == [{"type": "text", "text": "hi"}]
 
 
 def test_activity_events_product_isolation(db):
-    db.save_activity_event("retainerops", "research", "RO task", "", "running")
-    db.save_activity_event("ignitara", "general", "IG task", "", "done")
+    db.save_activity_event("test-product", "research", "P1 task", "", "running")
+    db.save_activity_event("test-product-2", "general", "P2 task", "", "done")
 
-    ro = db.load_activity_events("retainerops")
-    ig = db.load_activity_events("ignitara")
+    ro = db.load_activity_events("test-product")
+    ig = db.load_activity_events("test-product-2")
 
     assert len(ro) == 1
-    assert ro[0]["headline"] == "RO task"
+    assert ro[0]["headline"] == "P1 task"
     assert len(ig) == 1
-    assert ig[0]["headline"] == "IG task"
+    assert ig[0]["headline"] == "P2 task"
 
 
 def test_update_activity_event_preserves_output_preview(db):
     event_id = db.save_activity_event(
-        product_id="retainerops",
+        product_id="test-product",
         agent_type="general",
         headline="Task with preview",
         rationale="",
@@ -167,7 +167,7 @@ def test_update_activity_event_preserves_output_preview(db):
     )
     # Update status without passing output_preview — COALESCE should preserve original
     db.update_activity_event(event_id, status="done")
-    events = db.load_activity_events("retainerops")
+    events = db.load_activity_events("test-product")
     assert events[0]["output_preview"] == "Initial preview text"
 
 
@@ -176,7 +176,7 @@ def test_init_db_cleans_stale_running_events(db):
     with db._conn() as conn:
         conn.execute(
             "INSERT INTO activity_events (product_id, agent_type, headline, status) "
-            "VALUES ('retainerops', 'research', 'Stale task', 'running')"
+            "VALUES ('test-product', 'research', 'Stale task', 'running')"
         )
     # Re-run init_db (simulates restart)
     db.init_db()
@@ -200,7 +200,7 @@ def test_seed_uses_env_var_product_when_set(tmp_path, monkeypatch):
     products = db_mod.get_products()
     ids = [p["id"] for p in products]
     assert "acme-corp" in ids
-    assert "retainerops" not in ids
+    assert "test-product" not in ids
 
 
 def test_seed_empty_when_no_env_vars(tmp_path, monkeypatch):

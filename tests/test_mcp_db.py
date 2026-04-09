@@ -34,11 +34,11 @@ def test_add_product_scoped_mcp_server(db):
         name="ProductBot", type="remote",
         url="https://example.com/mcp",
         command=None, args=None, env=None,
-        scope="product", product_id="retainerops",
+        scope="product", product_id="test-product",
     )
     server = db.get_mcp_server(sid)
     assert server["scope"] == "product"
-    assert server["product_id"] == "retainerops"
+    assert server["product_id"] == "test-product"
 
 
 def test_list_mcp_servers_includes_globals_and_product(db):
@@ -48,9 +48,9 @@ def test_list_mcp_servers_includes_globals_and_product(db):
     )
     db.add_mcp_server(
         name="ProductBot", type="remote", url="https://product.example.com",
-        command=None, args=None, env=None, scope="product", product_id="retainerops",
+        command=None, args=None, env=None, scope="product", product_id="test-product",
     )
-    servers = db.list_mcp_servers("retainerops")
+    servers = db.list_mcp_servers("test-product")
     names = [s["name"] for s in servers]
     assert "GlobalBot" in names
     assert "ProductBot" in names
@@ -58,12 +58,12 @@ def test_list_mcp_servers_includes_globals_and_product(db):
 
 def test_list_mcp_servers_excludes_other_product(db):
     db.add_mcp_server(
-        name="BullsiOnly", type="remote", url="https://bullsi.example.com",
-        command=None, args=None, env=None, scope="product", product_id="bullsi",
+        name="OtherOnly", type="remote", url="https://other.example.com",
+        command=None, args=None, env=None, scope="product", product_id="other-product",
     )
-    servers = db.list_mcp_servers("retainerops")
+    servers = db.list_mcp_servers("test-product")
     names = [s["name"] for s in servers]
-    assert "BullsiOnly" not in names
+    assert "OtherOnly" not in names
 
 
 def test_update_mcp_server_disabled(db):
@@ -93,7 +93,7 @@ def test_list_all_mcp_servers(db):
     db.add_mcp_server(
         name="ProductOne", type="stdio", url=None,
         command="npx", args='["@test/server"]', env=None,
-        scope="product", product_id="retainerops",
+        scope="product", product_id="test-product",
     )
     all_servers = db.list_all_mcp_servers()
     names = [s["name"] for s in all_servers]
