@@ -208,11 +208,13 @@ def init_db() -> None:
         conn.execute(
             "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
         )
-        # Seed agent_name default if missing (idempotent)
+        # Seed agent_name default if missing (idempotent) — prefer AGENT_NAME env var
+        _default_agent_name = os.environ.get("AGENT_NAME", "Hannah")
         conn.execute(
             "INSERT INTO model_config (key, value, updated_at) "
-            "VALUES ('agent_name', 'Hannah', datetime('now')) "
-            "ON CONFLICT(key) DO NOTHING"
+            "VALUES ('agent_name', ?, datetime('now')) "
+            "ON CONFLICT(key) DO NOTHING",
+            (_default_agent_name,),
         )
         # On restart, mark any stale running events as done
         conn.execute(
@@ -826,7 +828,7 @@ def delete_directive_template(template_id: int) -> None:
 _AGENT_CONFIG_DEFAULTS = {
     "agent_model":    "claude-opus-4-6",
     "subagent_model": "sonnet",
-    "agent_name":     "Hannah",
+    "agent_name":     os.environ.get("AGENT_NAME", "Hannah"),
 }
 
 def get_agent_config() -> dict:
