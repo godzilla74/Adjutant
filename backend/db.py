@@ -655,7 +655,7 @@ def purge_broken_tool_exchanges(product_id: str) -> int:
 def load_messages(product_id: str, limit: int = 15) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT role, content FROM messages WHERE product_id = ? ORDER BY id DESC LIMIT ?",
+            "SELECT role, content, created_at FROM messages WHERE product_id = ? ORDER BY id DESC LIMIT ?",
             (product_id, limit),
         ).fetchall()
     result = []
@@ -664,7 +664,7 @@ def load_messages(product_id: str, limit: int = 15) -> list[dict]:
             content = json.loads(r["content"])
         except (json.JSONDecodeError, TypeError):
             content = r["content"]
-        result.append({"role": r["role"], "content": content})
+        result.append({"role": r["role"], "content": content, "ts": r["created_at"]})
     return result
 
 
