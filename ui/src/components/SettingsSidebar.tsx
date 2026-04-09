@@ -513,9 +513,7 @@ export default function SettingsSidebar({
                 >
                   <option value="claude-opus-4-6">Opus 4.6 (best, ~$15/Mtok)</option>
                   <option value="claude-sonnet-4-6">Sonnet 4.6 (fast, ~$3/Mtok)</option>
-                  <option value="sonnet">Sonnet (latest)</option>
                   <option value="claude-haiku-4-5-20251001">Haiku 4.5 (cheap, ~$0.80/Mtok)</option>
-                  <option value="haiku">Haiku (latest)</option>
                 </select>
               </div>
               <button

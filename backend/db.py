@@ -826,8 +826,8 @@ def delete_directive_template(template_id: int) -> None:
 # ── Agent / Model config ──────────────────────────────────────────────────────
 
 _AGENT_CONFIG_DEFAULTS = {
-    "agent_model":    "claude-opus-4-6",
-    "subagent_model": "sonnet",
+    "agent_model":    "claude-sonnet-4-6",
+    "subagent_model": "claude-sonnet-4-6",
     "agent_name":     os.environ.get("AGENT_NAME", "Hannah"),
 }
 

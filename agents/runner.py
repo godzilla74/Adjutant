@@ -13,12 +13,8 @@ AGENT_TIMEOUT = 180  # seconds — hard cap per agent run
 SUBAGENT_MODEL: str = os.environ.get("HANNAH_SUBAGENT_MODEL", "sonnet")
 
 _SUBAGENT_SYSTEM = (
-    "You are a specialized sub-agent working under Hannah, "
-    "the Executive Assistant to Justin Farmer, CEO of JTA Ventures, LLC. "
-    "JTA Ventures operates four products: Ignitara (white-label GoHighLevel), "
-    "Bullsi (coaching KPI SaaS), RetainerOps (retainer management SaaS), and "
-    "Eligibility Console (medical/dental insurance verification for AI agents). "
-    "Complete your assigned task thoroughly and return a clear, organized summary."
+    "You are a specialized sub-agent. Complete your assigned task thoroughly "
+    "and return a clear, organized summary."
 )
 
 
@@ -88,13 +84,14 @@ async def run_email_agent(task: str) -> str:
     async for message in query(
         prompt=task,
         options=ClaudeAgentOptions(
+            model=SUBAGENT_MODEL,
             mcp_servers=_GMAIL_MCP,
             max_turns=20,
             permission_mode="bypassPermissions",
             system_prompt=(
                 _SUBAGENT_SYSTEM
                 + " You have access to Gmail tools. Use them to read, search, "
-                "draft, and send emails on Justin's behalf as instructed."
+                "draft, and send emails as instructed."
             ),
         ),
     ):
