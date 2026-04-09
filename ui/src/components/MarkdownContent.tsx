@@ -1,5 +1,6 @@
 // ui/src/components/MarkdownContent.tsx
 import ReactMarkdown, { Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const components: Components = {
   h1:     ({ children }) => <p className="font-bold text-zinc-200 mt-2 mb-1">{children}</p>,
@@ -27,7 +28,7 @@ interface Props {
 export default function MarkdownContent({ children, className }: Props) {
   return (
     <div className={className}>
-      <ReactMarkdown components={components}>{children}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{children}</ReactMarkdown>
     </div>
   )
 }
