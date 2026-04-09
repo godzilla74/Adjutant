@@ -38,7 +38,7 @@ const EMPTY_STATE: ProductState = {
 export default function App() {
   const [connState,       setConnState]       = useState<ConnState>('connecting')
   const [products,        setProducts]        = useState<Product[]>([])
-  const [activeProductId, setActiveProductId] = useState<string>('retainerops')
+  const [activeProductId, setActiveProductId] = useState<string>('')
   const [productStates,   setProductStates]   = useState<Record<string, ProductState>>({})
   const [directives,      setDirectives]      = useState<Record<string, DirectiveEntry[]>>({})
   const [agentMessages,   setAgentMessages]   = useState<Record<string, AgentEntry[]>>({})
@@ -101,8 +101,11 @@ export default function App() {
 
       if (msg.type === 'init') {
         setProducts(msg.products)
-        // Request data for default product
-        ws.send(JSON.stringify({ type: 'switch_product', product_id: 'retainerops' }))
+        const defaultId = msg.products[0]?.id
+        if (defaultId) {
+          setActiveProductId(defaultId)
+          ws.send(JSON.stringify({ type: 'switch_product', product_id: defaultId }))
+        }
         return
       }
 
