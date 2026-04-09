@@ -398,13 +398,23 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
     while True:
         accumulated_text = ""
 
+        # Strip any thinking blocks from history — they require the thinking param
+        # and would cause API errors without it
+        clean_messages = []
+        for msg in messages:
+            if msg["role"] == "assistant" and isinstance(msg.get("content"), list):
+                content = [b for b in msg["content"] if not (isinstance(b, dict) and b.get("type") == "thinking")]
+                if content:
+                    clean_messages.append({**msg, "content": content})
+            else:
+                clean_messages.append(msg)
+
         _stream_kwargs: dict = dict(
             model=_agent_model,
             max_tokens=8096,
             system=system,
             tools=_all_tools,
-            messages=messages,
-            thinking={"type": "adaptive"},
+            messages=clean_messages,
         )
         if _remote_mcp:
             _stream_kwargs["mcp_servers"] = _remote_mcp
@@ -431,7 +441,6 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
             })
 
         _BLOCK_KEYS = {
-            "thinking": {"type", "thinking", "signature"},
             "text":     {"type", "text"},
             "tool_use": {"type", "id", "name", "input"},
         }
@@ -439,6 +448,8 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
         for b in final.content:
             if hasattr(b, "model_dump"):
                 d = b.model_dump()
+                if d.get("type") == "thinking":
+                    continue  # drop thinking blocks from history
                 allowed = _BLOCK_KEYS.get(d.get("type", ""), set(d.keys()))
                 content_serializable.append({k: v for k, v in d.items() if k in allowed})
             else:
