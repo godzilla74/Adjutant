@@ -10,7 +10,9 @@ import {
   ServerMessage,
 } from './types'
 import ProductRail from './components/ProductRail'
+import SessionsPanel from './components/SessionsPanel'
 import WorkstreamsPanel from './components/WorkstreamsPanel'
+import ObjectivesPanel from './components/ObjectivesPanel'
 import ActivityFeed from './components/ActivityFeed'
 import ReviewQueue from './components/ReviewQueue'
 import DirectiveBar from './components/DirectiveBar'
@@ -29,10 +31,12 @@ interface AgentEntry    { type: 'agent';     content: string; ts: string }
 
 // Per-product UI state
 const EMPTY_STATE: ProductState = {
-  workstreams: [],
-  objectives: [],
-  events: [],
-  review_items: [],
+  workstreams:     [],
+  objectives:      [],
+  events:          [],
+  review_items:    [],
+  sessions:        [],
+  activeSessionId: null,
 }
 
 export default function App() {
@@ -111,11 +115,14 @@ export default function App() {
       }
 
       if (msg.type === 'product_data') {
-        setProductState(msg.product_id, () => ({
-          workstreams: msg.workstreams,
-          objectives: msg.objectives,
-          events: msg.events,
-          review_items: msg.review_items,
+        setProductState(msg.product_id, prev => ({
+          ...prev,
+          workstreams:     msg.workstreams,
+          objectives:      msg.objectives,
+          events:          msg.events,
+          review_items:    msg.review_items,
+          sessions:        msg.sessions ?? [],
+          activeSessionId: msg.active_session_id ?? null,
         }))
         if (msg.chat_history?.length) {
           const dirs: DirectiveEntry[] = msg.chat_history
@@ -213,6 +220,50 @@ export default function App() {
         return
       }
 
+      if (msg.type === 'session_created') {
+        setProductState(activeProductId, prev => ({
+          ...prev,
+          sessions:        [msg.session, ...prev.sessions],
+          activeSessionId: msg.session.id,
+        }))
+        return
+      }
+
+      if (msg.type === 'session_switched') {
+        setProductState(activeProductId, prev => ({
+          ...prev,
+          activeSessionId: msg.session_id,
+        }))
+        const dirs: DirectiveEntry[] = msg.chat_history
+          .filter(e => e.type === 'directive')
+          .map(e => ({ type: 'directive' as const, content: e.content, ts: e.ts }))
+        const agents: AgentEntry[] = msg.chat_history
+          .filter(e => e.type === 'agent')
+          .map(e => ({ type: 'agent' as const, content: e.content, ts: e.ts }))
+        setDirectives(prev => ({ ...prev, [activeProductId]: dirs }))
+        setAgentMessages(prev => ({ ...prev, [activeProductId]: agents }))
+        return
+      }
+
+      if (msg.type === 'session_renamed') {
+        setProductState(activeProductId, prev => ({
+          ...prev,
+          sessions: prev.sessions.map(s =>
+            s.id === msg.session_id ? { ...s, name: msg.name } : s
+          ),
+        }))
+        return
+      }
+
+      if (msg.type === 'session_deleted') {
+        setProductState(activeProductId, prev => ({
+          ...prev,
+          sessions:        prev.sessions.filter(s => s.id !== msg.session_id),
+          activeSessionId: msg.next_session_id,
+        }))
+        return
+      }
+
       if ((msg as { type: string }).type === 'error') {
         const errMsg = (msg as { type: string; message: string }).message
         console.error('Server error:', errMsg)
@@ -253,10 +304,11 @@ export default function App() {
     wsRef.current?.send(JSON.stringify({
       type: 'directive',
       product_id: activeProductId,
+      session_id: productStates[activeProductId]?.activeSessionId ?? null,
       content,
       attachments: attachments ?? [],
     }))
-  }, [activeProductId])
+  }, [activeProductId, productStates])
 
   const cancelDirective = useCallback((directiveId: string) => {
     wsRef.current?.send(JSON.stringify({
@@ -272,6 +324,26 @@ export default function App() {
       review_item_id: id,
       action,
     }))
+  }, [])
+
+  const createSession = useCallback((name: string) => {
+    wsRef.current?.send(JSON.stringify({
+      type: 'create_session',
+      name,
+      product_id: activeProductId,
+    }))
+  }, [activeProductId])
+
+  const switchSession = useCallback((sessionId: string) => {
+    wsRef.current?.send(JSON.stringify({ type: 'switch_session', session_id: sessionId }))
+  }, [])
+
+  const renameSession = useCallback((sessionId: string, name: string) => {
+    wsRef.current?.send(JSON.stringify({ type: 'rename_session', session_id: sessionId, name }))
+  }, [])
+
+  const deleteSession = useCallback((sessionId: string) => {
+    wsRef.current?.send(JSON.stringify({ type: 'delete_session', session_id: sessionId }))
   }, [])
 
   if (connState === 'auth' || connState === 'connecting') {
@@ -381,23 +453,39 @@ export default function App() {
           />
         ) : (
           <>
-            {/* Workstreams */}
-            <WorkstreamsPanel
-              workstreams={activeState.workstreams}
-              objectives={activeState.objectives}
-              password={pw}
-              onWorkstreamUpdated={(wsId, patch) => {
-                setProductState(activeProductId, prev => ({
-                  ...prev,
-                  workstreams: prev.workstreams.map(ws =>
-                    ws.id === wsId ? { ...ws, ...patch } : ws
-                  ),
-                }))
-              }}
-            />
+            {/* Left column: Sessions + Workstreams */}
+            <div className="flex flex-col">
+              <SessionsPanel
+                sessions={activeState.sessions}
+                activeSessionId={activeState.activeSessionId}
+                onCreate={createSession}
+                onSwitch={switchSession}
+                onRename={renameSession}
+                onDelete={deleteSession}
+              />
+              <WorkstreamsPanel
+                workstreams={activeState.workstreams}
+                password={pw}
+                onWorkstreamUpdated={(wsId, patch) => {
+                  setProductState(activeProductId, prev => ({
+                    ...prev,
+                    workstreams: prev.workstreams.map(ws =>
+                      ws.id === wsId ? { ...ws, ...patch } : ws
+                    ),
+                  }))
+                }}
+              />
+            </div>
 
             {/* Activity feed */}
             <div className="flex-1 flex flex-col overflow-hidden">
+              {activeState.activeSessionId && (
+                <div className="flex items-center px-4 py-1 border-b border-zinc-800/30">
+                  <span className="text-[10px] text-zinc-600 ml-auto">
+                    {activeState.sessions.find(s => s.id === activeState.activeSessionId)?.name ?? ''} session
+                  </span>
+                </div>
+              )}
               <LiveAgents
                 events={activeState.events}
                 currentDirective={queueByProduct[activeProductId]?.current ?? null}
@@ -427,14 +515,17 @@ export default function App() {
               />
             </div>
 
-            {/* Review queue */}
-            <ReviewQueue
-              items={activeState.review_items.filter(i => i.status === 'pending')}
-              onResolve={resolveReview}
-              queued={queueByProduct[activeProductId]?.queued ?? []}
-              onCancelQueued={cancelDirective}
-              agentName={agentName}
-            />
+            {/* Right column: Review queue + Objectives */}
+            <div className="flex flex-col">
+              <ReviewQueue
+                items={activeState.review_items.filter(i => i.status === 'pending')}
+                onResolve={resolveReview}
+                queued={queueByProduct[activeProductId]?.queued ?? []}
+                onCancelQueued={cancelDirective}
+                agentName={agentName}
+              />
+              <ObjectivesPanel objectives={activeState.objectives} />
+            </div>
           </>
         )}
 
