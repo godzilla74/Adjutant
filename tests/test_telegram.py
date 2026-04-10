@@ -206,7 +206,6 @@ def test_handle_message_photo_downloads_and_injects(tmp_path):
 def test_send_document_calls_api(tmp_path):
     """send_document sends the file via Telegram sendDocument."""
     bot = _make_bot()
-    import tempfile, os
 
     test_file = tmp_path / "test.pdf"
     test_file.write_bytes(b"%PDF fake")
@@ -215,10 +214,12 @@ def test_send_document_calls_api(tmp_path):
         mock_instance = MagicMock()
         mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
         mock_instance.__aexit__ = AsyncMock(return_value=False)
-        mock_instance.post = AsyncMock(return_value=MagicMock(json=MagicMock(return_value={"ok": True})))
+        mock_instance.post = AsyncMock(return_value=MagicMock())
         mock_client.return_value = mock_instance
         asyncio.run(bot.send_document(str(test_file)))
-    # Just verify no exception raised — actual HTTP is mocked
+        mock_instance.post.assert_awaited_once()
+        call_url = mock_instance.post.call_args[0][0]
+        assert "sendDocument" in call_url
 
 
 def test_send_video_falls_back_to_document_for_large_files(tmp_path):

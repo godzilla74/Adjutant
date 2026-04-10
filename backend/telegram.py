@@ -2,6 +2,7 @@
 """Telegram bot integration — polling loop, message routing, review item approval."""
 import asyncio
 import logging
+import mimetypes
 import re
 from typing import Callable, Awaitable
 
@@ -114,7 +115,6 @@ class TelegramBot:
 
     async def _download_telegram_file(self, file_id: str) -> tuple[str, str]:
         """Download a Telegram file by file_id. Returns (local_path, mime_type)."""
-        import mimetypes
         from backend.uploads import save_uploaded_file
 
         try:
@@ -155,12 +155,12 @@ class TelegramBot:
 
     async def send_video(self, file_path: str) -> None:
         """Send a video via Telegram. Falls back to sendDocument for files over 50 MB."""
-        from pathlib import Path as _Path
-        size = _Path(file_path).stat().st_size
-        if size > 50 * 1024 * 1024:
-            await self.send_document(file_path)
-            return
         try:
+            from pathlib import Path as _Path
+            size = _Path(file_path).stat().st_size
+            if size > 50 * 1024 * 1024:
+                await self.send_document(file_path)
+                return
             async with httpx.AsyncClient(timeout=120) as client:
                 with open(file_path, "rb") as f:
                     await client.post(
@@ -222,7 +222,7 @@ class TelegramBot:
         if from_id != self.chat_id:
             return
 
-        text = message.get("text", "").strip()
+        text = (message.get("text") or message.get("caption") or "").strip()
 
         # Detect file attachments
         file_ref: str | None = None
@@ -308,7 +308,7 @@ class TelegramBot:
                     resp = await client.get(self._url("getUpdates"), params={
                         "offset": self._offset,
                         "timeout": 30,
-                        "allowed_updates": ["message", "callback_query", "channel_post"],
+                        "allowed_updates": ["message", "callback_query"],
                     })
                     data = resp.json()
                     if not data.get("ok"):
