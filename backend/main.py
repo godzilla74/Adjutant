@@ -4,7 +4,6 @@
 import asyncio
 import base64
 import json
-import mimetypes
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -355,8 +354,9 @@ def _build_user_message(content: str, attachments: list[dict]) -> str | list:
         return f"{prefix}\n\n{content}" if prefix else content
 
     # Mix of blocks and possibly video refs
-    text_parts = video_refs + [content]
-    blocks.append({"type": "text", "text": "\n\n".join(text_parts)})
+    text_parts = video_refs + ([content] if content else [])
+    if text_parts:
+        blocks.append({"type": "text", "text": "\n\n".join(text_parts)})
     return blocks
 
 
