@@ -708,7 +708,10 @@ async def _send_telegram_file(file_path: str) -> str:
     if bot is None:
         return "Telegram is not configured — cannot send file."
 
+    from backend.uploads import get_uploads_dir
     p = Path(file_path)
+    if not p.resolve().is_relative_to(get_uploads_dir().resolve()):
+        return f"Access denied: {file_path} is outside the uploads directory."
     if not p.exists():
         return f"File not found: {file_path}"
     if not p.is_file():
