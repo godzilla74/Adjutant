@@ -1,10 +1,11 @@
 // ui/src/components/WorkstreamsPanel.tsx
 import { useState, useEffect } from 'react'
 import { api } from '../api'
-import { Workstream } from '../types'
+import { Workstream, Objective } from '../types'
 
 interface Props {
   workstreams:          Workstream[]
+  objectives:           Objective[]
   password:             string
   onWorkstreamUpdated:  (wsId: number, patch: { name: string; schedule: string; mission: string }) => void
 }

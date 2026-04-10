@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import WorkstreamsPanel from '../components/WorkstreamsPanel'
-import { Workstream } from '../types'
+import { Workstream, Objective } from '../types'
 import { api } from '../api'
 
 vi.mock('../api', () => ({
@@ -32,8 +32,13 @@ const WS_SCHEDULED: Workstream[] = [
   },
 ]
 
+const DEFAULT_OBJECTIVES: Objective[] = [
+  { id: 1, text: 'Increase revenue', progress_current: 50, progress_target: 100, display_order: 0 },
+]
+
 const DEFAULT_PROPS = {
   workstreams: WS_SCHEDULED,
+  objectives: DEFAULT_OBJECTIVES,
   password: 'test-pw',
   onWorkstreamUpdated: vi.fn(),
 }

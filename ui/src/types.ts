@@ -102,3 +102,10 @@ export interface ProductOverview {
   pending_reviews: number
   running_agents: number
 }
+
+export interface Session {
+  id: string
+  name: string
+  product_id: string | null
+  created_at: string
+}
