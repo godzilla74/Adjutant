@@ -227,3 +227,102 @@ def test_seed_icon_label_single_word_product(tmp_path, monkeypatch):
     acme = next(p for p in products if p["id"] == "acme")
     assert len(acme["icon_label"]) == 2
     assert acme["icon_label"] == "AC"
+
+
+import uuid as _uuid
+
+
+def test_create_session_returns_id(db):
+    sid = db.create_session("Finance", "test-product")
+    assert isinstance(sid, str)
+    assert len(sid) > 0
+
+
+def test_get_sessions_returns_product_sessions(db):
+    db.create_session("Finance", "test-product")
+    db.create_session("Ops", "test-product")
+    sessions = db.get_sessions("test-product")
+    names = [s["name"] for s in sessions]
+    assert "Finance" in names
+    assert "Ops" in names
+
+
+def test_get_sessions_excludes_other_products(db):
+    db.create_session("Finance", "test-product")
+    db.create_session("Other", "test-product-2")
+    sessions = db.get_sessions("test-product")
+    names = [s["name"] for s in sessions]
+    assert "Other" not in names
+
+
+def test_get_sessions_global(db):
+    db.create_session("Strategy", None)
+    db.create_session("Finance", "test-product")
+    sessions = db.get_sessions(None)
+    names = [s["name"] for s in sessions]
+    assert "Strategy" in names
+    assert "Finance" not in names
+
+
+def test_rename_session(db):
+    sid = db.create_session("Old Name", "test-product")
+    db.rename_session(sid, "New Name")
+    sessions = db.get_sessions("test-product")
+    names = [s["name"] for s in sessions]
+    assert "New Name" in names
+    assert "Old Name" not in names
+
+
+def test_delete_session_cascades_messages(db):
+    sid = db.create_session("Finance", "test-product")
+    db.save_message("test-product", "user", "hello", sid)
+    db.delete_session(sid)
+    # Session gone
+    assert db.get_sessions("test-product") == []
+    # Messages gone (cascade)
+    msgs = db.load_messages("test-product", sid, limit=100)
+    assert msgs == []
+
+
+def test_get_first_session(db):
+    db.create_session("Alpha", "test-product")
+    db.create_session("Beta", "test-product")
+    first = db.get_first_session("test-product")
+    assert first is not None
+    assert first["name"] in ("Alpha", "Beta")
+
+
+def test_load_messages_scoped_to_session(db):
+    sid1 = db.create_session("Finance", "test-product")
+    sid2 = db.create_session("Ops", "test-product")
+    db.save_message("test-product", "user", "finance msg", sid1)
+    db.save_message("test-product", "user", "ops msg", sid2)
+    msgs1 = db.load_messages("test-product", sid1, limit=50)
+    msgs2 = db.load_messages("test-product", sid2, limit=50)
+    assert any("finance msg" in str(m["content"]) for m in msgs1)
+    assert not any("ops msg" in str(m["content"]) for m in msgs1)
+    assert any("ops msg" in str(m["content"]) for m in msgs2)
+
+
+def test_migration_creates_general_session(tmp_path, monkeypatch):
+    """init_db migrates existing messages into a General session."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "migrate.db"))
+    import backend.db as db_mod
+    import importlib
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    with db_mod._conn() as conn:
+        conn.execute(
+            "INSERT INTO products (id, name, icon_label, color) VALUES ('co', 'Co', 'C', '#000')"
+        )
+        # Insert a legacy message with no session_id
+        conn.execute(
+            "INSERT INTO messages (product_id, role, content) VALUES ('co', 'user', 'legacy')"
+        )
+    # Re-run init_db — migration should create General session and assign message
+    db_mod.init_db()
+    sessions = db_mod.get_sessions("co")
+    assert len(sessions) == 1
+    assert sessions[0]["name"] == "General"
+    msgs = db_mod.load_messages("co", sessions[0]["id"], limit=50)
+    assert any("legacy" in str(m["content"]) for m in msgs)

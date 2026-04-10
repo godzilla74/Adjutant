@@ -222,6 +222,82 @@ def init_db() -> None:
         )
         _seed_products(conn)
 
+        # ── Sessions ──────────────────────────────────────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id         TEXT PRIMARY KEY,
+                name       TEXT NOT NULL,
+                product_id TEXT REFERENCES products(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Recreate messages table with nullable product_id + session_id (idempotent)
+        existing_cols = [
+            r[1] for r in conn.execute("PRAGMA table_info(messages)").fetchall()
+        ]
+        if "session_id" not in existing_cols:
+            conn.executescript("""
+                PRAGMA foreign_keys=OFF;
+                CREATE TABLE messages_new (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id TEXT REFERENCES products(id),
+                    session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+                    role       TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                INSERT INTO messages_new (id, product_id, role, content, created_at)
+                    SELECT id, product_id, role, content, created_at FROM messages;
+                DROP TABLE messages;
+                ALTER TABLE messages_new RENAME TO messages;
+                CREATE INDEX IF NOT EXISTS idx_messages_product
+                    ON messages(product_id, id);
+                CREATE INDEX IF NOT EXISTS idx_messages_session
+                    ON messages(session_id, id);
+                PRAGMA foreign_keys=ON;
+            """)
+
+        # Add session_id to conversation_summaries (idempotent)
+        cs_cols = [
+            r[1] for r in conn.execute("PRAGMA table_info(conversation_summaries)").fetchall()
+        ]
+        if "session_id" not in cs_cols:
+            conn.execute(
+                "ALTER TABLE conversation_summaries ADD COLUMN "
+                "session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE"
+            )
+            try:
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_summary_session "
+                    "ON conversation_summaries(session_id)"
+                )
+            except Exception:
+                pass
+
+        # Migrate: create General sessions for products with un-assigned messages
+        import uuid as _uuid
+        products_with_msgs = conn.execute("""
+            SELECT DISTINCT product_id FROM messages
+            WHERE product_id IS NOT NULL AND session_id IS NULL
+        """).fetchall()
+        for (pid,) in products_with_msgs:
+            existing_session = conn.execute(
+                "SELECT id FROM sessions WHERE product_id = ? LIMIT 1", (pid,)
+            ).fetchone()
+            if existing_session:
+                session_id = existing_session[0]
+            else:
+                session_id = _uuid.uuid4().hex[:16]
+                conn.execute(
+                    "INSERT INTO sessions (id, name, product_id) VALUES (?, 'General', ?)",
+                    (session_id, pid),
+                )
+            conn.execute(
+                "UPDATE messages SET session_id = ? WHERE product_id = ? AND session_id IS NULL",
+                (session_id, pid),
+            )
+
 
 def _seed_products(conn: sqlite3.Connection) -> None:
     for p in get_seed_products():
@@ -599,14 +675,60 @@ def load_review_items(product_id: str, status: str = "pending") -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# ── Sessions ──────────────────────────────────────────────────────────────────
+
+def create_session(name: str, product_id: str | None = None) -> str:
+    import uuid as _uuid
+    session_id = _uuid.uuid4().hex[:16]
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO sessions (id, name, product_id) VALUES (?, ?, ?)",
+            (session_id, name, product_id),
+        )
+    return session_id
+
+
+def get_sessions(product_id: str | None) -> list[dict]:
+    with _conn() as conn:
+        if product_id is None:
+            rows = conn.execute(
+                "SELECT id, name, product_id, created_at FROM sessions "
+                "WHERE product_id IS NULL ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, name, product_id, created_at FROM sessions "
+                "WHERE product_id = ? ORDER BY created_at DESC",
+                (product_id,),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_first_session(product_id: str | None) -> dict | None:
+    sessions = get_sessions(product_id)
+    return sessions[0] if sessions else None
+
+
+def rename_session(session_id: str, name: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE sessions SET name = ? WHERE id = ?", (name, session_id)
+        )
+
+
+def delete_session(session_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+
+
 # ── Messages ──────────────────────────────────────────────────────────────────
 
-def save_message(product_id: str, role: str, content) -> None:
+def save_message(product_id: str | None, role: str, content, session_id: str | None = None) -> None:
     serialized = json.dumps(content) if not isinstance(content, str) else content
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO messages (product_id, role, content) VALUES (?, ?, ?)",
-            (product_id, role, serialized),
+            "INSERT INTO messages (product_id, session_id, role, content) VALUES (?, ?, ?, ?)",
+            (product_id, session_id, role, serialized),
         )
 
 
@@ -652,12 +774,23 @@ def purge_broken_tool_exchanges(product_id: str) -> int:
     return len(bad_ids)
 
 
-def load_messages(product_id: str, limit: int = 15) -> list[dict]:
+def load_messages(product_id: str | None, session_id: str | None = None, limit: int = 15) -> list[dict]:
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT role, content, created_at FROM messages WHERE product_id = ? ORDER BY id DESC LIMIT ?",
-            (product_id, limit),
-        ).fetchall()
+        if session_id is not None:
+            rows = conn.execute(
+                "SELECT role, content, created_at FROM messages "
+                "WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
+        elif product_id is not None:
+            # Fallback: load by product_id (legacy or pre-sessions)
+            rows = conn.execute(
+                "SELECT role, content, created_at FROM messages "
+                "WHERE product_id = ? ORDER BY id DESC LIMIT ?",
+                (product_id, limit),
+            ).fetchall()
+        else:
+            rows = []
     result = []
     for r in reversed(rows):
         try:
@@ -713,23 +846,39 @@ def delete_messages_by_ids(product_id: str, ids: list[int]) -> None:
         )
 
 
-def get_conversation_summary(product_id: str) -> str:
+def get_conversation_summary(product_id: str, session_id: str | None = None) -> str:
     with _conn() as conn:
-        row = conn.execute(
-            "SELECT summary FROM conversation_summaries WHERE product_id = ?",
-            (product_id,),
-        ).fetchone()
+        if session_id:
+            row = conn.execute(
+                "SELECT summary FROM conversation_summaries WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT summary FROM conversation_summaries WHERE product_id = ? AND session_id IS NULL",
+                (product_id,),
+            ).fetchone()
     return row["summary"] if row else ""
 
 
-def save_conversation_summary(product_id: str, summary: str) -> None:
+def save_conversation_summary(product_id: str, summary: str, session_id: str | None = None) -> None:
     with _conn() as conn:
-        conn.execute(
-            """INSERT INTO conversation_summaries (product_id, summary, updated_at)
-               VALUES (?, ?, datetime('now'))
-               ON CONFLICT(product_id) DO UPDATE SET summary=excluded.summary, updated_at=excluded.updated_at""",
-            (product_id, summary),
-        )
+        if session_id:
+            conn.execute(
+                """INSERT INTO conversation_summaries (product_id, session_id, summary, updated_at)
+                   VALUES (?, ?, ?, datetime('now'))
+                   ON CONFLICT(session_id) DO UPDATE SET
+                       summary=excluded.summary, updated_at=excluded.updated_at""",
+                (product_id, session_id, summary),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO conversation_summaries (product_id, summary, updated_at)
+                   VALUES (?, ?, datetime('now'))
+                   ON CONFLICT(product_id) DO UPDATE SET
+                       summary=excluded.summary, updated_at=excluded.updated_at""",
+                (product_id, summary),
+            )
 
 
 # ── Social drafts ─────────────────────────────────────────────────────────────
