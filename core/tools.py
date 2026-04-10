@@ -372,6 +372,37 @@ TOOLS_DEFINITIONS = [
         },
     },
     {
+        "name": "list_uploads",
+        "description": (
+            "List all files that have been uploaded or stored locally. "
+            "Returns file names, paths, sizes, and timestamps. "
+            "Use this to find stored videos or documents you can reference in tasks."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "send_telegram_file",
+        "description": (
+            "Send a locally stored file to the user via Telegram. "
+            "Use for sending stored videos, PDFs, or other files. "
+            "Requires Telegram to be configured."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to the file to send (use list_uploads to find paths)",
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+    {
         "name": "manage_mcp_server",
         "description": (
             "Add, remove, enable, disable, or list MCP (Model Context Protocol) servers. "
@@ -595,6 +626,10 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _restart_server()
     if name == "manage_mcp_server":
         return await _manage_mcp_server(**inputs)
+    if name == "list_uploads":
+        return _list_uploads()
+    if name == "send_telegram_file":
+        return await _send_telegram_file(**inputs)
     if name in _EXTENSION_EXECUTORS:
         return await _EXTENSION_EXECUTORS[name](inputs)
     return f"Unknown tool: {name}"
@@ -644,6 +679,47 @@ def _read_notes(search: str = "") -> str:
 
 def _get_datetime() -> str:
     return datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+
+
+def _list_uploads() -> str:
+    """Return a summary of all uploaded files."""
+    from backend.uploads import get_uploads_dir
+    uploads_dir = get_uploads_dir()
+    if not uploads_dir.exists():
+        return "No uploaded files found."
+    files = sorted(uploads_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        return "No uploaded files found."
+    lines = [f"Uploaded files ({len(files)} total):"]
+    for f in files:
+        stat = f.stat()
+        size_kb = stat.st_size / 1024
+        mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+        lines.append(f"  {f.name}  ({size_kb:.1f} KB)  {mtime}  path: {f}")
+    return "\n".join(lines)
+
+
+async def _send_telegram_file(file_path: str) -> str:
+    """Send a file to the user via Telegram."""
+    import mimetypes
+    import backend.main as _main
+
+    bot = _main._telegram_bot
+    if bot is None:
+        return "Telegram is not configured — cannot send file."
+
+    if not Path(file_path).exists():
+        return f"File not found: {file_path}"
+
+    mime = mimetypes.guess_type(file_path)[0] or ""
+    try:
+        if mime.startswith("video/"):
+            await bot.send_video(file_path)
+        else:
+            await bot.send_document(file_path)
+        return f"Sent {Path(file_path).name} via Telegram."
+    except Exception as e:
+        return f"Failed to send file: {e}"
 
 
 # ── Meta-tools ────────────────────────────────────────────────────────────────

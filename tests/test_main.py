@@ -188,3 +188,37 @@ def test_build_user_message_with_video_injects_text(isolated_db, tmp_path):
     assert isinstance(result, str)
     assert "clip.mp4" in result or str(vid) in result
     assert "use this video" in result
+
+
+def test_list_uploads_returns_files(isolated_db, tmp_path):
+    """list_uploads tool returns files from the uploads dir."""
+    import asyncio
+    from core.tools import execute_tool
+    with patch("backend.uploads.get_uploads_dir", return_value=tmp_path):
+        (tmp_path / "20260410_120000_video.mp4").write_bytes(b"fakevideo")
+        (tmp_path / "20260410_120001_photo.jpg").write_bytes(b"fakejpeg")
+        result = asyncio.run(execute_tool("list_uploads", {}))
+        assert "video.mp4" in result
+        assert "photo.jpg" in result
+
+
+def test_list_uploads_empty(isolated_db, tmp_path):
+    import asyncio
+    from core.tools import execute_tool
+    uploads_dir = tmp_path / "uploads"
+    uploads_dir.mkdir()
+    with patch("backend.uploads.get_uploads_dir", return_value=uploads_dir):
+        result = asyncio.run(execute_tool("list_uploads", {}))
+        assert "No uploaded files" in result
+
+
+def test_send_telegram_file_no_bot(isolated_db, tmp_path):
+    """send_telegram_file returns error when Telegram not configured."""
+    import asyncio
+    import backend.main as main_mod
+    main_mod._telegram_bot = None
+    from core.tools import execute_tool
+    vid = tmp_path / "clip.mp4"
+    vid.write_bytes(b"x")
+    result = asyncio.run(execute_tool("send_telegram_file", {"file_path": str(vid)}))
+    assert "not configured" in result.lower()
