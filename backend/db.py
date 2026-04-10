@@ -722,6 +722,15 @@ def rename_session(session_id: str, name: str) -> None:
         )
 
 
+def get_session_by_id(session_id: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, product_id, created_at FROM sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def delete_session(session_id: str) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))

@@ -42,6 +42,7 @@ from backend.db import (
     create_objective,
     create_session,
     get_sessions,
+    get_session_by_id,
     get_first_session,
     rename_session,
     delete_session,
@@ -665,6 +666,9 @@ async def _product_worker(product_id: str) -> None:
             await _broadcast(_queue_payload(product_id))
 
             session_id = directive.get("session_id") or _get_or_create_session(product_id)
+            # Verify session still exists (may have been deleted while queued)
+            if session_id and not get_session_by_id(session_id):
+                session_id = _get_or_create_session(product_id)
             messages = _build_context(product_id, session_id=session_id)
             attachments = directive.get("attachments") or []
             user_message_content = _build_user_message(directive["content"], attachments)
@@ -834,7 +838,10 @@ async def websocket_endpoint(ws: WebSocket):
                 name = (msg.get("name") or "New Session").strip()
                 if not name:
                     name = "New Session"
-                new_sid = create_session(name, product_id)
+                try:
+                    new_sid = create_session(name, product_id)
+                except Exception:
+                    new_sid = create_session(name, active_product_id or None)
                 active_session_id = new_sid
                 all_sessions = get_sessions(product_id or active_product_id)
                 session_obj = next(
@@ -849,13 +856,12 @@ async def websocket_endpoint(ws: WebSocket):
                 new_sid = msg.get("session_id")
                 if not new_sid:
                     continue
+                session_obj = get_session_by_id(new_sid)
+                if session_obj is None:
+                    # Session was deleted; fall back to current session
+                    continue
                 active_session_id = new_sid
-                # Infer product_id from session
-                all_sessions = get_sessions(active_product_id) + get_sessions(None)
-                session_product_id = next(
-                    (s.get("product_id") for s in all_sessions if s["id"] == new_sid),
-                    active_product_id,
-                )
+                session_product_id = session_obj.get("product_id") or active_product_id
                 history = load_messages(session_product_id, session_id=new_sid, limit=100)
                 chat_history = []
                 for msg_item in history:
