@@ -3,7 +3,7 @@
 import os
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api")
@@ -408,3 +408,29 @@ async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
         if _main._mcp_manager is not None:
             await _main._mcp_manager.remove_server(server_id)
     delete_mcp_server(server_id)
+
+
+# ── File upload ───────────────────────────────────────────────────────────────
+
+_IMAGE_PDF_LIMIT = 20 * 1024 * 1024   # 20 MB
+_VIDEO_LIMIT     = 200 * 1024 * 1024  # 200 MB
+
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...), _=Depends(_auth)):
+    import mimetypes
+    from backend.uploads import save_uploaded_file
+
+    data = await file.read()
+    mime = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
+
+    if mime.startswith("video/"):
+        limit = _VIDEO_LIMIT
+    else:
+        limit = _IMAGE_PDF_LIMIT
+
+    if len(data) > limit:
+        raise HTTPException(status_code=413, detail=f"File too large (max {limit // (1024*1024)} MB for this type)")
+
+    path = save_uploaded_file(file.filename or "upload", data)
+    return {"path": str(path), "mime_type": mime, "name": file.filename, "size": len(data)}
