@@ -1,4 +1,5 @@
 """Upload storage — platform-aware path and file saving."""
+import os
 import re
 import sys
 from datetime import datetime
@@ -11,7 +12,8 @@ def get_uploads_dir() -> Path:
     if sys.platform == "darwin":
         d = home / "Library" / "Application Support" / "Adjutant" / "uploads"
     else:
-        d = home / ".local" / "share" / "Adjutant" / "uploads"
+        xdg_data = os.environ.get("XDG_DATA_HOME", str(home / ".local" / "share"))
+        d = Path(xdg_data) / "Adjutant" / "uploads"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

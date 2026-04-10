@@ -23,6 +23,16 @@ def test_get_uploads_dir_mac(tmp_path):
         assert d == tmp_path / "Library" / "Application Support" / "Adjutant" / "uploads"
 
 
+def test_get_uploads_dir_respects_xdg_data_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "custom"))
+    with patch("sys.platform", "linux"), \
+         patch("pathlib.Path.home", return_value=tmp_path):
+        from backend import uploads
+        import importlib; importlib.reload(uploads)
+        d = uploads.get_uploads_dir()
+        assert d == tmp_path / "custom" / "Adjutant" / "uploads"
+
+
 def test_save_uploaded_file_creates_file(tmp_path):
     with patch("backend.uploads.get_uploads_dir", return_value=tmp_path):
         from backend import uploads
