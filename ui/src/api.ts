@@ -161,4 +161,22 @@ export const api = {
 
   deleteMcpServer: (pw: string, id: number) =>
     apiFetch<void>(`/api/mcp-servers/${id}`, pw, { method: 'DELETE' }),
+
+  uploadFile: async (
+    file: File,
+    password: string,
+  ): Promise<{ path: string; mime_type: string; name: string; size: number }> => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'X-Agent-Password': password },
+      body: form,
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data?.detail ?? `Upload failed: ${res.status}`)
+    }
+    return res.json()
+  },
 }
