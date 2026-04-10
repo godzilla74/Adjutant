@@ -687,7 +687,7 @@ def _list_uploads() -> str:
     uploads_dir = get_uploads_dir()
     if not uploads_dir.exists():
         return "No uploaded files found."
-    files = sorted(uploads_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+    files = sorted((f for f in uploads_dir.iterdir() if f.is_file()), key=lambda p: p.stat().st_mtime, reverse=True)
     if not files:
         return "No uploaded files found."
     lines = [f"Uploaded files ({len(files)} total):"]
@@ -708,8 +708,11 @@ async def _send_telegram_file(file_path: str) -> str:
     if bot is None:
         return "Telegram is not configured — cannot send file."
 
-    if not Path(file_path).exists():
+    p = Path(file_path)
+    if not p.exists():
         return f"File not found: {file_path}"
+    if not p.is_file():
+        return f"Path is not a file: {file_path}"
 
     mime = mimetypes.guess_type(file_path)[0] or ""
     try:
@@ -717,7 +720,7 @@ async def _send_telegram_file(file_path: str) -> str:
             await bot.send_video(file_path)
         else:
             await bot.send_document(file_path)
-        return f"Sent {Path(file_path).name} via Telegram."
+        return f"Sent {p.name} via Telegram."
     except Exception as e:
         return f"Failed to send file: {e}"
 
