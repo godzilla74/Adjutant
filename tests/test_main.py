@@ -147,3 +147,44 @@ def test_ws_directive_echoes_and_returns_agent_done():
     echo = next(e for e in events if e["type"] == "directive_echo")
     assert echo["content"] == "Focus on SEO"
     assert echo["product_id"] == "retainerops"
+
+
+def test_build_user_message_no_attachments(isolated_db):
+    import backend.main as m
+    result = m._build_user_message("hello", [])
+    assert result == "hello"
+
+
+def test_build_user_message_with_image(isolated_db, tmp_path):
+    import backend.main as m
+    img = tmp_path / "photo.jpg"
+    img.write_bytes(b"\xff\xd8\xff" + b"x" * 10)
+    attachments = [{"path": str(img), "mime_type": "image/jpeg", "name": "photo.jpg"}]
+    result = m._build_user_message("check this", attachments)
+    assert isinstance(result, list)
+    assert result[-1] == {"type": "text", "text": "check this"}
+    assert result[0]["type"] == "image"
+    assert result[0]["source"]["type"] == "base64"
+    assert result[0]["source"]["media_type"] == "image/jpeg"
+
+
+def test_build_user_message_with_pdf(isolated_db, tmp_path):
+    import backend.main as m
+    pdf = tmp_path / "report.pdf"
+    pdf.write_bytes(b"%PDF-1.4" + b"x" * 10)
+    attachments = [{"path": str(pdf), "mime_type": "application/pdf", "name": "report.pdf"}]
+    result = m._build_user_message("analyse this", attachments)
+    assert isinstance(result, list)
+    assert result[0]["type"] == "document"
+    assert result[0]["source"]["media_type"] == "application/pdf"
+
+
+def test_build_user_message_with_video_injects_text(isolated_db, tmp_path):
+    import backend.main as m
+    vid = tmp_path / "clip.mp4"
+    vid.write_bytes(b"fakevideo")
+    attachments = [{"path": str(vid), "mime_type": "video/mp4", "name": "clip.mp4"}]
+    result = m._build_user_message("use this video", attachments)
+    assert isinstance(result, str)
+    assert "clip.mp4" in result or str(vid) in result
+    assert "use this video" in result

@@ -2,7 +2,9 @@
 """Adjutant — FastAPI backend (multi-product)."""
 
 import asyncio
+import base64
 import json
+import mimetypes
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -316,6 +318,48 @@ def _build_context(product_id: str) -> list[dict]:
     return messages
 
 
+def _build_user_message(content: str, attachments: list[dict]) -> str | list:
+    """Build the user message for the Claude API.
+
+    - No attachments → plain string (existing behaviour).
+    - image/* or application/pdf → list of content blocks (file block + text block).
+    - video/* or other → plain string with [Attached file: ...] prefix.
+    """
+    if not attachments:
+        return content
+
+    blocks: list[dict] = []
+    video_refs: list[str] = []
+
+    for att in attachments:
+        path = att.get("path", "")
+        mime = att.get("mime_type", "")
+        name = att.get("name", path)
+
+        if mime.startswith("image/") or mime == "application/pdf":
+            try:
+                data = base64.standard_b64encode(Path(path).read_bytes()).decode()
+                block_type = "image" if mime.startswith("image/") else "document"
+                blocks.append({
+                    "type": block_type,
+                    "source": {"type": "base64", "media_type": mime, "data": data},
+                })
+            except OSError:
+                video_refs.append(f"[Attached file: {name} — could not read file]")
+        else:
+            video_refs.append(f"[Attached file: {name} ({path}) ({mime})]")
+
+    if not blocks:
+        # All attachments are videos/unknown — inject as text
+        prefix = "\n".join(video_refs)
+        return f"{prefix}\n\n{content}" if prefix else content
+
+    # Mix of blocks and possibly video refs
+    text_parts = video_refs + [content]
+    blocks.append({"type": "text", "text": "\n\n".join(text_parts)})
+    return blocks
+
+
 async def _maybe_compact(product_id: str) -> None:
     """If DB has > COMPACT_THRESHOLD messages, summarize the oldest batch via Haiku."""
     total = count_messages(product_id)
@@ -598,7 +642,10 @@ async def _product_worker(product_id: str) -> None:
             await _broadcast(_queue_payload(product_id))
 
             messages = _build_context(product_id)
-            messages.append({"role": "user", "content": directive["content"]})
+            attachments = directive.get("attachments") or []
+            user_message_content = _build_user_message(directive["content"], attachments)
+            messages.append({"role": "user", "content": user_message_content})
+            # Save only the text content to DB (content blocks are not stored)
             save_message(product_id, "user", directive["content"])
 
             try:
@@ -698,7 +745,8 @@ async def websocket_endpoint(ws: WebSocket):
                 global _last_active_product
                 _last_active_product = product_id
                 content = msg.get("content", "").strip()
-                if not content:
+                attachments = msg.get("attachments") or []
+                if not content and not attachments:
                     continue
 
                 # Echo to chat immediately so it appears in the feed right away
@@ -716,7 +764,11 @@ async def websocket_endpoint(ws: WebSocket):
                 # Enqueue and ensure worker is running
                 directive_id = uuid.uuid4().hex[:8]
                 _ensure_worker(product_id)
-                _directive_queues[product_id].append({"id": directive_id, "content": content})
+                _directive_queues[product_id].append({
+                    "id": directive_id,
+                    "content": content,
+                    "attachments": attachments,
+                })
                 _worker_events[product_id].set()
                 await _broadcast(_queue_payload(product_id))
 
