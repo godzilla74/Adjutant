@@ -258,22 +258,28 @@ def init_db() -> None:
                 PRAGMA foreign_keys=ON;
             """)
 
-        # Add session_id to conversation_summaries (idempotent)
+        # Recreate conversation_summaries with proper session-scoped schema
         cs_cols = [
             r[1] for r in conn.execute("PRAGMA table_info(conversation_summaries)").fetchall()
         ]
         if "session_id" not in cs_cols:
-            conn.execute(
-                "ALTER TABLE conversation_summaries ADD COLUMN "
-                "session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE"
-            )
-            try:
-                conn.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_summary_session "
-                    "ON conversation_summaries(session_id)"
-                )
-            except Exception:
-                pass
+            conn.executescript("""
+                PRAGMA foreign_keys=OFF;
+                CREATE TABLE conversation_summaries_new (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id TEXT REFERENCES products(id) ON DELETE CASCADE,
+                    session_id TEXT UNIQUE REFERENCES sessions(id) ON DELETE CASCADE,
+                    summary    TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                INSERT INTO conversation_summaries_new (product_id, summary, updated_at)
+                    SELECT product_id, summary, updated_at FROM conversation_summaries;
+                DROP TABLE conversation_summaries;
+                ALTER TABLE conversation_summaries_new RENAME TO conversation_summaries;
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_summary_product_no_session
+                    ON conversation_summaries(product_id) WHERE session_id IS NULL;
+                PRAGMA foreign_keys=ON;
+            """)
 
         # Migrate: create General sessions for products with un-assigned messages
         import uuid as _uuid
@@ -875,7 +881,7 @@ def save_conversation_summary(product_id: str, summary: str, session_id: str | N
             conn.execute(
                 """INSERT INTO conversation_summaries (product_id, summary, updated_at)
                    VALUES (?, ?, datetime('now'))
-                   ON CONFLICT(product_id) DO UPDATE SET
+                   ON CONFLICT(product_id) WHERE session_id IS NULL DO UPDATE SET
                        summary=excluded.summary, updated_at=excluded.updated_at""",
                 (product_id, summary),
             )

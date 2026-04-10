@@ -279,9 +279,12 @@ def test_delete_session_cascades_messages(db):
     db.delete_session(sid)
     # Session gone
     assert db.get_sessions("test-product") == []
-    # Messages gone (cascade)
-    msgs = db.load_messages("test-product", sid, limit=100)
-    assert msgs == []
+    # Messages gone (cascade) — verify directly in DB
+    with db._conn() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ?", (sid,)
+        ).fetchone()[0]
+    assert count == 0
 
 
 def test_get_first_session(db):
@@ -302,6 +305,21 @@ def test_load_messages_scoped_to_session(db):
     assert any("finance msg" in str(m["content"]) for m in msgs1)
     assert not any("ops msg" in str(m["content"]) for m in msgs1)
     assert any("ops msg" in str(m["content"]) for m in msgs2)
+
+
+def test_save_and_get_summary_with_session(db):
+    sid = db.create_session("S", "test-product")
+    db.save_conversation_summary("test-product", "session summary", sid)
+    assert db.get_conversation_summary("test-product", sid) == "session summary"
+
+
+def test_save_summary_session_and_product_dont_conflict(db):
+    """Product-level and session-level summaries coexist without IntegrityError."""
+    db.save_conversation_summary("test-product", "product summary")
+    sid = db.create_session("S", "test-product")
+    db.save_conversation_summary("test-product", "session summary", sid)
+    assert db.get_conversation_summary("test-product") == "product summary"
+    assert db.get_conversation_summary("test-product", sid) == "session summary"
 
 
 def test_migration_creates_general_session(tmp_path, monkeypatch):
