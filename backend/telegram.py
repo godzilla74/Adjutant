@@ -112,6 +112,65 @@ class TelegramBot:
         except Exception:
             return None
 
+    async def _download_telegram_file(self, file_id: str) -> tuple[str, str]:
+        """Download a Telegram file by file_id. Returns (local_path, mime_type)."""
+        import mimetypes
+        from backend.uploads import save_uploaded_file
+
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(self._url("getFile"), params={"file_id": file_id})
+                data = resp.json()
+                if not data.get("ok"):
+                    raise ValueError(f"getFile failed: {data}")
+                file_path = data["result"]["file_path"]
+
+            download_url = f"https://api.telegram.org/file/bot{self.token}/{file_path}"
+            async with httpx.AsyncClient(timeout=60) as client:
+                resp = await client.get(download_url)
+                resp.raise_for_status()
+                raw = resp.content
+
+            original_name = file_path.split("/")[-1]
+            mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+            local_path = save_uploaded_file(original_name, raw)
+            return str(local_path), mime
+
+        except Exception as e:
+            logger.warning("Failed to download Telegram file %s: %s", file_id, e)
+            raise
+
+    async def send_document(self, file_path: str) -> None:
+        """Send a file as a Telegram document to TELEGRAM_CHAT_ID."""
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                with open(file_path, "rb") as f:
+                    await client.post(
+                        self._url("sendDocument"),
+                        data={"chat_id": self.chat_id},
+                        files={"document": f},
+                    )
+        except Exception as e:
+            logger.warning("Telegram sendDocument failed: %s", e)
+
+    async def send_video(self, file_path: str) -> None:
+        """Send a video via Telegram. Falls back to sendDocument for files over 50 MB."""
+        from pathlib import Path as _Path
+        size = _Path(file_path).stat().st_size
+        if size > 50 * 1024 * 1024:
+            await self.send_document(file_path)
+            return
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                with open(file_path, "rb") as f:
+                    await client.post(
+                        self._url("sendVideo"),
+                        data={"chat_id": self.chat_id},
+                        files={"video": f},
+                    )
+        except Exception as e:
+            logger.warning("Telegram sendVideo failed: %s", e)
+
     async def notify(self, event: dict) -> None:
         """Forward relevant backend events to Telegram."""
         event_type = event.get("type")
@@ -164,11 +223,37 @@ class TelegramBot:
             return
 
         text = message.get("text", "").strip()
-        if not text:
+
+        # Detect file attachments
+        file_ref: str | None = None
+        file_id: str | None = None
+
+        if "video" in message:
+            file_id = message["video"].get("file_id")
+        elif "document" in message:
+            file_id = message["document"].get("file_id")
+        elif "photo" in message:
+            # photos come as array — take highest resolution (last item)
+            photos = message["photo"]
+            if photos:
+                file_id = photos[-1].get("file_id")
+
+        if file_id:
+            try:
+                local_path, mime = await self._download_telegram_file(file_id)
+                file_ref = f"[Attached file: {local_path} ({mime})]"
+            except Exception:
+                pass  # warning already logged inside _download_telegram_file
+
+        if not text and not file_ref:
             return
 
+        # Build directive text — file reference first, then user text
+        parts = [p for p in [file_ref, text] if p]
+        directive_text = "\n\n".join(parts)
+
         products = self._products_fn()
-        product_id, clean_text = _parse_product_id(text, products)
+        product_id, clean_text = _parse_product_id(directive_text, products)
         if product_id is None:
             product_id = self._last_active_product_fn()
 
@@ -223,7 +308,7 @@ class TelegramBot:
                     resp = await client.get(self._url("getUpdates"), params={
                         "offset": self._offset,
                         "timeout": 30,
-                        "allowed_updates": ["message", "callback_query"],
+                        "allowed_updates": ["message", "callback_query", "channel_post"],
                     })
                     data = resp.json()
                     if not data.get("ok"):

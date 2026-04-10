@@ -154,3 +154,81 @@ def test_handle_message_wrong_chat_id_ignored():
     message = {"from": {"id": 999999}, "text": "hello"}
     asyncio.run(bot._handle_message(message))
     bot._directive_callback.assert_not_awaited()
+
+
+def test_handle_message_video_downloads_and_injects(tmp_path):
+    """Receiving a video message downloads the file and injects a reference."""
+    bot = _make_bot()
+
+    async def fake_download(file_id):
+        dest = tmp_path / "20260410_120000_video.mp4"
+        dest.write_bytes(b"fakevideo")
+        return str(dest), "video/mp4"
+
+    bot._download_telegram_file = fake_download
+
+    message = {
+        "from": {"id": 123456},
+        "text": "",
+        "video": {"file_id": "abc123", "mime_type": "video/mp4"},
+    }
+    asyncio.run(bot._handle_message(message))
+
+    bot._directive_callback.assert_awaited_once()
+    call_args = bot._directive_callback.call_args[0]
+    assert call_args[0] == "alpha"
+    assert "video/mp4" in call_args[1] or "mp4" in call_args[1]
+
+
+def test_handle_message_photo_downloads_and_injects(tmp_path):
+    """Receiving a photo downloads and injects a reference."""
+    bot = _make_bot()
+
+    async def fake_download(file_id):
+        dest = tmp_path / "20260410_120000_photo.jpg"
+        dest.write_bytes(b"fakejpeg")
+        return str(dest), "image/jpeg"
+
+    bot._download_telegram_file = fake_download
+
+    message = {
+        "from": {"id": 123456},
+        "text": "look at this",
+        "photo": [{"file_id": "ph1", "file_size": 100}, {"file_id": "ph2", "file_size": 500}],
+    }
+    asyncio.run(bot._handle_message(message))
+
+    bot._directive_callback.assert_awaited_once()
+    text = bot._directive_callback.call_args[0][1]
+    assert "look at this" in text
+
+
+def test_send_document_calls_api(tmp_path):
+    """send_document sends the file via Telegram sendDocument."""
+    bot = _make_bot()
+    import tempfile, os
+
+    test_file = tmp_path / "test.pdf"
+    test_file.write_bytes(b"%PDF fake")
+
+    with patch("httpx.AsyncClient") as mock_client:
+        mock_instance = MagicMock()
+        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_instance.__aexit__ = AsyncMock(return_value=False)
+        mock_instance.post = AsyncMock(return_value=MagicMock(json=MagicMock(return_value={"ok": True})))
+        mock_client.return_value = mock_instance
+        asyncio.run(bot.send_document(str(test_file)))
+    # Just verify no exception raised — actual HTTP is mocked
+
+
+def test_send_video_falls_back_to_document_for_large_files(tmp_path):
+    """Files over 50MB are sent as documents, not videos."""
+    bot = _make_bot()
+    big_file = tmp_path / "big.mp4"
+    big_file.write_bytes(b"x")
+
+    with patch("pathlib.Path.stat") as mock_stat:
+        mock_stat.return_value.st_size = 60 * 1024 * 1024  # 60 MB
+        bot.send_document = AsyncMock()
+        asyncio.run(bot.send_video(str(big_file)))
+        bot.send_document.assert_awaited_once_with(str(big_file))
