@@ -40,6 +40,11 @@ from backend.db import (
     cancel_running_events,
     create_workstream,
     create_objective,
+    create_session,
+    get_sessions,
+    get_first_session,
+    rename_session,
+    delete_session,
 )
 from backend.social_poster import publish_social_draft
 from backend.api import router as api_router
@@ -218,28 +223,46 @@ async def _send(ws: WebSocket, event: dict) -> None:
     await ws.send_text(json.dumps(event))
 
 
-def _product_data_payload(product_id: str) -> dict:
-    # Reconstruct chat history from stored messages
-    raw_messages = load_messages(product_id, limit=100)
+def _get_or_create_session(product_id: str | None) -> str | None:
+    """Return the first session for product_id, creating 'General' if none exist.
+
+    Returns None if the product doesn't exist in the DB (e.g. in test environments
+    without seeded products) to avoid FK constraint violations.
+    """
+    session = get_first_session(product_id)
+    if session:
+        return session["id"]
+    try:
+        return create_session("General", product_id)
+    except Exception:
+        return None
+
+
+def _product_data_payload(product_id: str, active_session_id: str | None = None) -> dict:
+    # Reconstruct chat history from stored messages for the active session
+    if active_session_id is None:
+        active_session_id = _get_or_create_session(product_id)
+    raw_messages = load_messages(product_id, session_id=active_session_id, limit=100) if active_session_id else load_messages(product_id, limit=100)
     chat_history = []
     for msg in raw_messages:
         role = msg.get("role")
         content = msg.get("content")
         ts = msg.get("ts", "")
         if role == "user" and isinstance(content, str):
-            # Plain string = a user directive
             chat_history.append({"type": "directive", "content": content, "ts": ts})
         elif role == "assistant" and isinstance(content, list):
-            # Extract text blocks from assistant response
             text = " ".join(
                 b["text"] for b in content
                 if isinstance(b, dict) and b.get("type") == "text" and b.get("text")
             ).strip()
             if text:
                 chat_history.append({"type": "agent", "content": text, "ts": ts})
+    sessions = get_sessions(product_id)
     return {
         "type": "product_data",
         "product_id": product_id,
+        "sessions": sessions,
+        "active_session_id": active_session_id,
         "workstreams": get_workstreams(product_id),
         "objectives": get_objectives(product_id),
         "events": load_activity_events(product_id),
@@ -301,14 +324,14 @@ def _sanitize_context(messages: list[dict]) -> list[dict]:
     return []
 
 
-def _build_context(product_id: str) -> list[dict]:
-    """Load context: optional summary block + last KEEP_RECENT messages."""
+def _build_context(product_id: str | None, session_id: str | None = None) -> list[dict]:
+    """Load context: optional summary block + last KEEP_RECENT messages, scoped to session."""
     purge_broken_tool_exchanges(product_id)  # clean DB before loading
-    messages = load_messages(product_id, limit=KEEP_RECENT)
+    messages = load_messages(product_id, session_id=session_id, limit=KEEP_RECENT)
     # Strip 'ts' field — it's for UI display only, not a valid Anthropic API field
     messages = [{k: v for k, v in m.items() if k != 'ts'} for m in messages]
     messages = _sanitize_context(messages)
-    summary = get_conversation_summary(product_id)
+    summary = get_conversation_summary(product_id, session_id=session_id)
     if summary:
         messages = [
             {"role": "user",      "content": f"[Summary of previous conversation]\n{summary}"},
@@ -432,7 +455,7 @@ async def _maybe_compact(product_id: str) -> None:
 
 # ── Agent agentic loop ────────────────────────────────────────────────────────
 
-async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, list]:
+async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str | None = None) -> tuple[list, list]:
     """Run the agent loop. Returns (updated messages, new review items)."""
     system = get_system_prompt(product_id)
     new_review_items: list[dict] = []
@@ -520,7 +543,7 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
             else:
                 content_serializable.append(b)
         messages.append({"role": "assistant", "content": content_serializable})
-        save_message(product_id, "assistant", content_serializable)
+        save_message(product_id, "assistant", content_serializable, session_id)
 
         if final.stop_reason != "tool_use":
             break
@@ -613,7 +636,7 @@ async def _agent_loop(send_fn, product_id: str, messages: list) -> tuple[list, l
 
         if tool_results:
             messages.append({"role": "user", "content": tool_results})
-            save_message(product_id, "user", tool_results)
+            save_message(product_id, "user", tool_results, session_id)
 
     return messages, new_review_items
 
@@ -641,15 +664,15 @@ async def _product_worker(product_id: str) -> None:
             _current_directive[product_id] = directive
             await _broadcast(_queue_payload(product_id))
 
-            messages = _build_context(product_id)
+            session_id = directive.get("session_id") or _get_or_create_session(product_id)
+            messages = _build_context(product_id, session_id=session_id)
             attachments = directive.get("attachments") or []
             user_message_content = _build_user_message(directive["content"], attachments)
             messages.append({"role": "user", "content": user_message_content})
-            # Save only the text content to DB (content blocks are not stored)
-            save_message(product_id, "user", directive["content"])
+            save_message(product_id, "user", directive["content"], session_id)
 
             try:
-                inner = asyncio.create_task(_agent_loop(_broadcast, product_id, messages))
+                inner = asyncio.create_task(_agent_loop(_broadcast, product_id, messages, session_id=session_id))
                 _running_tasks[product_id] = inner
                 await inner
             except asyncio.CancelledError:
@@ -714,6 +737,7 @@ async def websocket_endpoint(ws: WebSocket):
     await _send(ws, {"type": "init", "products": get_products()})
 
     active_product_id = ""
+    active_session_id: str | None = None
 
     # Send current queue state for all active products on connect
     for pid, directive in _current_directive.items():
@@ -731,7 +755,8 @@ async def websocket_endpoint(ws: WebSocket):
             elif msg_type == "switch_product":
                 product_id = msg.get("product_id", active_product_id)
                 active_product_id = product_id
-                await _send(ws, _product_data_payload(product_id))
+                active_session_id = _get_or_create_session(product_id)
+                await _send(ws, _product_data_payload(product_id, active_session_id))
                 # Also send current queue state for this product
                 await _send(ws, _queue_payload(product_id))
 
@@ -768,6 +793,7 @@ async def websocket_endpoint(ws: WebSocket):
                     "id": directive_id,
                     "content": content,
                     "attachments": attachments,
+                    "session_id": active_session_id,
                 })
                 _worker_events[product_id].set()
                 await _broadcast(_queue_payload(product_id))
@@ -802,6 +828,68 @@ async def websocket_endpoint(ws: WebSocket):
                         })
 
                 await _broadcast(_queue_payload(product_id))
+
+            elif msg_type == "create_session":
+                product_id = msg.get("product_id", active_product_id) or None
+                name = (msg.get("name") or "New Session").strip()
+                if not name:
+                    name = "New Session"
+                new_sid = create_session(name, product_id)
+                active_session_id = new_sid
+                all_sessions = get_sessions(product_id or active_product_id)
+                session_obj = next(
+                    (s for s in all_sessions if s["id"] == new_sid),
+                    {"id": new_sid, "name": name, "product_id": product_id, "created_at": ""}
+                )
+                await _broadcast({"type": "session_created", "session": session_obj})
+                # Also send switched so client loads the (empty) history
+                await _send(ws, {"type": "session_switched", "session_id": new_sid, "chat_history": []})
+
+            elif msg_type == "switch_session":
+                new_sid = msg.get("session_id")
+                if not new_sid:
+                    continue
+                active_session_id = new_sid
+                # Infer product_id from session
+                all_sessions = get_sessions(active_product_id) + get_sessions(None)
+                session_product_id = next(
+                    (s.get("product_id") for s in all_sessions if s["id"] == new_sid),
+                    active_product_id,
+                )
+                history = load_messages(session_product_id, session_id=new_sid, limit=100)
+                chat_history = []
+                for msg_item in history:
+                    role = msg_item.get("role")
+                    content = msg_item.get("content")
+                    ts = msg_item.get("ts", "")
+                    if role == "user" and isinstance(content, str):
+                        chat_history.append({"type": "directive", "content": content, "ts": ts})
+                    elif role == "assistant" and isinstance(content, list):
+                        text = " ".join(
+                            b["text"] for b in content
+                            if isinstance(b, dict) and b.get("type") == "text" and b.get("text")
+                        ).strip()
+                        if text:
+                            chat_history.append({"type": "agent", "content": text, "ts": ts})
+                await _send(ws, {"type": "session_switched", "session_id": new_sid, "chat_history": chat_history})
+
+            elif msg_type == "rename_session":
+                sid = msg.get("session_id")
+                name = (msg.get("name") or "").strip()
+                if sid and name:
+                    rename_session(sid, name)
+                    await _broadcast({"type": "session_renamed", "session_id": sid, "name": name})
+
+            elif msg_type == "delete_session":
+                sid = msg.get("session_id")
+                if not sid:
+                    continue
+                delete_session(sid)
+                # Ensure at least one session exists
+                next_sid = _get_or_create_session(active_product_id)
+                if active_session_id == sid:
+                    active_session_id = next_sid
+                await _broadcast({"type": "session_deleted", "session_id": sid, "next_session_id": next_sid})
 
             elif msg_type == "resolve_review":
                 item_id = msg.get("review_item_id")

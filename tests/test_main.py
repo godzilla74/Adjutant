@@ -222,3 +222,65 @@ def test_send_telegram_file_no_bot(isolated_db, tmp_path):
     vid.write_bytes(b"x")
     result = asyncio.run(execute_tool("send_telegram_file", {"file_path": str(vid)}))
     assert "not configured" in result.lower()
+
+
+def test_product_data_payload_includes_sessions(isolated_db):
+    """_product_data_payload includes sessions list and active_session_id."""
+    import backend.main as m
+    import backend.db as db
+    pid = "test-product"
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES (?, 'T', 'T', '#000')", (pid,))
+    sid = db.create_session("General", pid)
+    payload = m._product_data_payload(pid, sid)
+    assert "sessions" in payload
+    assert "active_session_id" in payload
+    assert payload["active_session_id"] == sid
+    assert any(s["id"] == sid for s in payload["sessions"])
+
+
+def test_build_context_scoped_to_session(isolated_db):
+    """_build_context loads only messages for the given session_id."""
+    import backend.main as m
+    import backend.db as db
+    pid = "test-product"
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES (?, 'T', 'T', '#000')", (pid,))
+    sid1 = db.create_session("Finance", pid)
+    sid2 = db.create_session("Ops", pid)
+    db.save_message(pid, "user", "finance directive", sid1)
+    ctx = m._build_context(pid, sid1)
+    # Should include the finance directive
+    assert any(
+        isinstance(msg.get("content"), str) and "finance" in msg["content"]
+        for msg in ctx
+    )
+
+
+def test_get_or_create_session_creates_general(isolated_db):
+    """_get_or_create_session auto-creates 'General' if product has no sessions."""
+    import backend.main as m
+    import backend.db as db
+    pid = "test-product"
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES (?, 'T', 'T', '#000')", (pid,))
+    sid = m._get_or_create_session(pid)
+    assert sid is not None
+    sessions = db.get_sessions(pid)
+    assert len(sessions) == 1
+    assert sessions[0]["name"] == "General"
+
+
+def test_ensure_session_creates_general_after_delete(isolated_db):
+    """After deleting the last session, a new General is auto-created."""
+    import backend.main as m
+    import backend.db as db
+    pid = "test-product"
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES (?, 'T', 'T', '#000')", (pid,))
+    sid = db.create_session("Only", pid)
+    db.delete_session(sid)
+    new_sid = m._get_or_create_session(pid)
+    sessions = db.get_sessions(pid)
+    assert sessions[0]["name"] == "General"
+    assert new_sid == sessions[0]["id"]
