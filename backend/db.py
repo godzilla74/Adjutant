@@ -209,7 +209,7 @@ def init_db() -> None:
             "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
         )
         # Seed agent_name default if missing (idempotent) — prefer AGENT_NAME env var
-        _default_agent_name = os.environ.get("AGENT_NAME", "Hannah")
+        _default_agent_name = os.environ.get("AGENT_NAME", "Adjutant")
         conn.execute(
             "INSERT INTO model_config (key, value, updated_at) "
             "VALUES ('agent_name', ?, datetime('now')) "
@@ -828,7 +828,7 @@ def delete_directive_template(template_id: int) -> None:
 _AGENT_CONFIG_DEFAULTS = {
     "agent_model":    "claude-sonnet-4-6",
     "subagent_model": "claude-sonnet-4-6",
-    "agent_name":     os.environ.get("AGENT_NAME", "Hannah"),
+    "agent_name":     os.environ.get("AGENT_NAME", "Adjutant"),
 }
 
 def get_agent_config() -> dict:

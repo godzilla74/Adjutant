@@ -304,6 +304,8 @@ def _build_context(product_id: str) -> list[dict]:
     """Load context: optional summary block + last KEEP_RECENT messages."""
     purge_broken_tool_exchanges(product_id)  # clean DB before loading
     messages = load_messages(product_id, limit=KEEP_RECENT)
+    # Strip 'ts' field — it's for UI display only, not a valid Anthropic API field
+    messages = [{k: v for k, v in m.items() if k != 'ts'} for m in messages]
     messages = _sanitize_context(messages)
     summary = get_conversation_summary(product_id)
     if summary:

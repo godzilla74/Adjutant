@@ -180,4 +180,6 @@ adjutant restart
 
 ## License
 
-MIT
+AGPL-3.0. See [LICENSE](LICENSE) for details.
+
+Commercial licensing available for proprietary or SaaS deployments — contact the maintainers.

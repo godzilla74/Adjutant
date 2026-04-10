@@ -43,13 +43,14 @@ export default function App() {
   const [directives,      setDirectives]      = useState<Record<string, DirectiveEntry[]>>({})
   const [agentMessages,   setAgentMessages]   = useState<Record<string, AgentEntry[]>>({})
   const [agentDraft,      setAgentDraft]      = useState<string>('')
-  const [agentName,       setAgentName]       = useState<string>('Hannah')
+  const [agentName,       setAgentName]       = useState<string>('Adjutant')
   const [settingsOpen,    setSettingsOpen]    = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
   const [notesOpen,    setNotesOpen]    = useState(false)
   const [historyOpen,  setHistoryOpen]  = useState(false)
   const [showOverview, setShowOverview] = useState(false)
+  const [errorBanner,  setErrorBanner]  = useState<string | null>(null)
 
   const { requestPermission, notify } = useNotifications()
 
@@ -215,7 +216,7 @@ export default function App() {
       if ((msg as { type: string }).type === 'error') {
         const errMsg = (msg as { type: string; message: string }).message
         console.error('Server error:', errMsg)
-        alert(`${agentName} error: ${errMsg}`)
+        setErrorBanner(errMsg)
         return
       }
     }
@@ -284,6 +285,19 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
+
+      {/* Error banner */}
+      {errorBanner && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-red-950/60 border-b border-red-900/60 text-red-300 text-sm flex-shrink-0">
+          <span className="text-red-400 flex-shrink-0">⚠</span>
+          <span className="flex-1 font-mono text-xs leading-relaxed">{errorBanner}</span>
+          <button
+            onClick={() => setErrorBanner(null)}
+            className="flex-shrink-0 text-red-500 hover:text-red-300 transition-colors text-base leading-none"
+            aria-label="Dismiss"
+          >×</button>
+        </div>
+      )}
 
       {/* Header */}
       <header className="flex items-center justify-between pl-0 pr-5 h-12 border-b border-zinc-800/60 flex-shrink-0 bg-zinc-950">

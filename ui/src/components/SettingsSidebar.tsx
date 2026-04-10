@@ -139,7 +139,7 @@ export default function SettingsSidebar({
   // Agent config
   const [agentModel,        setAgentModel]        = useState('claude-opus-4-6')
   const [subagentModel,     setSubagentModel]     = useState('sonnet')
-  const [agentName,         setAgentName]         = useState('Hannah')
+  const [agentName,         setAgentName]         = useState('Adjutant')
   const [agentConfigSaving, setAgentConfigSaving] = useState(false)
 
   // Brand form
@@ -488,7 +488,7 @@ export default function SettingsSidebar({
                   type="text"
                   value={agentName}
                   onChange={e => setAgentName(e.target.value)}
-                  placeholder="Hannah"
+                  placeholder="Adjutant"
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-600"
                 />
               </div>

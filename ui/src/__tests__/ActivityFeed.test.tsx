@@ -44,7 +44,7 @@ const BASE_PROPS = {
   directives:    DIRECTIVES,
   agentMessages: AGENT_MESSAGES,
   agentDraft:    '',
-  agentName:     'Hannah',
+  agentName:     'Adjutant',
 }
 
 describe('ActivityFeed — Chat tab (default)', () => {
@@ -72,7 +72,7 @@ describe('ActivityFeed — Chat tab (default)', () => {
   it('shows empty state when no chat entries', () => {
     render(<ActivityFeed {...BASE_PROPS} directives={[]} agentMessages={[]} />)
     expect(screen.getByText('No activity yet')).toBeInTheDocument()
-    expect(screen.getByText('Give Hannah a directive below to get started.')).toBeInTheDocument()
+    expect(screen.getByText('Give Adjutant a directive below to get started.')).toBeInTheDocument()
   })
 
   it('shows agentDraft with cursor on chat tab', () => {
