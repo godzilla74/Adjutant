@@ -1,10 +1,13 @@
 # backend/api.py
 """REST API for Adjutant settings — product config, workstreams, objectives."""
+import mimetypes
 import os
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from pydantic import BaseModel
+
+from backend.uploads import save_uploaded_file
 
 router = APIRouter(prefix="/api")
 
@@ -418,9 +421,6 @@ _VIDEO_LIMIT     = 200 * 1024 * 1024  # 200 MB
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), _=Depends(_auth)):
-    import mimetypes
-    from backend.uploads import save_uploaded_file
-
     data = await file.read()
     mime = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
 
