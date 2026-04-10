@@ -249,11 +249,12 @@ export default function App() {
     }
   }, [productStates])
 
-  const sendDirective = useCallback((content: string) => {
+  const sendDirective = useCallback((content: string, attachments?: Array<{ path: string; mime_type: string; name: string }>) => {
     wsRef.current?.send(JSON.stringify({
       type: 'directive',
       product_id: activeProductId,
       content,
+      attachments: attachments ?? [],
     }))
   }, [activeProductId])
 
@@ -422,6 +423,7 @@ export default function App() {
                 agentName={agentName}
                 prefill={directivePrefill}
                 onPrefillConsumed={() => setDirectivePrefill('')}
+                password={pw}
               />
             </div>
 
