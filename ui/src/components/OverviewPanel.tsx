@@ -30,16 +30,20 @@ function StatusDots({ running, warn, paused }: { running: number; warn: number; 
 
 export default function OverviewPanel({ password, onSelectProduct }: Props) {
   const [products, setProducts] = useState<ProductOverview[]>([])
-  const [sending,  setSending]  = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sent,    setSent]    = useState(false)
 
   useEffect(() => {
     api.getOverview(password).then(setProducts)
   }, [password])
 
   async function sendDigest() {
+    if (sending || sent) return
     setSending(true)
     try {
       await api.sendDigest(password)
+      setSent(true)
+      setTimeout(() => setSent(false), 5000)
     } finally {
       setSending(false)
     }
@@ -51,13 +55,28 @@ export default function OverviewPanel({ password, onSelectProduct }: Props) {
         <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest">All Products</h2>
         <button
           onClick={sendDigest}
-          disabled={sending}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium transition-colors disabled:opacity-50"
+          disabled={sending || sent}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:cursor-default ${
+            sent
+              ? 'bg-emerald-900/50 border border-emerald-700/50 text-emerald-400'
+              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-50'
+          }`}
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          {sending ? 'Sending…' : 'Send Digest'}
+          {sent ? (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Digest sent
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              {sending ? 'Sending…' : 'Send Digest'}
+            </>
+          )}
         </button>
       </div>
       <div className="grid grid-cols-2 gap-4">
