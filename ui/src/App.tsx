@@ -51,10 +51,11 @@ export default function App() {
   const [settingsOpen,    setSettingsOpen]    = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
-  const [notesOpen,    setNotesOpen]    = useState(false)
-  const [historyOpen,  setHistoryOpen]  = useState(false)
-  const [showOverview, setShowOverview] = useState(false)
-  const [errorBanner,  setErrorBanner]  = useState<string | null>(null)
+  const [notesOpen,       setNotesOpen]       = useState(false)
+  const [historyOpen,     setHistoryOpen]     = useState(false)
+  const [showOverview,    setShowOverview]    = useState(false)
+  const [globalViewMode,  setGlobalViewMode]  = useState<'chat' | 'overview'>('overview')
+  const [errorBanner,     setErrorBanner]     = useState<string | null>(null)
 
   const { requestPermission, notify } = useNotifications()
 
@@ -118,7 +119,9 @@ export default function App() {
       }
 
       if (msg.type === 'product_data') {
-        setProductState(msg.product_id, prev => ({
+        // null product_id means global/top-level — map to '__global__' key
+        const key = msg.product_id ?? '__global__'
+        setProductState(key, prev => ({
           ...prev,
           workstreams:     msg.workstreams,
           objectives:      msg.objectives,
@@ -134,8 +137,8 @@ export default function App() {
           const agents: AgentEntry[] = msg.chat_history
             .filter(e => e.type === 'agent')
             .map(e => ({ type: 'agent' as const, content: e.content, ts: e.ts }))
-          setDirectives(prev => ({ ...prev, [msg.product_id]: dirs }))
-          setAgentMessages(prev => ({ ...prev, [msg.product_id]: agents }))
+          setDirectives(prev => ({ ...prev, [key]: dirs }))
+          setAgentMessages(prev => ({ ...prev, [key]: agents }))
         }
         return
       }
@@ -327,10 +330,18 @@ export default function App() {
     }
   }, [productStates])
 
+  const switchToGlobal = useCallback(() => {
+    setActiveProductId('__global__')
+    setShowOverview(true)
+    // Always resend so server updates active_product_id and active_session_id
+    wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: null }))
+  }, [])
+
   const sendDirective = useCallback((content: string, attachments?: Array<{ path: string; mime_type: string; name: string }>) => {
+    const prodId = activeProductId === '__global__' ? null : activeProductId
     wsRef.current?.send(JSON.stringify({
       type: 'directive',
-      product_id: activeProductId,
+      product_id: prodId,
       session_id: productStates[activeProductId]?.activeSessionId ?? null,
       content,
       attachments: attachments ?? [],
@@ -338,9 +349,10 @@ export default function App() {
   }, [activeProductId, productStates])
 
   const cancelDirective = useCallback((directiveId: string) => {
+    const prodId = activeProductId === '__global__' ? null : activeProductId
     wsRef.current?.send(JSON.stringify({
       type: 'cancel_directive',
-      product_id: activeProductId,
+      product_id: prodId,
       directive_id: directiveId,
     }))
   }, [activeProductId])
@@ -354,10 +366,11 @@ export default function App() {
   }, [])
 
   const createSession = useCallback((name: string) => {
+    const prodId = activeProductId === '__global__' ? null : activeProductId
     wsRef.current?.send(JSON.stringify({
       type: 'create_session',
       name,
-      product_id: activeProductId,
+      product_id: prodId,
     }))
   }, [activeProductId])
 
@@ -408,8 +421,12 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 pl-4">
             <span className="font-semibold text-zinc-100 text-sm">{agentName}</span>
-            <span className="text-zinc-700">/</span>
-            <span className="text-sm text-zinc-400">{activeProduct?.name ?? '…'}</span>
+            {!showOverview && (
+              <>
+                <span className="text-zinc-700">/</span>
+                <span className="text-sm text-zinc-400">{activeProduct?.name ?? '…'}</span>
+              </>
+            )}
             {/* Notes button */}
             <button
               onClick={() => { setNotesOpen(o => !o); setHistoryOpen(false) }}
@@ -470,14 +487,74 @@ export default function App() {
           products={products}
           activeProductId={showOverview ? '__overview__' : activeProductId}
           onSwitch={switchProduct}
-          onOverview={() => setShowOverview(true)}
+          onOverview={switchToGlobal}
         />
 
         {showOverview ? (
-          <OverviewPanel
-            password={pw}
-            onSelectProduct={switchProduct}
-          />
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left: global sessions + mode toggle */}
+            <div className="flex flex-col border-r border-zinc-800/60 w-48 flex-shrink-0">
+              <SessionsPanel
+                sessions={productStates['__global__']?.sessions ?? []}
+                activeSessionId={productStates['__global__']?.activeSessionId ?? null}
+                onCreate={createSession}
+                onSwitch={switchSession}
+                onRename={renameSession}
+                onDelete={deleteSession}
+              />
+              <div className="flex border-t border-zinc-800/60 flex-shrink-0">
+                <button
+                  onClick={() => setGlobalViewMode('overview')}
+                  className={`flex-1 text-[10px] py-2 transition-colors ${
+                    globalViewMode === 'overview'
+                      ? 'text-blue-400 bg-blue-600/10'
+                      : 'text-zinc-600 hover:text-zinc-400'
+                  }`}
+                >Overview</button>
+                <button
+                  onClick={() => setGlobalViewMode('chat')}
+                  className={`flex-1 text-[10px] py-2 transition-colors ${
+                    globalViewMode === 'chat'
+                      ? 'text-blue-400 bg-blue-600/10'
+                      : 'text-zinc-600 hover:text-zinc-400'
+                  }`}
+                >Chat</button>
+              </div>
+            </div>
+
+            {globalViewMode === 'overview' ? (
+              <OverviewPanel password={pw} onSelectProduct={switchProduct} />
+            ) : (
+              /* Global chat */
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {productStates['__global__']?.activeSessionId && (
+                  <div className="flex items-center px-4 py-1 border-b border-zinc-800/30">
+                    <span className="text-[10px] text-zinc-600 ml-auto">
+                      {productStates['__global__']?.sessions.find(
+                        s => s.id === productStates['__global__']?.activeSessionId
+                      )?.name ?? ''} session
+                    </span>
+                  </div>
+                )}
+                <ActivityFeed
+                  events={[]}
+                  directives={directives['__global__'] ?? []}
+                  agentMessages={agentMessages['__global__'] ?? []}
+                  agentDraft={agentDraft}
+                  agentName={agentName}
+                />
+                <DirectiveBar
+                  onSend={sendDirective}
+                  disabled={connState !== 'ready'}
+                  productName={agentName}
+                  agentName={agentName}
+                  prefill={directivePrefill}
+                  onPrefillConsumed={() => setDirectivePrefill('')}
+                  password={pw}
+                />
+              </div>
+            )}
+          </div>
         ) : (
           <>
             {/* Left column: Sessions + Workstreams */}

@@ -239,7 +239,7 @@ def _get_or_create_session(product_id: str | None) -> str | None:
         return None
 
 
-def _product_data_payload(product_id: str, active_session_id: str | None = None) -> dict:
+def _product_data_payload(product_id: str | None, active_session_id: str | None = None) -> dict:
     # Reconstruct chat history from stored messages for the active session
     if active_session_id is None:
         active_session_id = _get_or_create_session(product_id)
@@ -264,10 +264,10 @@ def _product_data_payload(product_id: str, active_session_id: str | None = None)
         "product_id": product_id,
         "sessions": sessions,
         "active_session_id": active_session_id,
-        "workstreams": get_workstreams(product_id),
-        "objectives": get_objectives(product_id),
-        "events": load_activity_events(product_id),
-        "review_items": load_review_items(product_id),
+        "workstreams": get_workstreams(product_id) if product_id else [],
+        "objectives": get_objectives(product_id) if product_id else [],
+        "events": load_activity_events(product_id) if product_id else [],
+        "review_items": load_review_items(product_id) if product_id else [],
         "chat_history": chat_history,
     }
 
@@ -757,22 +757,24 @@ async def websocket_endpoint(ws: WebSocket):
                 await _send(ws, {"type": "init", "products": get_products()})
 
             elif msg_type == "switch_product":
-                product_id = msg.get("product_id", active_product_id)
+                product_id = msg.get("product_id") or None  # null from JS → None (global)
                 active_product_id = product_id
                 active_session_id = _get_or_create_session(product_id)
                 await _send(ws, _product_data_payload(product_id, active_session_id))
-                # Also send current queue state for this product
-                await _send(ws, _queue_payload(product_id))
+                if product_id is not None:
+                    await _send(ws, _queue_payload(product_id))
 
             elif msg_type == "directive":
-                product_id = msg.get("product_id", active_product_id)
-                known_ids = {p["id"] for p in get_products()}
-                if product_id not in known_ids:
-                    await _send(ws, {"type": "error", "message": f"Unknown product: {product_id}"})
-                    continue
+                product_id = msg.get("product_id") or None  # null from JS → None (global)
+                if product_id is not None:
+                    known_ids = {p["id"] for p in get_products()}
+                    if product_id not in known_ids:
+                        await _send(ws, {"type": "error", "message": f"Unknown product: {product_id}"})
+                        continue
                 active_product_id = product_id
                 global _last_active_product
-                _last_active_product = product_id
+                if product_id is not None:
+                    _last_active_product = product_id
                 content = msg.get("content", "").strip()
                 attachments = msg.get("attachments") or []
                 if not content and not attachments:
@@ -786,18 +788,22 @@ async def websocket_endpoint(ws: WebSocket):
                     "ts": _ts(),
                 })
 
-                # Save to directive history for replay
-                from backend.db import save_directive_history
-                save_directive_history(product_id, content)
+                # Save to directive history for replay (global directives have no product)
+                if product_id is not None:
+                    from backend.db import save_directive_history
+                    save_directive_history(product_id, content)
 
                 # Enqueue and ensure worker is running
                 directive_id = uuid.uuid4().hex[:8]
                 _ensure_worker(product_id)
+                # Prefer session_id from the client message (client knows current session);
+                # fall back to server-tracked active_session_id if not provided
+                msg_session_id = msg.get("session_id") or active_session_id
                 _directive_queues[product_id].append({
                     "id": directive_id,
                     "content": content,
                     "attachments": attachments,
-                    "session_id": active_session_id,
+                    "session_id": msg_session_id,
                 })
                 _worker_events[product_id].set()
                 await _broadcast(_queue_payload(product_id))
