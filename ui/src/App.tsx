@@ -60,6 +60,9 @@ export default function App() {
 
   const wsRef    = useRef<WebSocket | null>(null)
   const isMounted = useRef(true)
+  const activeProductIdRef = useRef('')
+
+  useEffect(() => { activeProductIdRef.current = activeProductId }, [activeProductId])
 
   const activeState = productStates[activeProductId] ?? EMPTY_STATE
   const activeProduct = products.find(p => p.id === activeProductId)
@@ -221,7 +224,9 @@ export default function App() {
       }
 
       if (msg.type === 'session_created') {
-        setProductState(activeProductId, prev => ({
+        // Use product_id from the session object — activeProductId is stale in this closure
+        const pid = msg.session.product_id ?? activeProductIdRef.current
+        setProductState(pid, prev => ({
           ...prev,
           sessions:        [msg.session, ...prev.sessions],
           activeSessionId: msg.session.id,
@@ -230,7 +235,9 @@ export default function App() {
       }
 
       if (msg.type === 'session_switched') {
-        setProductState(activeProductId, prev => ({
+        // session_switched is sent only to the originating connection; use ref for current product
+        const pid = activeProductIdRef.current
+        setProductState(pid, prev => ({
           ...prev,
           activeSessionId: msg.session_id,
         }))
@@ -240,27 +247,47 @@ export default function App() {
         const agents: AgentEntry[] = msg.chat_history
           .filter(e => e.type === 'agent')
           .map(e => ({ type: 'agent' as const, content: e.content, ts: e.ts }))
-        setDirectives(prev => ({ ...prev, [activeProductId]: dirs }))
-        setAgentMessages(prev => ({ ...prev, [activeProductId]: agents }))
+        setDirectives(prev => ({ ...prev, [pid]: dirs }))
+        setAgentMessages(prev => ({ ...prev, [pid]: agents }))
         return
       }
 
       if (msg.type === 'session_renamed') {
-        setProductState(activeProductId, prev => ({
-          ...prev,
-          sessions: prev.sessions.map(s =>
-            s.id === msg.session_id ? { ...s, name: msg.name } : s
-          ),
-        }))
+        // Broadcast: apply rename to whichever product holds this session (no-op for others)
+        setProductStates(prev => {
+          const next = { ...prev }
+          for (const pid of Object.keys(next)) {
+            if (next[pid].sessions.some(s => s.id === msg.session_id)) {
+              next[pid] = {
+                ...next[pid],
+                sessions: next[pid].sessions.map(s =>
+                  s.id === msg.session_id ? { ...s, name: msg.name } : s
+                ),
+              }
+            }
+          }
+          return next
+        })
         return
       }
 
       if (msg.type === 'session_deleted') {
-        setProductState(activeProductId, prev => ({
-          ...prev,
-          sessions:        prev.sessions.filter(s => s.id !== msg.session_id),
-          activeSessionId: msg.next_session_id,
-        }))
+        // Broadcast: remove session from whichever product holds it
+        setProductStates(prev => {
+          const next = { ...prev }
+          for (const pid of Object.keys(next)) {
+            if (next[pid].sessions.some(s => s.id === msg.session_id)) {
+              next[pid] = {
+                ...next[pid],
+                sessions: next[pid].sessions.filter(s => s.id !== msg.session_id),
+                activeSessionId: next[pid].activeSessionId === msg.session_id
+                  ? msg.next_session_id
+                  : next[pid].activeSessionId,
+              }
+            }
+          }
+          return next
+        })
         return
       }
 
