@@ -148,7 +148,7 @@ export default function SessionsPanel({
                       : 'text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-300'
                   }`}
                 >
-                  <span className="text-[10px] flex-1 truncate leading-none">💬 {s.name}</span>
+                  <span className="text-sm flex-1 truncate leading-snug">💬 {s.name}</span>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     {isActive && (
                       <button
