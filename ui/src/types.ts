@@ -34,6 +34,11 @@ export interface Objective {
   progress_current: number
   progress_target: number | null
   display_order: number
+  autonomous?: number          // 0 | 1
+  session_id?: string | null
+  next_run_at?: string | null
+  last_run_at?: string | null
+  blocked_by_review_id?: number | null
 }
 
 export type AgentType = 'research' | 'general' | 'email' | 'content' | 'social'

@@ -386,6 +386,14 @@ export default function App() {
     wsRef.current?.send(JSON.stringify({ type: 'delete_session', session_id: sessionId }))
   }, [])
 
+  const toggleObjectiveAutonomous = useCallback((objectiveId: number, autonomous: boolean) => {
+    wsRef.current?.send(JSON.stringify({
+      type: 'set_objective_autonomous',
+      objective_id: objectiveId,
+      autonomous,
+    }))
+  }, [])
+
   if (connState === 'auth' || connState === 'connecting') {
     return <PasswordGate onSubmit={sendAuth} connecting={connState === 'connecting'} />
   }
@@ -628,7 +636,10 @@ export default function App() {
                 onCancelQueued={cancelDirective}
                 agentName={agentName}
               />
-              <ObjectivesPanel objectives={activeState.objectives} />
+              <ObjectivesPanel
+                objectives={activeState.objectives}
+                onToggleAutonomous={toggleObjectiveAutonomous}
+              />
             </div>
           </>
         )}
