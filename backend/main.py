@@ -50,6 +50,9 @@ from backend.db import (
     set_objective_autonomous,
     get_objective_blocked_by_review,
     clear_objective_block,
+    set_launch_wizard_active,
+    get_product_config,
+    create_product as _create_product_db,
 )
 from backend.social_poster import publish_social_draft
 from backend.api import router as api_router
@@ -263,6 +266,8 @@ def _product_data_payload(product_id: str | None, active_session_id: str | None 
             if text:
                 chat_history.append({"type": "agent", "content": text, "ts": ts})
     sessions = get_sessions(product_id)
+    config = get_product_config(product_id) if product_id else {}
+    launch_wizard_active = (config or {}).get("launch_wizard_active", 0)
     return {
         "type": "product_data",
         "product_id": product_id,
@@ -273,6 +278,7 @@ def _product_data_payload(product_id: str | None, active_session_id: str | None 
         "events": load_activity_events(product_id) if product_id else [],
         "review_items": load_review_items(product_id) if product_id else [],
         "chat_history": chat_history,
+        "launch_wizard_active": launch_wizard_active,
     }
 
 
@@ -634,6 +640,22 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
                 except (json.JSONDecodeError, KeyError):
                     pass
 
+            if block.name == "report_wizard_progress":
+                await send_fn({
+                    "type": "wizard_progress",
+                    "product_id": product_id,
+                    "message": block.input.get("message", ""),
+                })
+
+            if block.name == "complete_launch":
+                pid = block.input.get("product_id", product_id)
+                await send_fn({
+                    "type": "launch_complete",
+                    "product_id": pid,
+                    "summary": block.input.get("summary", ""),
+                })
+                await send_fn(_product_data_payload(pid))
+
             return {"type": "tool_result", "tool_use_id": block.id, "content": output}
 
         # Run all tool calls concurrently; results preserve original order
@@ -906,6 +928,47 @@ async def websocket_endpoint(ws: WebSocket):
                 if active_session_id == sid:
                     active_session_id = next_sid
                 await _broadcast({"type": "session_deleted", "session_id": sid, "next_session_id": next_sid})
+
+            elif msg_type == "launch_product":
+                import re as _re
+                name = (msg.get("name") or "").strip()
+                if not name:
+                    continue
+                description = (msg.get("description") or "").strip()
+                primary_goal = (msg.get("primary_goal") or "").strip()
+
+                # Generate slug from name (lowercase, hyphens, no special chars)
+                slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "product"
+                existing_ids = {p["id"] for p in get_products()}
+                base_slug = slug
+                counter = 1
+                while slug in existing_ids:
+                    slug = f"{base_slug}-{counter}"
+                    counter += 1
+
+                icon_label = name[:2].upper()
+                color = "#6366f1"  # default indigo
+
+                _create_product_db(slug, name, icon_label, color)
+                set_launch_wizard_active(slug, True)
+
+                # Create dedicated wizard session
+                wizard_session_id = create_session(f"Launch: {name}", slug)
+
+                # Broadcast updated product list to all clients
+                await _broadcast({"type": "init", "products": get_products()})
+
+                # Send full product state to this client (wizard mode)
+                await _send(ws, _product_data_payload(slug, wizard_session_id))
+
+                # Signal this client to switch to the new product
+                await _send(ws, {"type": "launch_started", "product_id": slug})
+
+                # Fire wizard in background
+                from backend.scheduler import _run_launch_wizard
+                asyncio.create_task(
+                    _run_launch_wizard(slug, wizard_session_id, description, primary_goal)
+                )
 
             elif msg_type == "set_objective_autonomous":
                 obj_id   = msg.get("objective_id")
