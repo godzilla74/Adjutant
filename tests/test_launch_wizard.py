@@ -39,7 +39,7 @@ def test_launch_wizard_clears_flag_on_exception(db, monkeypatch):
                     "p1", "test-session-id", "A great product", "Grow to 1000 users"
                 )
 
-    asyncio.get_event_loop().run_until_complete(run())
+    asyncio.run(run())
 
     with db._conn() as conn:
         row = conn.execute("SELECT launch_wizard_active FROM products WHERE id='p1'").fetchone()
@@ -70,6 +70,6 @@ def test_launch_wizard_in_flight_guard(db, monkeypatch):
                 )
                 await asyncio.gather(t1, t2)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    asyncio.run(run())
 
     assert len(call_count) == 1

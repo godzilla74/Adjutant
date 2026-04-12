@@ -384,16 +384,37 @@ async def _run_launch_wizard(
         return
 
     _running_wizards[product_id] = True
+    event_id = None
 
     try:
         from backend.db import (
             get_product_config, set_launch_wizard_active,
             get_workstreams, get_objectives, load_activity_events, load_review_items,
+            save_activity_event, update_activity_event,
         )
         from backend.main import _build_context, _agent_loop
 
         config = get_product_config(product_id)
         product_name = config.get("name", product_id) if config else product_id
+
+        event_id = save_activity_event(
+            product_id=product_id,
+            agent_type="general",
+            headline=f"[Wizard] Setting up {product_name}",
+            rationale="Launch wizard — configuring brand, objectives, and autonomous mode",
+            status="running",
+        )
+        now_ts = datetime.now().isoformat(timespec="seconds")
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "activity_started",
+                "product_id": product_id,
+                "id": event_id,
+                "agent_type": "general",
+                "headline": f"[Wizard] Setting up {product_name}",
+                "rationale": "Launch wizard — configuring brand, objectives, and autonomous mode",
+                "ts": now_ts,
+            })
 
         wizard_prompt = (
             f'You are setting up a new product launch for "{product_name}".\n'
@@ -436,8 +457,24 @@ async def _run_launch_wizard(
                     "launch_wizard_active": 0,
                 })
 
+        update_activity_event(event_id, status="done", summary="Launch wizard complete.")
+        done_ts = datetime.now().isoformat(timespec="seconds")
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "activity_done",
+                "product_id": product_id,
+                "id": event_id,
+                "summary": "Launch wizard complete.",
+                "ts": done_ts,
+            })
+
     except Exception as exc:
         log.error("Launch wizard for %s failed: %s", product_id, exc)
+        if event_id is not None:
+            try:
+                update_activity_event(event_id, status="done", summary=f"Error: {exc}")
+            except Exception:
+                pass
         try:
             from backend.db import set_launch_wizard_active
             set_launch_wizard_active(product_id, False)

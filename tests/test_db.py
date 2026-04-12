@@ -474,7 +474,7 @@ def test_schedule_next_run_tool(db, monkeypatch):
             "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
         ).lastrowid
     import asyncio
-    result = asyncio.get_event_loop().run_until_complete(
+    result = asyncio.run(
         tools_mod.execute_tool("schedule_next_run", {"objective_id": oid, "hours": 8.0, "reason": "posted today"})
     )
     assert "8" in result
@@ -492,7 +492,7 @@ def test_update_objective_progress_tool(db, monkeypatch):
             "INSERT INTO objectives (product_id, text, progress_target) VALUES ('test-product', 'Grow followers', 1000)"
         ).lastrowid
     import asyncio
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         tools_mod.execute_tool("update_objective_progress", {"objective_id": oid, "current": 250, "notes": "checked API"})
     )
     with db._conn() as conn:
@@ -509,7 +509,7 @@ def test_set_objective_autonomous_tool(db):
             "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
         ).lastrowid
     import asyncio
-    result = asyncio.get_event_loop().run_until_complete(
+    result = asyncio.run(
         tools_mod.execute_tool("set_objective_autonomous", {"objective_id": oid, "autonomous": True})
     )
     assert "enabled" in result
@@ -556,7 +556,7 @@ def test_complete_launch_tool_clears_wizard_flag(db):
     importlib.reload(tools_mod)
 
     import asyncio
-    result = asyncio.get_event_loop().run_until_complete(
+    result = asyncio.run(
         tools_mod.execute_tool("complete_launch", {"product_id": "lw-p", "summary": "Done!"})
     )
     assert result == "Done!"
