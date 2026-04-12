@@ -74,11 +74,15 @@ def test_scheduler_loop_calls_run_objective_loop(db, monkeypatch):
 
 def test_set_objective_next_run_clamp(db):
     oid = _make_obj(db)
-    db.set_objective_next_run(oid, 0.0)  # should clamp to 0.25
+    db.set_objective_next_run(oid, 0.0)  # should clamp to 0.25h = 15 min
     with db._conn() as conn:
-        row = conn.execute("SELECT next_run_at, last_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
-    assert row["next_run_at"] is not None
+        row = conn.execute(
+            "SELECT last_run_at, next_run_at > datetime('now', '+14 minutes') AS is_future "
+            "FROM objectives WHERE id=?",
+            (oid,),
+        ).fetchone()
     assert row["last_run_at"] is not None
+    assert row["is_future"] == 1  # confirms 0.0 was clamped to at least 0.25h
 
 
 def test_objective_goes_dormant_on_exception(db, monkeypatch):
