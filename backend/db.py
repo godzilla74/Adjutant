@@ -372,10 +372,12 @@ def update_product(product_id: str, **kwargs) -> str:
 
 def set_launch_wizard_active(product_id: str, active: bool) -> None:
     with _conn() as conn:
-        conn.execute(
+        cur = conn.execute(
             "UPDATE products SET launch_wizard_active = ? WHERE id = ?",
             (1 if active else 0, product_id),
         )
+        if cur.rowcount == 0:
+            raise ValueError(f"Product '{product_id}' not found")
 
 
 def delete_product(product_id: str) -> str:

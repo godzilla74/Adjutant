@@ -229,9 +229,6 @@ def test_seed_icon_label_single_word_product(tmp_path, monkeypatch):
     assert acme["icon_label"] == "AC"
 
 
-import uuid as _uuid
-
-
 def test_create_session_returns_id(db):
     sid = db.create_session("Finance", "test-product")
     assert isinstance(sid, str)
