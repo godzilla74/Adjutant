@@ -542,3 +542,24 @@ def test_get_product_config_includes_launch_wizard_active(db):
     config = db.get_product_config('wiz-p2')
     assert "launch_wizard_active" in config
     assert config["launch_wizard_active"] == 0
+
+
+def test_complete_launch_tool_clears_wizard_flag(db):
+    """complete_launch tool executor clears launch_wizard_active."""
+    import os, importlib
+    os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('lw-p', 'LWP', 'LW', '#000')")
+    db.set_launch_wizard_active('lw-p', True)
+
+    import core.tools as tools_mod
+    importlib.reload(tools_mod)
+
+    import asyncio
+    result = asyncio.get_event_loop().run_until_complete(
+        tools_mod.execute_tool("complete_launch", {"product_id": "lw-p", "summary": "Done!"})
+    )
+    assert result == "Done!"
+    with db._conn() as conn:
+        row = conn.execute("SELECT launch_wizard_active FROM products WHERE id='lw-p'").fetchone()
+    assert row["launch_wizard_active"] == 0

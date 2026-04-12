@@ -526,6 +526,51 @@ TOOLS_DEFINITIONS = [
             "required": ["objective_id", "autonomous"],
         },
     },
+    {
+        "name": "report_wizard_progress",
+        "description": (
+            "Report what you are currently doing during the launch wizard setup. "
+            "Call this before each action so the user can see your progress in real time."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": (
+                        "Brief present-tense description of what you are about to do, "
+                        "e.g. 'Configuring brand voice' or 'Creating launch objectives'"
+                    ),
+                },
+            },
+            "required": ["message"],
+        },
+    },
+    {
+        "name": "complete_launch",
+        "description": (
+            "Call this when the product is fully configured and all objectives are created "
+            "and set to autonomous mode. This ends the wizard and transitions the user to "
+            "the live product view."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "The product's ID",
+                },
+                "summary": {
+                    "type": "string",
+                    "description": (
+                        "2-3 sentence summary of what was set up: brand configured, "
+                        "objectives created, what the agent will do next"
+                    ),
+                },
+            },
+            "required": ["product_id", "summary"],
+        },
+    },
 ]
 
 # Load extensions and append their definitions
@@ -536,6 +581,17 @@ TOOLS_DEFINITIONS.extend(_load_extensions())
 NOTES_DIR = Path.home() / ".hannah" / "notes"
 NOTES_DIR.mkdir(parents=True, exist_ok=True)
 
+
+# ── Executor functions ───────────────────────────────────────────────────────
+
+def _report_wizard_progress(message: str) -> str:
+    return message
+
+
+def _complete_launch(product_id: str, summary: str) -> str:
+    from backend.db import set_launch_wizard_active
+    set_launch_wizard_active(product_id, False)
+    return summary
 
 # ── MCP server management ─────────────────────────────────────────────────────
 
@@ -690,6 +746,10 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _update_objective_progress(**inputs)
     if name == "set_objective_autonomous":
         return _set_objective_autonomous_tool(**inputs)
+    if name == "report_wizard_progress":
+        return _report_wizard_progress(**inputs)
+    if name == "complete_launch":
+        return _complete_launch(**inputs)
     if name == "list_uploads":
         return _list_uploads()
     if name == "send_telegram_file":
