@@ -46,6 +46,10 @@ from backend.db import (
     get_first_session,
     rename_session,
     delete_session,
+    get_objective_by_id,
+    set_objective_autonomous,
+    get_objective_blocked_by_review,
+    clear_objective_block,
 )
 from backend.social_poster import publish_social_draft
 from backend.api import router as api_router
@@ -903,6 +907,16 @@ async def websocket_endpoint(ws: WebSocket):
                     active_session_id = next_sid
                 await _broadcast({"type": "session_deleted", "session_id": sid, "next_session_id": next_sid})
 
+            elif msg_type == "set_objective_autonomous":
+                obj_id   = msg.get("objective_id")
+                auto_val = msg.get("autonomous", False)
+                if obj_id is None:
+                    continue
+                set_objective_autonomous(int(obj_id), bool(auto_val))
+                obj = get_objective_by_id(int(obj_id))
+                if obj:
+                    await _broadcast(_product_data_payload(obj["product_id"]))
+
             elif msg_type == "resolve_review":
                 item_id = msg.get("review_item_id")
                 action = msg.get("action")  # 'approved' | 'skipped'
@@ -960,6 +974,15 @@ async def websocket_endpoint(ws: WebSocket):
                                 "summary": summary,
                                 "ts": _ts(),
                             })
+
+                    # Resume any autonomous objective that was blocked by this review
+                    blocked_obj = get_objective_blocked_by_review(item_id)
+                    if blocked_obj:
+                        clear_objective_block(blocked_obj["id"])
+                        from backend.scheduler import _run_objective_loop
+                        asyncio.create_task(
+                            _run_objective_loop(blocked_obj["product_id"], blocked_obj["id"])
+                        )
 
     except WebSocketDisconnect:
         pass
