@@ -465,3 +465,39 @@ def test_get_objectives_returns_new_fields(db):
     assert "autonomous" in objs[0]
     assert "next_run_at" in objs[0]
     assert "blocked_by_review_id" in objs[0]
+
+
+def test_schedule_next_run_tool(db, monkeypatch):
+    """schedule_next_run tool calls set_objective_next_run with clamping."""
+    import importlib
+    import core.tools as tools_mod
+    importlib.reload(tools_mod)
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+    import asyncio
+    result = asyncio.get_event_loop().run_until_complete(
+        tools_mod.execute_tool("schedule_next_run", {"objective_id": oid, "hours": 8.0, "reason": "posted today"})
+    )
+    assert "8" in result
+    with db._conn() as conn:
+        row = conn.execute("SELECT next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
+    assert row["next_run_at"] is not None
+
+
+def test_update_objective_progress_tool(db, monkeypatch):
+    import importlib
+    import core.tools as tools_mod
+    importlib.reload(tools_mod)
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text, progress_target) VALUES ('test-product', 'Grow followers', 1000)"
+        ).lastrowid
+    import asyncio
+    asyncio.get_event_loop().run_until_complete(
+        tools_mod.execute_tool("update_objective_progress", {"objective_id": oid, "current": 250, "notes": "checked API"})
+    )
+    with db._conn() as conn:
+        row = conn.execute("SELECT progress_current FROM objectives WHERE id=?", (oid,)).fetchone()
+    assert row["progress_current"] == 250

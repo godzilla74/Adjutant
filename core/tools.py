@@ -468,6 +468,64 @@ TOOLS_DEFINITIONS = [
             "required": ["action"],
         },
     },
+    {
+        "name": "schedule_next_run",
+        "description": (
+            "Schedule the next autonomous run for the current objective. "
+            "Call this at the end of every autonomous cycle to keep the loop running. "
+            "If you need human input instead, call create_review_item — do not call this tool."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "objective_id": {"type": "integer", "description": "The objective's ID"},
+                "hours": {
+                    "type": "number",
+                    "description": "Hours until next run (fractional ok, e.g. 0.5 for 30 min). Minimum 0.25.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Brief explanation of why this cadence makes sense",
+                },
+            },
+            "required": ["objective_id", "hours", "reason"],
+        },
+    },
+    {
+        "name": "update_objective_progress",
+        "description": (
+            "Update the measurable progress toward an objective. "
+            "Call this whenever you have a concrete new number (e.g., follower count, deals closed, items completed)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "objective_id": {"type": "integer", "description": "The objective's ID"},
+                "current": {"type": "integer", "description": "The new current progress value"},
+                "notes": {
+                    "type": "string",
+                    "description": "Optional context about how this was measured or what changed",
+                },
+            },
+            "required": ["objective_id", "current"],
+        },
+    },
+    {
+        "name": "set_objective_autonomous",
+        "description": (
+            "Enable or disable autonomous mode for an objective. "
+            "When enabled, the scheduler will begin driving the objective immediately. "
+            "Use this when the user asks to run an objective autonomously or to stop autonomous execution."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "objective_id": {"type": "integer", "description": "The objective's ID"},
+                "autonomous": {"type": "boolean", "description": "true to enable, false to disable"},
+            },
+            "required": ["objective_id", "autonomous"],
+        },
+    },
 ]
 
 # Load extensions and append their definitions
@@ -626,6 +684,12 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _restart_server()
     if name == "manage_mcp_server":
         return await _manage_mcp_server(**inputs)
+    if name == "schedule_next_run":
+        return _schedule_next_run(**inputs)
+    if name == "update_objective_progress":
+        return _update_objective_progress(**inputs)
+    if name == "set_objective_autonomous":
+        return _set_objective_autonomous_tool(**inputs)
     if name == "list_uploads":
         return _list_uploads()
     if name == "send_telegram_file":
@@ -906,3 +970,23 @@ def _create_review_item(title: str, description: str, risk_label: str, product_i
         risk_label=risk_label,
     )
     return json.dumps({"id": item_id, "title": title, "status": "pending"})
+
+
+def _schedule_next_run(objective_id: int, hours: float, reason: str) -> str:
+    from backend.db import set_objective_next_run
+    set_objective_next_run(objective_id, hours)
+    return f"Scheduled next run in {hours}h. Reason: {reason}"
+
+
+def _update_objective_progress(objective_id: int, current: int, notes: str = "") -> str:
+    from backend.db import update_objective_by_id
+    update_objective_by_id(objective_id, progress_current=current)
+    msg = f"Progress updated to {current}"
+    return f"{msg}. {notes}" if notes else msg
+
+
+def _set_objective_autonomous_tool(objective_id: int, autonomous: bool) -> str:
+    from backend.db import set_objective_autonomous
+    set_objective_autonomous(objective_id, autonomous)
+    state = "enabled" if autonomous else "disabled"
+    return f"Objective {objective_id} autonomous mode {state}."
