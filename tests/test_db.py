@@ -501,3 +501,22 @@ def test_update_objective_progress_tool(db, monkeypatch):
     with db._conn() as conn:
         row = conn.execute("SELECT progress_current FROM objectives WHERE id=?", (oid,)).fetchone()
     assert row["progress_current"] == 250
+
+
+def test_set_objective_autonomous_tool(db):
+    import importlib
+    import core.tools as tools_mod
+    importlib.reload(tools_mod)
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+    import asyncio
+    result = asyncio.get_event_loop().run_until_complete(
+        tools_mod.execute_tool("set_objective_autonomous", {"objective_id": oid, "autonomous": True})
+    )
+    assert "enabled" in result
+    with db._conn() as conn:
+        row = conn.execute("SELECT autonomous, next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
+    assert row["autonomous"] == 1
+    assert row["next_run_at"] is not None
