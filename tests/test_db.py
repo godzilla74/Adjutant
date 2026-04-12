@@ -344,3 +344,114 @@ def test_migration_creates_general_session(tmp_path, monkeypatch):
     assert sessions[0]["name"] == "General"
     msgs = db_mod.load_messages("co", sessions[0]["id"], limit=50)
     assert any("legacy" in str(m["content"]) for m in msgs)
+
+
+def test_set_objective_autonomous_on(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+    db.set_objective_autonomous(oid, True)
+    with db._conn() as conn:
+        row = conn.execute("SELECT autonomous, next_run_at FROM objectives WHERE id = ?", (oid,)).fetchone()
+    assert row["autonomous"] == 1
+    assert row["next_run_at"] is not None
+
+
+def test_set_objective_autonomous_off(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+    db.set_objective_autonomous(oid, True)
+    db.set_objective_autonomous(oid, False)
+    with db._conn() as conn:
+        row = conn.execute("SELECT autonomous, next_run_at FROM objectives WHERE id = ?", (oid,)).fetchone()
+    assert row["autonomous"] == 0
+    assert row["next_run_at"] is None
+
+
+def test_get_due_autonomous_objectives(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+        conn.execute(
+            "UPDATE objectives SET autonomous=1, next_run_at=datetime('now', '-1 minute') WHERE id=?",
+            (oid,),
+        )
+    due = db.get_due_autonomous_objectives()
+    assert any(o["id"] == oid for o in due)
+
+
+def test_get_due_autonomous_objectives_excludes_blocked(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+        conn.execute(
+            "UPDATE objectives SET autonomous=1, next_run_at=datetime('now', '-1 minute'), blocked_by_review_id=99 WHERE id=?",
+            (oid,),
+        )
+    due = db.get_due_autonomous_objectives()
+    assert not any(o["id"] == oid for o in due)
+
+
+def test_get_due_autonomous_objectives_excludes_future(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+        conn.execute(
+            "UPDATE objectives SET autonomous=1, next_run_at=datetime('now', '+1 hour') WHERE id=?",
+            (oid,),
+        )
+    due = db.get_due_autonomous_objectives()
+    assert not any(o["id"] == oid for o in due)
+
+
+def test_set_objective_next_run_clamps_minimum(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+    db.set_objective_next_run(oid, 0)  # should clamp to 0.25
+    with db._conn() as conn:
+        row = conn.execute("SELECT next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
+    assert row["next_run_at"] is not None
+
+
+def test_get_objective_blocked_by_review(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+        conn.execute("UPDATE objectives SET blocked_by_review_id=42 WHERE id=?", (oid,))
+    result = db.get_objective_blocked_by_review(42)
+    assert result is not None
+    assert result["id"] == oid
+
+
+def test_clear_objective_block(db):
+    with db._conn() as conn:
+        oid = conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        ).lastrowid
+        conn.execute("UPDATE objectives SET autonomous=1, blocked_by_review_id=42, next_run_at=NULL WHERE id=?", (oid,))
+    db.clear_objective_block(oid)
+    with db._conn() as conn:
+        row = conn.execute("SELECT blocked_by_review_id, next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
+    assert row["blocked_by_review_id"] is None
+    assert row["next_run_at"] is not None
+
+
+def test_get_objectives_returns_new_fields(db):
+    with db._conn() as conn:
+        conn.execute(
+            "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
+        )
+    objs = db.get_objectives('test-product')
+    assert len(objs) == 1
+    assert "autonomous" in objs[0]
+    assert "next_run_at" in objs[0]
+    assert "blocked_by_review_id" in objs[0]

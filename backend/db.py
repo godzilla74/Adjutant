@@ -204,6 +204,19 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE workstreams ADD COLUMN {col_name} {col_type}")
             except Exception:
                 pass  # column already exists
+        # Add autonomous objective columns (idempotent)
+        _obj_auto_cols = [
+            ("autonomous",           "INTEGER NOT NULL DEFAULT 0"),
+            ("session_id",           "TEXT"),
+            ("next_run_at",          "TEXT"),
+            ("last_run_at",          "TEXT"),
+            ("blocked_by_review_id", "INTEGER"),
+        ]
+        for col_name, col_type in _obj_auto_cols:
+            try:
+                conn.execute(f"ALTER TABLE objectives ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass  # column already exists
         # Migrate: rename hannah_model key → agent_model (idempotent)
         conn.execute(
             "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
@@ -537,7 +550,9 @@ def update_objective(
 def get_objectives(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, text, progress_current, progress_target, display_order FROM objectives WHERE product_id = ? ORDER BY display_order",
+            """SELECT id, text, progress_current, progress_target, display_order,
+                      autonomous, session_id, next_run_at, last_run_at, blocked_by_review_id
+               FROM objectives WHERE product_id = ? ORDER BY display_order""",
             (product_id,),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -578,6 +593,89 @@ def delete_objective(product_id: str, text_fragment: str) -> str:
             return f"No objective matching '{text_fragment}' found."
         conn.execute("DELETE FROM objectives WHERE id = ?", (row["id"],))
     return f"Deleted objective: {row['text']}"
+
+
+def get_objective_by_id(obj_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, product_id, text, progress_current, progress_target, display_order,
+                      autonomous, session_id, next_run_at, last_run_at, blocked_by_review_id
+               FROM objectives WHERE id = ?""",
+            (obj_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def set_objective_autonomous(obj_id: int, autonomous: bool) -> None:
+    with _conn() as conn:
+        if autonomous:
+            conn.execute(
+                "UPDATE objectives SET autonomous = 1, next_run_at = datetime('now') WHERE id = ?",
+                (obj_id,),
+            )
+        else:
+            conn.execute(
+                "UPDATE objectives SET autonomous = 0, next_run_at = NULL, blocked_by_review_id = NULL WHERE id = ?",
+                (obj_id,),
+            )
+
+
+def set_objective_session(obj_id: int, session_id: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE objectives SET session_id = ? WHERE id = ?",
+            (session_id, obj_id),
+        )
+
+
+def set_objective_next_run(obj_id: int, hours: float) -> None:
+    """Set next_run_at to now + hours (minimum 0.25h = 15 min). Updates last_run_at to now."""
+    hours = max(0.25, float(hours))
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE objectives SET next_run_at = datetime('now', ? || ' hours'), last_run_at = datetime('now') WHERE id = ?",
+            (f"+{hours}", obj_id),
+        )
+
+
+def set_objective_blocked(obj_id: int, review_item_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE objectives SET blocked_by_review_id = ?, next_run_at = NULL WHERE id = ?",
+            (review_item_id, obj_id),
+        )
+
+
+def get_due_autonomous_objectives() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, product_id, text, progress_current, progress_target,
+                      autonomous, session_id, next_run_at, last_run_at, blocked_by_review_id
+               FROM objectives
+               WHERE autonomous = 1
+                 AND next_run_at IS NOT NULL
+                 AND next_run_at <= datetime('now')
+                 AND blocked_by_review_id IS NULL""",
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_objective_blocked_by_review(review_item_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, product_id FROM objectives WHERE blocked_by_review_id = ?",
+            (review_item_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def clear_objective_block(obj_id: int) -> None:
+    """Clear blocked state and schedule immediate re-run."""
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE objectives SET blocked_by_review_id = NULL, next_run_at = datetime('now') WHERE id = ?",
+            (obj_id,),
+        )
 
 
 # ── Activity events ───────────────────────────────────────────────────────────
