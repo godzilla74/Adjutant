@@ -18,6 +18,9 @@ _running: dict[int, bool] = {}
 # Per-objective in-flight guard
 _running_objectives: dict[int, bool] = {}
 
+# Per-product launch wizard in-flight guard
+_running_wizards: dict[str, bool] = {}
+
 # Broadcast function registered by main.py
 _broadcast_fn: Callable[[dict], Awaitable[None]] | None = None
 
@@ -371,6 +374,83 @@ async def _run_objective_loop(product_id: str, objective_id: int) -> None:
             pass
     finally:
         _running_objectives.pop(objective_id, None)
+
+
+async def _run_launch_wizard(
+    product_id: str, session_id: str, description: str, primary_goal: str
+) -> None:
+    """Run the launch wizard agent loop for a new product."""
+    if _running_wizards.get(product_id):
+        return
+
+    _running_wizards[product_id] = True
+
+    try:
+        from backend.db import (
+            get_product_config, set_launch_wizard_active,
+            get_workstreams, get_objectives, load_activity_events, load_review_items,
+        )
+        from backend.main import _build_context, _agent_loop
+
+        config = get_product_config(product_id)
+        product_name = config.get("name", product_id) if config else product_id
+
+        wizard_prompt = (
+            f'You are setting up a new product launch for "{product_name}".\n'
+            f"Description: {description}\n"
+            f"Primary goal: {primary_goal}\n\n"
+            "Your job during this setup session:\n"
+            "1. Ask the user focused questions to understand their brand, audience, and competitive "
+            "position — one question at a time, conversationally\n"
+            "2. As you learn, call update_product to fill in brand_voice, tone, writing_style, "
+            "target_audience, social_handles, hashtags, and brand_notes — fill in what you can "
+            "infer without asking\n"
+            "3. Before each action, call report_wizard_progress with a brief description of what "
+            "you are doing\n"
+            '4. Create specific, measurable objectives (e.g. "Grow Instagram to 5,000 followers '
+            'in 90 days") and call set_objective_autonomous to enable each one immediately\n'
+            "5. When all brand fields are configured and at least 2-3 autonomous objectives are "
+            "created, call complete_launch with a summary\n\n"
+            "Keep questions short and conversational. Never ask about something you can reasonably "
+            "infer from the description and primary goal. Fill first, ask only when you genuinely "
+            "need the user's input."
+        )
+
+        messages = _build_context(product_id, session_id=session_id)
+        messages.append({"role": "user", "content": wizard_prompt})
+
+        await _agent_loop(_broadcast_fn, product_id, messages, session_id=session_id)
+
+        # Safety: if agent forgot to call complete_launch, clear the flag
+        refreshed = get_product_config(product_id)
+        if refreshed and refreshed.get("launch_wizard_active"):
+            set_launch_wizard_active(product_id, False)
+            if _broadcast_fn:
+                await _broadcast_fn({
+                    "type": "product_data",
+                    "product_id": product_id,
+                    "workstreams": get_workstreams(product_id),
+                    "objectives": get_objectives(product_id),
+                    "events": load_activity_events(product_id),
+                    "review_items": load_review_items(product_id),
+                    "launch_wizard_active": 0,
+                })
+
+    except Exception as exc:
+        log.error("Launch wizard for %s failed: %s", product_id, exc)
+        try:
+            from backend.db import set_launch_wizard_active
+            set_launch_wizard_active(product_id, False)
+        except Exception:
+            pass
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "launch_complete",
+                "product_id": product_id,
+                "summary": f"Setup encountered an error: {exc}",
+            })
+    finally:
+        _running_wizards.pop(product_id, None)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
