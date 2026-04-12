@@ -363,12 +363,19 @@ def test_set_objective_autonomous_off(db):
         oid = conn.execute(
             "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
         ).lastrowid
-    db.set_objective_autonomous(oid, True)
+        # Set blocked state to verify it gets cleared
+        conn.execute(
+            "UPDATE objectives SET autonomous=1, blocked_by_review_id=99, next_run_at=datetime('now') WHERE id=?",
+            (oid,),
+        )
     db.set_objective_autonomous(oid, False)
     with db._conn() as conn:
-        row = conn.execute("SELECT autonomous, next_run_at FROM objectives WHERE id = ?", (oid,)).fetchone()
+        row = conn.execute(
+            "SELECT autonomous, next_run_at, blocked_by_review_id FROM objectives WHERE id = ?", (oid,)
+        ).fetchone()
     assert row["autonomous"] == 0
     assert row["next_run_at"] is None
+    assert row["blocked_by_review_id"] is None
 
 
 def test_get_due_autonomous_objectives(db):
@@ -415,10 +422,13 @@ def test_set_objective_next_run_clamps_minimum(db):
         oid = conn.execute(
             "INSERT INTO objectives (product_id, text) VALUES ('test-product', 'Grow followers')"
         ).lastrowid
-    db.set_objective_next_run(oid, 0)  # should clamp to 0.25
+    db.set_objective_next_run(oid, 0)  # should clamp to 0.25h = 15 min
     with db._conn() as conn:
-        row = conn.execute("SELECT next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
-    assert row["next_run_at"] is not None
+        row = conn.execute(
+            "SELECT next_run_at > datetime('now', '+14 minutes') AS is_future FROM objectives WHERE id=?",
+            (oid,),
+        ).fetchone()
+    assert row["is_future"] == 1
 
 
 def test_get_objective_blocked_by_review(db):
