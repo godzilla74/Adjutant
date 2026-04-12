@@ -217,6 +217,11 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE objectives ADD COLUMN {col_name} {col_type}")
             except Exception:
                 pass  # column already exists
+        # Add launch wizard column to products (idempotent)
+        try:
+            conn.execute("ALTER TABLE products ADD COLUMN launch_wizard_active INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass  # column already exists
         # Migrate: rename hannah_model key → agent_model (idempotent)
         conn.execute(
             "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
@@ -363,6 +368,14 @@ def update_product(product_id: str, **kwargs) -> str:
             (*updates.values(), product_id),
         )
     return f"Updated product '{product_id}': {', '.join(updates.keys())}"
+
+
+def set_launch_wizard_active(product_id: str, active: bool) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE products SET launch_wizard_active = ? WHERE id = ?",
+            (1 if active else 0, product_id),
+        )
 
 
 def delete_product(product_id: str) -> str:

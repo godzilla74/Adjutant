@@ -520,3 +520,28 @@ def test_set_objective_autonomous_tool(db):
         row = conn.execute("SELECT autonomous, next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
     assert row["autonomous"] == 1
     assert row["next_run_at"] is not None
+
+
+def test_set_launch_wizard_active(db):
+    """set_launch_wizard_active toggles the flag on and off."""
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('wiz-p', 'WizP', 'WP', '#000')")
+
+    db.set_launch_wizard_active('wiz-p', True)
+    with db._conn() as conn:
+        row = conn.execute("SELECT launch_wizard_active FROM products WHERE id = 'wiz-p'").fetchone()
+    assert row["launch_wizard_active"] == 1
+
+    db.set_launch_wizard_active('wiz-p', False)
+    with db._conn() as conn:
+        row = conn.execute("SELECT launch_wizard_active FROM products WHERE id = 'wiz-p'").fetchone()
+    assert row["launch_wizard_active"] == 0
+
+
+def test_get_product_config_includes_launch_wizard_active(db):
+    """get_product_config returns launch_wizard_active."""
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('wiz-p2', 'WizP2', 'WP', '#000')")
+    config = db.get_product_config('wiz-p2')
+    assert "launch_wizard_active" in config
+    assert config["launch_wizard_active"] == 0
