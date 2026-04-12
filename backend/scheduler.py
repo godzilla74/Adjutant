@@ -15,6 +15,9 @@ log = logging.getLogger(__name__)
 # Per-workstream in-flight guard (asyncio is single-threaded — no lock needed)
 _running: dict[int, bool] = {}
 
+# Per-objective in-flight guard
+_running_objectives: dict[int, bool] = {}
+
 # Broadcast function registered by main.py
 _broadcast_fn: Callable[[dict], Awaitable[None]] | None = None
 
@@ -203,6 +206,173 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
         _running.pop(ws_id, None)
 
 
+async def _run_objective_loop(product_id: str, objective_id: int) -> None:
+    """Run one autonomous cycle for an objective using the full agent loop."""
+    if _running_objectives.get(objective_id):
+        return
+
+    _running_objectives[objective_id] = True
+    event_id = None
+
+    try:
+        from backend.db import (
+            get_objective_by_id, set_objective_autonomous, set_objective_session,
+            set_objective_blocked, save_review_item,
+            save_activity_event, update_activity_event,
+            get_workstreams, get_objectives, load_activity_events, load_review_items,
+            set_objective_next_run, create_session,
+        )
+        from backend.main import _build_context, _agent_loop
+
+        obj = get_objective_by_id(objective_id)
+        if not obj:
+            return
+
+        # Ensure dedicated session exists
+        session_id = obj.get("session_id")
+        if not session_id:
+            session_id = create_session(f"Objective: {obj['text'][:40]}", product_id)
+            set_objective_session(objective_id, session_id)
+
+        # Activity feed entry
+        event_id = save_activity_event(
+            product_id=product_id,
+            agent_type="general",
+            headline=f"[Auto] {obj['text'][:60]}",
+            rationale="Autonomous objective run",
+            status="running",
+        )
+        now_ts = datetime.now().isoformat(timespec="seconds")
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "activity_started",
+                "product_id": product_id,
+                "id": event_id,
+                "agent_type": "general",
+                "headline": f"[Auto] {obj['text'][:60]}",
+                "rationale": "Autonomous objective run",
+                "ts": now_ts,
+            })
+
+        # Build context: product system prompt + objective session history
+        messages = _build_context(product_id, session_id=session_id)
+
+        # Inject the cycle prompt
+        progress_str = str(obj["progress_current"])
+        if obj.get("progress_target") is not None:
+            progress_str += f" of {obj['progress_target']}"
+        last_run = obj.get("last_run_at") or "never"
+
+        cycle_prompt = (
+            f'You are autonomously working toward this objective: "{obj["text"]}"\n'
+            f"Current progress: {progress_str}.\n"
+            f"Last run: {last_run}.\n\n"
+            "Use your available tools to take the best next action toward this goal.\n\n"
+            "When you have taken action, call `update_objective_progress` to record measurable "
+            "progress, then call `schedule_next_run` with how many hours until you should check "
+            "back and why.\n\n"
+            "If you are blocked and need human input before you can proceed, call "
+            "`create_review_item` instead — do NOT call `schedule_next_run`.\n\n"
+            "If you need a capability you don't currently have (e.g., posting to a social "
+            "platform, reading analytics), use `find_skill` or `manage_mcp_server` to add it "
+            "before proceeding — don't create a review item just because a tool is missing."
+        )
+        messages.append({"role": "user", "content": cycle_prompt})
+
+        # Run the full agent loop
+        _updated_messages, new_review_items = await _agent_loop(
+            _broadcast_fn, product_id, messages, session_id=session_id
+        )
+
+        # Refresh objective from DB (agent may have updated progress via tools)
+        refreshed = get_objective_by_id(objective_id)
+        if not refreshed:
+            return
+
+        target = refreshed.get("progress_target")
+        current = refreshed.get("progress_current", 0)
+
+        # Priority 1: target reached → create "what's next?" review, go dormant
+        if target is not None and current >= target:
+            review_id = save_review_item(
+                product_id=product_id,
+                title=f"Goal reached: {obj['text'][:60]}",
+                description=(
+                    f"Objective reached its target of {target}. "
+                    "Set a new target to continue, or disable autonomous mode."
+                ),
+                risk_label="Goal milestone — awaiting new direction",
+                activity_event_id=event_id,
+            )
+            set_objective_autonomous(objective_id, False)
+            if _broadcast_fn:
+                review_item = {
+                    "id": review_id,
+                    "title": f"Goal reached: {obj['text'][:60]}",
+                    "description": f"Objective reached its target of {target}. Set a new target to continue, or disable autonomous mode.",
+                    "risk_label": "Goal milestone — awaiting new direction",
+                    "status": "pending",
+                    "created_at": now_ts,
+                }
+                await _broadcast_fn({"type": "review_item_added", "product_id": product_id, "item": review_item})
+
+        # Priority 2: agent created blocking review → go dormant until resolved
+        elif new_review_items:
+            set_objective_blocked(objective_id, new_review_items[-1]["id"])
+
+        # Priority 3: schedule_next_run was called → next_run_at already set by tool
+        # If agent forgot to call schedule_next_run, default to 24h
+        else:
+            refreshed2 = get_objective_by_id(objective_id)
+            if refreshed2 and not refreshed2.get("next_run_at"):
+                set_objective_next_run(objective_id, 24.0)
+
+        summary = "Autonomous cycle complete."
+        update_activity_event(event_id, status="done", summary=summary)
+        done_ts = datetime.now().isoformat(timespec="seconds")
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "activity_done",
+                "product_id": product_id,
+                "id": event_id,
+                "summary": summary,
+                "ts": done_ts,
+            })
+            await _broadcast_fn({
+                "type": "product_data",
+                "product_id": product_id,
+                "workstreams":  get_workstreams(product_id),
+                "objectives":   get_objectives(product_id),
+                "events":       load_activity_events(product_id),
+                "review_items": load_review_items(product_id),
+            })
+
+    except Exception as exc:
+        log.error("Objective %s (%s) loop failed: %s", objective_id, product_id, exc)
+        if event_id is not None:
+            try:
+                from backend.db import update_activity_event
+                update_activity_event(event_id, status="done", summary=f"Error: {exc}")
+            except Exception:
+                pass
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "activity_done",
+                "product_id": product_id,
+                "id": event_id,
+                "summary": f"Objective loop error: {exc}",
+                "ts": datetime.now().isoformat(timespec="seconds"),
+            })
+        # Go dormant on error to avoid crash loop
+        try:
+            from backend.db import set_objective_autonomous
+            set_objective_autonomous(objective_id, False)
+        except Exception:
+            pass
+    finally:
+        _running_objectives.pop(objective_id, None)
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def trigger_workstream(ws_id: int) -> None:
@@ -224,11 +394,16 @@ async def scheduler_loop(broadcast: BroadcastFn, interval_seconds: int = 60) -> 
     log.info("Workstream scheduler started (interval=%ds)", interval_seconds)
     while True:
         try:
-            from backend.db import get_due_workstreams
+            from backend.db import get_due_workstreams, get_due_autonomous_objectives
             due = get_due_workstreams()
             for ws in due:
                 if not _running.get(ws["id"]):
                     asyncio.create_task(_run_workstream(ws, broadcast))
+            # Autonomous objectives check
+            due_objs = get_due_autonomous_objectives()
+            for obj in due_objs:
+                if not _running_objectives.get(obj["id"]):
+                    asyncio.create_task(_run_objective_loop(obj["product_id"], obj["id"]))
         except Exception as exc:
             log.error("Scheduler poll error: %s", exc)
         await asyncio.sleep(interval_seconds)
