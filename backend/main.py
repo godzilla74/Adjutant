@@ -616,7 +616,7 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
                         if tier == "window":
                             deadline = datetime.utcnow() + timedelta(minutes=window_minutes or 10)
                             set_auto_approve_at(item_id, deadline)
-                            deadline_str = deadline.strftime("%Y-%m-%d %H:%M:%S")
+                            deadline_str = deadline.isoformat(timespec="seconds")
                         else:
                             deadline_str = None
                         item = {
@@ -655,7 +655,7 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
                             if tier == "window":
                                 deadline = datetime.utcnow() + timedelta(minutes=window_minutes or 10)
                                 set_auto_approve_at(review_id, deadline)
-                                deadline_str = deadline.strftime("%Y-%m-%d %H:%M:%S")
+                                deadline_str = deadline.isoformat(timespec="seconds")
                             else:
                                 deadline_str = None
                             item = {
