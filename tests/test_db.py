@@ -563,3 +563,83 @@ def test_complete_launch_tool_clears_wizard_flag(db):
     with db._conn() as conn:
         row = conn.execute("SELECT launch_wizard_active FROM products WHERE id='lw-p'").fetchone()
     assert row["launch_wizard_active"] == 0
+
+
+def test_get_autonomy_config_resolution_order(db):
+    """Master tier overrides action row; action row overrides default."""
+    # Default: no config → approve
+    tier, window = db.get_autonomy_config("test-product", "social_post")
+    assert tier == "approve"
+    assert window is None
+
+    # Per-action row
+    db.set_action_autonomy("test-product", "social_post", "auto", None)
+    tier, window = db.get_autonomy_config("test-product", "social_post")
+    assert tier == "auto"
+
+    # Master overrides per-action row
+    db.set_master_autonomy("test-product", "window", 15)
+    tier, window = db.get_autonomy_config("test-product", "social_post")
+    assert tier == "window"
+    assert window == 15
+
+    # Clearing master falls back to per-action row
+    db.set_master_autonomy("test-product", None, None)
+    tier, window = db.get_autonomy_config("test-product", "social_post")
+    assert tier == "auto"
+
+
+def test_auto_resolve_expired_reviews(db):
+    """Only resolves items past their deadline; returns correct ids."""
+    from datetime import datetime, timedelta
+    item_id_past = db.save_review_item(
+        "test-product", "Past", "desc", "risk", action_type="agent_review"
+    )
+    item_id_future = db.save_review_item(
+        "test-product", "Future", "desc", "risk", action_type="agent_review"
+    )
+    # Set past deadline
+    db.set_auto_approve_at(item_id_past, datetime.now() - timedelta(minutes=1))
+    # Set future deadline
+    db.set_auto_approve_at(item_id_future, datetime.now() + timedelta(minutes=10))
+
+    resolved = db.auto_resolve_expired_reviews()
+    assert len(resolved) == 1
+    assert resolved[0]["id"] == item_id_past
+    assert resolved[0]["product_id"] == "test-product"
+
+    # Verify DB state
+    with db._conn() as conn:
+        row = conn.execute(
+            "SELECT status FROM review_items WHERE id = ?", (item_id_past,)
+        ).fetchone()
+        assert row["status"] == "approved"
+        row2 = conn.execute(
+            "SELECT status FROM review_items WHERE id = ?", (item_id_future,)
+        ).fetchone()
+        assert row2["status"] == "pending"
+
+
+def test_get_product_autonomy_settings(db):
+    """Returns master tier and all per-action overrides."""
+    db.set_master_autonomy("test-product", "window", 10)
+    db.set_action_autonomy("test-product", "social_post", "auto", None)
+    db.set_action_autonomy("test-product", "email", "window", 5)
+
+    settings = db.get_product_autonomy_settings("test-product")
+    assert settings["master_tier"] == "window"
+    assert settings["master_window_minutes"] == 10
+    overrides = {o["action_type"]: o for o in settings["action_overrides"]}
+    assert overrides["social_post"]["tier"] == "auto"
+    assert overrides["email"]["tier"] == "window"
+    assert overrides["email"]["window_minutes"] == 5
+
+
+def test_save_review_item_with_action_type(db):
+    """action_type is stored and returned by load_review_items."""
+    item_id = db.save_review_item(
+        "test-product", "Title", "Desc", "Risk", action_type="social_post"
+    )
+    items = db.load_review_items("test-product")
+    assert items[0]["action_type"] == "social_post"
+    assert items[0]["auto_approve_at"] is None

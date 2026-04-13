@@ -169,6 +169,16 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_mcp_servers_scope
                 ON mcp_servers(scope, product_id);
+
+            CREATE TABLE IF NOT EXISTS product_autonomy (
+                product_id     TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                action_type    TEXT NOT NULL,
+                tier           TEXT NOT NULL DEFAULT 'approve',
+                window_minutes INTEGER,
+                PRIMARY KEY (product_id, action_type)
+            );
+            CREATE INDEX IF NOT EXISTS idx_product_autonomy_product
+                ON product_autonomy(product_id);
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -222,6 +232,26 @@ def init_db() -> None:
             conn.execute("ALTER TABLE products ADD COLUMN launch_wizard_active INTEGER NOT NULL DEFAULT 0")
         except Exception:
             pass  # column already exists
+
+        # Add trust tier columns to products (idempotent)
+        for col_name, col_def in [
+            ("autonomy_master_tier",         "TEXT"),
+            ("autonomy_master_window_minutes","INTEGER"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE products ADD COLUMN {col_name} {col_def}")
+            except Exception:
+                pass  # column already exists
+
+        # Add trust tier columns to review_items (idempotent)
+        for col_name, col_def in [
+            ("action_type",    "TEXT"),
+            ("auto_approve_at","DATETIME"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE review_items ADD COLUMN {col_name} {col_def}")
+            except Exception:
+                pass  # column already exists
         # Migrate: rename hannah_model key → agent_model (idempotent)
         conn.execute(
             "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
@@ -762,12 +792,14 @@ def save_review_item(
     description: str,
     risk_label: str,
     activity_event_id: Optional[int] = None,
+    action_type: Optional[str] = None,
 ) -> int:
     with _conn() as conn:
         cur = conn.execute(
-            """INSERT INTO review_items (product_id, activity_event_id, title, description, risk_label)
-               VALUES (?, ?, ?, ?, ?)""",
-            (product_id, activity_event_id, title, description, risk_label),
+            """INSERT INTO review_items
+               (product_id, activity_event_id, title, description, risk_label, action_type)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (product_id, activity_event_id, title, description, risk_label, action_type),
         )
         return cur.lastrowid
 
@@ -786,12 +818,128 @@ def resolve_review_item(item_id: int, action: str) -> None:
 def load_review_items(product_id: str, status: str = "pending") -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            """SELECT id, activity_event_id, title, description, risk_label, status, created_at
+            """SELECT id, activity_event_id, title, description, risk_label, status,
+                      created_at, action_type, auto_approve_at
                FROM review_items WHERE product_id = ? AND status = ?
                ORDER BY created_at""",
             (product_id, status),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def set_auto_approve_at(item_id: int, dt: "datetime") -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE review_items SET auto_approve_at = ? WHERE id = ?",
+            (dt.strftime("%Y-%m-%d %H:%M:%S"), item_id),
+        )
+
+
+def clear_auto_approve_at(item_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE review_items SET auto_approve_at = NULL WHERE id = ?",
+            (item_id,),
+        )
+
+
+def auto_resolve_expired_reviews() -> list[dict]:
+    """Find pending review items whose window has expired. Mark approved. Return {id, product_id} list."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, product_id FROM review_items
+               WHERE status = 'pending'
+               AND auto_approve_at IS NOT NULL
+               AND auto_approve_at <= datetime('now', 'localtime')"""
+        ).fetchall()
+        if not rows:
+            return []
+        ids = [r[0] for r in rows]
+        placeholders = ",".join("?" * len(ids))
+        conn.execute(
+            f"UPDATE review_items SET status = 'approved' WHERE id IN ({placeholders})",
+            ids,
+        )
+    return [{"id": r[0], "product_id": r[1]} for r in rows]
+
+
+def get_autonomy_config(product_id: str, action_type: str) -> tuple[str, "int | None"]:
+    """Resolve tier using: master → per-action → default('approve')."""
+    with _conn() as conn:
+        # Check master override first
+        row = conn.execute(
+            "SELECT autonomy_master_tier, autonomy_master_window_minutes FROM products WHERE id = ?",
+            (product_id,),
+        ).fetchone()
+        if row and row["autonomy_master_tier"]:
+            return row["autonomy_master_tier"], row["autonomy_master_window_minutes"]
+        # Per-action row
+        action_row = conn.execute(
+            "SELECT tier, window_minutes FROM product_autonomy WHERE product_id = ? AND action_type = ?",
+            (product_id, action_type),
+        ).fetchone()
+        if action_row:
+            return action_row["tier"], action_row["window_minutes"]
+    return "approve", None
+
+
+def set_action_autonomy(
+    product_id: str, action_type: str, tier: str, window_minutes: "int | None"
+) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO product_autonomy (product_id, action_type, tier, window_minutes)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(product_id, action_type) DO UPDATE SET
+                   tier = excluded.tier,
+                   window_minutes = excluded.window_minutes""",
+            (product_id, action_type, tier, window_minutes),
+        )
+
+
+def set_master_autonomy(
+    product_id: str, tier: "str | None", window_minutes: "int | None"
+) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """UPDATE products
+               SET autonomy_master_tier = ?, autonomy_master_window_minutes = ?
+               WHERE id = ?""",
+            (tier, window_minutes, product_id),
+        )
+
+
+def get_product_autonomy_settings(product_id: str) -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT autonomy_master_tier, autonomy_master_window_minutes FROM products WHERE id = ?",
+            (product_id,),
+        ).fetchone()
+        action_rows = conn.execute(
+            "SELECT action_type, tier, window_minutes FROM product_autonomy WHERE product_id = ? ORDER BY action_type",
+            (product_id,),
+        ).fetchall()
+    return {
+        "master_tier": row["autonomy_master_tier"] if row else None,
+        "master_window_minutes": row["autonomy_master_window_minutes"] if row else None,
+        "action_overrides": [dict(r) for r in action_rows],
+    }
+
+
+def get_review_item_by_id(item_id: int) -> "dict | None":
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, product_id, activity_event_id, title, description, risk_label,
+                      status, created_at, action_type, auto_approve_at
+               FROM review_items WHERE id = ?""",
+            (item_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def clear_product_autonomy(product_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM product_autonomy WHERE product_id = ?", (product_id,))
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
