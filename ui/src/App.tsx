@@ -48,7 +48,7 @@ export default function App() {
   const [productStates,   setProductStates]   = useState<Record<string, ProductState>>({})
   const [directives,      setDirectives]      = useState<Record<string, DirectiveEntry[]>>({})
   const [agentMessages,   setAgentMessages]   = useState<Record<string, AgentEntry[]>>({})
-  const [agentDraft,      setAgentDraft]      = useState<string>('')
+  const [agentDraftByProduct, setAgentDraftByProduct] = useState<Record<string, string>>({})
   const [agentName,       setAgentName]       = useState<string>('Adjutant')
   const [settingsOpen,    setSettingsOpen]    = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
@@ -157,12 +157,15 @@ export default function App() {
       }
 
       if (msg.type === 'agent_token') {
-        setAgentDraft(prev => prev + msg.content)
+        setAgentDraftByProduct(prev => ({
+          ...prev,
+          [msg.product_id]: (prev[msg.product_id] ?? '') + msg.content,
+        }))
         return
       }
 
       if (msg.type === 'agent_done') {
-        setAgentDraft('')
+        setAgentDraftByProduct(prev => ({ ...prev, [msg.product_id]: '' }))
         setAgentMessages(prev => ({
           ...prev,
           [msg.product_id]: [...(prev[msg.product_id] ?? []), { type: 'agent', content: msg.content, ts: msg.ts }],
@@ -579,7 +582,7 @@ export default function App() {
                   events={[]}
                   directives={directives['__global__'] ?? []}
                   agentMessages={agentMessages['__global__'] ?? []}
-                  agentDraft={agentDraft}
+                  agentDraft={agentDraftByProduct['__global__'] ?? ''}
                   agentName={agentName}
                 />
                 <DirectiveBar
@@ -596,13 +599,12 @@ export default function App() {
           </div>
         ) : activeState?.launch_wizard_active === 1 ? (
           <LaunchWizardPanel
-            productId={activeProductId}
             productName={activeProduct?.name ?? activeProductId}
             activeState={activeState}
             wizardProgress={wizardProgress[activeProductId] ?? ''}
             directives={directives[activeProductId] ?? []}
             agentMessages={agentMessages[activeProductId] ?? []}
-            agentDraft={agentDraft}
+            agentDraft={agentDraftByProduct[activeProductId] ?? ''}
             onSend={sendDirective}
             agentName={agentName}
           />
@@ -651,7 +653,7 @@ export default function App() {
                 events={activeState.events}
                 directives={directives[activeProductId] ?? []}
                 agentMessages={agentMessages[activeProductId] ?? []}
-                agentDraft={agentDraft}
+                agentDraft={agentDraftByProduct[activeProductId] ?? ''}
                 agentName={agentName}
               />
               <DirectiveTemplates

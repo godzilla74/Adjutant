@@ -1,9 +1,8 @@
 // ui/src/components/LaunchWizardPanel.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ProductState } from '../types'
 
 interface Props {
-  productId: string
   productName: string
   activeState: ProductState
   wizardProgress: string
@@ -42,6 +41,7 @@ export default function LaunchWizardPanel({
   onSend, agentName,
 }: Props) {
   const [input, setInput] = useState('')
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   const objectives = activeState.objectives ?? []
   const autonomousCount = objectives.filter(o => o.autonomous === 1).length
@@ -60,6 +60,10 @@ export default function LaunchWizardPanel({
     ...directives.map(d => ({ ...d, key: `d-${d.ts}-${d.content.slice(0, 8)}` })),
     ...agentMessages.map(a => ({ ...a, key: `a-${a.ts}-${a.content.slice(0, 8)}` })),
   ].sort((a, b) => a.ts.localeCompare(b.ts))
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [allMessages.length, agentDraft])
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -87,6 +91,7 @@ export default function LaunchWizardPanel({
               <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-zinc-400 animate-pulse align-middle" />
             </div>
           )}
+          <div ref={bottomRef} />
         </div>
         <div className="px-3 py-3 border-t border-zinc-800/60">
           <div className="flex items-end gap-2 bg-zinc-800 rounded-xl px-3 py-2">
