@@ -145,8 +145,13 @@ TOOLS_DEFINITIONS = [
                     "type": "string",
                     "description": "The product this action belongs to",
                 },
+                "action_type": {
+                    "type": "string",
+                    "enum": ["social_post", "email", "agent_review"],
+                    "description": "Category of action: 'social_post' for social media posts, 'email' for email actions, 'agent_review' for any other consequential action",
+                },
             },
-            "required": ["title", "description", "risk_label", "product_id"],
+            "required": ["title", "description", "risk_label", "product_id", "action_type"],
         },
     },
     {
@@ -1003,6 +1008,7 @@ async def _draft_social_post(product_id: str, platform: str, content: str, image
         title=f"Post to {platform.capitalize()}",
         description=description,
         risk_label=risk,
+        action_type="social_post",
     )
     # Save the draft linked to the review item
     draft_id = save_social_draft(
@@ -1021,13 +1027,17 @@ async def _draft_social_post(product_id: str, platform: str, content: str, image
     })
 
 
-def _create_review_item(title: str, description: str, risk_label: str, product_id: str) -> str:
+def _create_review_item(
+    title: str, description: str, risk_label: str, product_id: str,
+    action_type: str = "agent_review",
+) -> str:
     from backend.db import save_review_item
     item_id = save_review_item(
         product_id=product_id,
         title=title,
         description=description,
         risk_label=risk_label,
+        action_type=action_type,
     )
     return json.dumps({"id": item_id, "title": title, "status": "pending"})
 

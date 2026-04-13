@@ -605,15 +605,31 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
                 try:
                     parsed  = json.loads(output)
                     item_id = parsed["id"]
-                    item = {
-                        "id": item_id,
-                        "title": block.input.get("title", ""),
-                        "description": block.input.get("description", ""),
-                        "risk_label": block.input.get("risk_label", ""),
-                        "status": "pending", "created_at": _ts(),
-                    }
-                    await send_fn({"type": "review_item_added", "product_id": product_id, "item": item})
-                    new_review_items.append(item)
+                    from backend.db import get_autonomy_config, resolve_review_item, set_auto_approve_at
+                    from datetime import datetime, timedelta
+                    action_type_val = block.input.get("action_type", "agent_review")
+                    tier, window_minutes = get_autonomy_config(product_id, action_type_val)
+                    if tier == "auto":
+                        resolve_review_item(item_id, "approved")
+                        await send_fn({"type": "review_resolved", "review_item_id": item_id, "action": "auto_approved"})
+                    else:
+                        if tier == "window":
+                            deadline = datetime.utcnow() + timedelta(minutes=window_minutes or 10)
+                            set_auto_approve_at(item_id, deadline)
+                            deadline_str = deadline.strftime("%Y-%m-%d %H:%M:%S")
+                        else:
+                            deadline_str = None
+                        item = {
+                            "id": item_id,
+                            "title": block.input.get("title", ""),
+                            "description": block.input.get("description", ""),
+                            "risk_label": block.input.get("risk_label", ""),
+                            "action_type": action_type_val,
+                            "auto_approve_at": deadline_str,
+                            "status": "pending", "created_at": _ts(),
+                        }
+                        await send_fn({"type": "review_item_added", "product_id": product_id, "item": item})
+                        new_review_items.append(item)
                 except (json.JSONDecodeError, KeyError):
                     pass
 
@@ -625,18 +641,33 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
                 await send_fn(_product_data_payload(block.input.get("product_id", product_id)))
             if block.name == "draft_social_post":
                 try:
-                    parsed     = json.loads(output)
-                    review_id  = parsed.get("review_item_id")
-                    pid        = block.input.get("product_id", product_id)
+                    parsed    = json.loads(output)
+                    review_id = parsed.get("review_item_id")
+                    pid       = block.input.get("product_id", product_id)
                     if review_id:
-                        item = {
-                            "id": review_id,
-                            "title": f"Post to {block.input.get('platform', '').capitalize()}",
-                            "description": block.input.get("content", "")[:200],
-                            "risk_label": f"Social post · {block.input.get('platform', '')} · public-facing",
-                            "status": "pending", "created_at": _ts(),
-                        }
-                        await send_fn({"type": "review_item_added", "product_id": pid, "item": item})
+                        from backend.db import get_autonomy_config, resolve_review_item, set_auto_approve_at
+                        from datetime import datetime, timedelta
+                        tier, window_minutes = get_autonomy_config(pid, "social_post")
+                        if tier == "auto":
+                            resolve_review_item(review_id, "approved")
+                            await send_fn({"type": "review_resolved", "review_item_id": review_id, "action": "auto_approved"})
+                        else:
+                            if tier == "window":
+                                deadline = datetime.utcnow() + timedelta(minutes=window_minutes or 10)
+                                set_auto_approve_at(review_id, deadline)
+                                deadline_str = deadline.strftime("%Y-%m-%d %H:%M:%S")
+                            else:
+                                deadline_str = None
+                            item = {
+                                "id": review_id,
+                                "title": f"Post to {block.input.get('platform', '').capitalize()}",
+                                "description": block.input.get("content", "")[:200],
+                                "risk_label": f"Social post · {block.input.get('platform', '')} · public-facing",
+                                "action_type": "social_post",
+                                "auto_approve_at": deadline_str,
+                                "status": "pending", "created_at": _ts(),
+                            }
+                            await send_fn({"type": "review_item_added", "product_id": pid, "item": item})
                 except (json.JSONDecodeError, KeyError):
                     pass
 
