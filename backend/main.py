@@ -668,6 +668,7 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
                                 "status": "pending", "created_at": _ts(),
                             }
                             await send_fn({"type": "review_item_added", "product_id": pid, "item": item})
+                            new_review_items.append(item)
                 except (json.JSONDecodeError, KeyError):
                     pass
 
