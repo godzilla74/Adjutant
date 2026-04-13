@@ -598,10 +598,10 @@ def test_auto_resolve_expired_reviews(db):
     item_id_future = db.save_review_item(
         "test-product", "Future", "desc", "risk", action_type="agent_review"
     )
-    # Set past deadline
-    db.set_auto_approve_at(item_id_past, datetime.now() - timedelta(minutes=1))
-    # Set future deadline
-    db.set_auto_approve_at(item_id_future, datetime.now() + timedelta(minutes=10))
+    # Set past deadline (UTC for consistency with DB timestamp handling)
+    db.set_auto_approve_at(item_id_past, datetime.utcnow() - timedelta(minutes=1))
+    # Set future deadline (UTC for consistency with DB timestamp handling)
+    db.set_auto_approve_at(item_id_future, datetime.utcnow() + timedelta(minutes=10))
 
     resolved = db.auto_resolve_expired_reviews()
     assert len(resolved) == 1

@@ -850,7 +850,7 @@ def auto_resolve_expired_reviews() -> list[dict]:
             """SELECT id, product_id FROM review_items
                WHERE status = 'pending'
                AND auto_approve_at IS NOT NULL
-               AND auto_approve_at <= datetime('now', 'localtime')"""
+               AND auto_approve_at <= datetime('now')"""
         ).fetchall()
         if not rows:
             return []
