@@ -64,12 +64,13 @@ export interface ReviewItem {
 }
 
 export interface ProductState {
-  workstreams:     Workstream[]
-  objectives:      Objective[]
-  events:          ActivityEvent[]
-  review_items:    ReviewItem[]
-  sessions:        Session[]
-  activeSessionId: string | null
+  workstreams:           Workstream[]
+  objectives:            Objective[]
+  events:                ActivityEvent[]
+  review_items:          ReviewItem[]
+  sessions:              Session[]
+  activeSessionId:       string | null
+  launch_wizard_active?: number
 }
 
 export interface DirectiveItem {
@@ -82,7 +83,7 @@ export type ServerMessage =
   | { type: 'auth_ok' }
   | { type: 'auth_fail'; reason: string }
   | { type: 'init'; products: Product[] }
-  | { type: 'product_data'; product_id: string; sessions: Session[]; active_session_id: string | null; workstreams: Workstream[]; objectives: Objective[]; events: ActivityEvent[]; review_items: ReviewItem[]; chat_history?: Array<{ type: 'directive' | 'agent'; content: string; ts: string }> }
+  | { type: 'product_data'; product_id: string; sessions: Session[]; active_session_id: string | null; workstreams: Workstream[]; objectives: Objective[]; events: ActivityEvent[]; review_items: ReviewItem[]; chat_history?: Array<{ type: 'directive' | 'agent'; content: string; ts: string }>; launch_wizard_active?: number }
   | { type: 'session_created'; session: Session }
   | { type: 'session_switched'; session_id: string; chat_history: Array<{ type: 'directive' | 'agent'; content: string; ts: string }> }
   | { type: 'session_renamed'; session_id: string; name: string }
@@ -95,6 +96,9 @@ export type ServerMessage =
   | { type: 'agent_token'; product_id: string; content: string }
   | { type: 'agent_done'; product_id: string; content: string; ts: string }
   | { type: 'queue_update'; product_id: string; current: DirectiveItem | null; queued: DirectiveItem[] }
+  | { type: 'wizard_progress'; product_id: string; message: string }
+  | { type: 'launch_complete'; product_id: string; summary: string }
+  | { type: 'launch_started'; product_id: string }
 
 export interface DirectiveHistoryItem {
   id: number

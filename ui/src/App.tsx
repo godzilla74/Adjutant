@@ -23,6 +23,8 @@ import SettingsSidebar from './components/SettingsSidebar'
 import NotesDrawer from './components/NotesDrawer'
 import DirectiveHistoryDrawer from './components/DirectiveHistoryDrawer'
 import OverviewPanel from './components/OverviewPanel'
+import LaunchWizardPanel from './components/LaunchWizardPanel'
+import LaunchFormModal from './components/LaunchFormModal'
 
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
 
@@ -54,6 +56,8 @@ export default function App() {
   const [notesOpen,       setNotesOpen]       = useState(false)
   const [historyOpen,     setHistoryOpen]     = useState(false)
   const [showOverview,    setShowOverview]    = useState(false)
+  const [launchFormOpen,  setLaunchFormOpen]  = useState(false)
+  const [wizardProgress,  setWizardProgress]  = useState<Record<string, string>>({})
   const [globalViewMode,  setGlobalViewMode]  = useState<'chat' | 'overview'>('overview')
   const [errorBanner,     setErrorBanner]     = useState<string | null>(null)
 
@@ -123,12 +127,13 @@ export default function App() {
         const key = msg.product_id ?? '__global__'
         setProductState(key, prev => ({
           ...prev,
-          workstreams:     msg.workstreams,
-          objectives:      msg.objectives,
-          events:          msg.events,
-          review_items:    msg.review_items,
-          sessions:        msg.sessions ?? [],
-          activeSessionId: msg.active_session_id ?? null,
+          workstreams:          msg.workstreams,
+          objectives:           msg.objectives,
+          events:               msg.events,
+          review_items:         msg.review_items,
+          sessions:             msg.sessions ?? [],
+          activeSessionId:      msg.active_session_id ?? null,
+          launch_wizard_active: msg.launch_wizard_active ?? 0,
         }))
         if (msg.chat_history?.length) {
           const dirs: DirectiveEntry[] = msg.chat_history
@@ -200,6 +205,22 @@ export default function App() {
           review_items: [...prev.review_items, msg.item],
         }))
         notify(`Review needed: ${msg.item.title}`, msg.item.description?.slice(0, 80))
+        return
+      }
+
+      if (msg.type === 'wizard_progress') {
+        setWizardProgress(prev => ({ ...prev, [msg.product_id]: msg.message }))
+        return
+      }
+
+      if (msg.type === 'launch_complete') {
+        setWizardProgress(prev => ({ ...prev, [msg.product_id]: '' }))
+        return
+      }
+
+      if (msg.type === 'launch_started') {
+        setActiveProductId(msg.product_id)
+        setShowOverview(false)
         return
       }
 
@@ -394,6 +415,15 @@ export default function App() {
     }))
   }, [])
 
+  const launchProduct = useCallback((name: string, description: string, primaryGoal: string) => {
+    wsRef.current?.send(JSON.stringify({
+      type: 'launch_product',
+      name,
+      description,
+      primary_goal: primaryGoal,
+    }))
+  }, [])
+
   if (connState === 'auth' || connState === 'connecting') {
     return <PasswordGate onSubmit={sendAuth} connecting={connState === 'connecting'} />
   }
@@ -496,6 +526,7 @@ export default function App() {
           activeProductId={showOverview ? '__overview__' : activeProductId}
           onSwitch={switchProduct}
           onOverview={switchToGlobal}
+          onLaunch={() => setLaunchFormOpen(true)}
         />
 
         {showOverview ? (
@@ -563,6 +594,18 @@ export default function App() {
               </div>
             )}
           </div>
+        ) : activeState?.launch_wizard_active === 1 ? (
+          <LaunchWizardPanel
+            productId={activeProductId}
+            productName={activeProduct?.name ?? activeProductId}
+            activeState={activeState}
+            wizardProgress={wizardProgress[activeProductId] ?? ''}
+            directives={directives[activeProductId] ?? []}
+            agentMessages={agentMessages[activeProductId] ?? []}
+            agentDraft={agentDraft}
+            onSend={sendDirective}
+            agentName={agentName}
+          />
         ) : (
           <>
             {/* Left column: Sessions + Workstreams */}
@@ -675,6 +718,13 @@ export default function App() {
           password={pw}
           onClose={() => setHistoryOpen(false)}
           onSelect={content => { setDirectivePrefill(content); setHistoryOpen(false) }}
+        />
+      )}
+
+      {launchFormOpen && (
+        <LaunchFormModal
+          onSubmit={launchProduct}
+          onClose={() => setLaunchFormOpen(false)}
         />
       )}
     </div>

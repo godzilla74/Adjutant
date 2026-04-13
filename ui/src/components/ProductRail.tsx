@@ -6,9 +6,10 @@ interface Props {
   activeProductId: string   // may be '__overview__' when overview is active
   onSwitch: (productId: string) => void
   onOverview: () => void
+  onLaunch: () => void
 }
 
-export default function ProductRail({ products, activeProductId, onSwitch, onOverview }: Props) {
+export default function ProductRail({ products, activeProductId, onSwitch, onOverview, onLaunch }: Props) {
   const overviewActive = activeProductId === '__overview__'
 
   return (
@@ -67,6 +68,18 @@ export default function ProductRail({ products, activeProductId, onSwitch, onOve
           </button>
         )
       })}
+
+      {/* Spacer pushes "+" to bottom */}
+      <div className="flex-1" />
+
+      {/* Launch new product */}
+      <button
+        onClick={onLaunch}
+        title="Launch new product"
+        className="w-9 h-9 rounded-xl flex items-center justify-center text-lg font-light text-zinc-600 border-2 border-dashed border-zinc-800 hover:border-zinc-600 hover:text-zinc-400 transition-all duration-150 cursor-pointer"
+      >
+        +
+      </button>
     </nav>
   )
 }
