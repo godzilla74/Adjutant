@@ -117,6 +117,17 @@ export default function SettingsSidebar({
     bot_username: string | null
   } | null>(null)
 
+  // Autonomy
+  const [autonomyOpen, setAutonomyOpen] = useState(false)
+  const [masterTier, setMasterTier] = useState<string | null>(null)
+  const [masterWindow, setMasterWindow] = useState<number>(10)
+  const [actionTiers, setActionTiers] = useState<Record<string, { tier: string; window_minutes: number }>>({
+    social_post:  { tier: 'approve', window_minutes: 10 },
+    email:        { tier: 'approve', window_minutes: 10 },
+    agent_review: { tier: 'approve', window_minutes: 10 },
+  })
+  const [autonomySaving, setAutonomySaving] = useState(false)
+
   // MCP Servers
   const [mcpOpen,        setMcpOpen]        = useState(false)
   const [mcpServers,     setMcpServers]      = useState<{
@@ -217,6 +228,20 @@ export default function SettingsSidebar({
         setBrandNotes(cfg.brand_notes ?? '')
       })
       .catch(e => setLoadError(e.message))
+
+    api.getAutonomySettings(password, productId).then(settings => {
+      setMasterTier(settings.master_tier)
+      setMasterWindow(settings.master_window_minutes ?? 10)
+      const tiers: Record<string, { tier: string; window_minutes: number }> = {
+        social_post:  { tier: 'approve', window_minutes: 10 },
+        email:        { tier: 'approve', window_minutes: 10 },
+        agent_review: { tier: 'approve', window_minutes: 10 },
+      }
+      for (const o of settings.action_overrides) {
+        tiers[o.action_type] = { tier: o.tier, window_minutes: o.window_minutes ?? 10 }
+      }
+      setActionTiers(tiers)
+    }).catch(() => {})
   }, [productId, password])
 
   useEffect(() => {
@@ -264,6 +289,23 @@ export default function SettingsSidebar({
       } as Partial<ProductConfig>)
     } finally {
       setBrandSaving(false)
+    }
+  }
+
+  async function handleAutonomySave() {
+    setAutonomySaving(true)
+    try {
+      await api.updateAutonomySettings(password, productId, {
+        master_tier: masterTier,
+        master_window_minutes: masterTier === 'window' ? masterWindow : null,
+        action_overrides: Object.entries(actionTiers).map(([action_type, cfg]) => ({
+          action_type,
+          tier: cfg.tier,
+          window_minutes: cfg.tier === 'window' ? cfg.window_minutes : null,
+        })),
+      })
+    } finally {
+      setAutonomySaving(false)
     }
   }
 
@@ -470,6 +512,100 @@ export default function SettingsSidebar({
                 className="w-full py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-200 font-medium transition-colors disabled:opacity-50"
               >
                 {brandSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
+
+          {/* ── Autonomy ─────────────────────────────────────────────────── */}
+          <SectionHeader
+            title="Autonomy"
+            open={autonomyOpen}
+            onToggle={() => setAutonomyOpen(o => !o)}
+          />
+          {autonomyOpen && (
+            <div className="px-4 py-3 flex flex-col gap-4">
+              {/* Master override */}
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Master override</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={masterTier ?? ''}
+                    onChange={e => setMasterTier(e.target.value || null)}
+                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-600"
+                  >
+                    <option value="">Per action type</option>
+                    <option value="approve">Approve (always block)</option>
+                    <option value="window">Window (auto after delay)</option>
+                    <option value="auto">Auto (never block)</option>
+                  </select>
+                  {masterTier === 'window' && (
+                    <input
+                      type="number"
+                      min={1}
+                      value={masterWindow}
+                      onChange={e => setMasterWindow(Number(e.target.value))}
+                      className="w-20 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-600"
+                      placeholder="min"
+                    />
+                  )}
+                </div>
+                {masterTier && (
+                  <button
+                    onClick={() => setMasterTier(null)}
+                    className="mt-1 text-xs text-zinc-600 hover:text-zinc-400 underline underline-offset-2"
+                  >
+                    Clear override
+                  </button>
+                )}
+              </div>
+
+              {/* Per-action table */}
+              <div className={masterTier ? 'opacity-50 pointer-events-none' : ''}>
+                <label className="block text-xs text-zinc-500 mb-2">Per action type</label>
+                <div className="flex flex-col gap-2">
+                  {([
+                    ['social_post',  'Social posts'],
+                    ['email',        'Emails'],
+                    ['agent_review', 'Agent reviews'],
+                  ] as [string, string][]).map(([key, label]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 w-28 flex-shrink-0">{label}</span>
+                      <select
+                        value={actionTiers[key]?.tier ?? 'approve'}
+                        onChange={e => setActionTiers(prev => ({
+                          ...prev,
+                          [key]: { ...prev[key], tier: e.target.value },
+                        }))}
+                        className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-zinc-100 focus:outline-none focus:border-zinc-600"
+                      >
+                        <option value="approve">Approve</option>
+                        <option value="window">Window</option>
+                        <option value="auto">Auto</option>
+                      </select>
+                      {actionTiers[key]?.tier === 'window' && (
+                        <input
+                          type="number"
+                          min={1}
+                          value={actionTiers[key]?.window_minutes ?? 10}
+                          onChange={e => setActionTiers(prev => ({
+                            ...prev,
+                            [key]: { ...prev[key], window_minutes: Number(e.target.value) },
+                          }))}
+                          className="w-16 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-zinc-100 focus:outline-none focus:border-zinc-600"
+                          placeholder="min"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={handleAutonomySave}
+                disabled={autonomySaving}
+                className="self-end rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 transition-colors"
+              >
+                {autonomySaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           )}

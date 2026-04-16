@@ -119,6 +119,31 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
 
+  getAutonomySettings: (pw: string, productId: string) =>
+    apiFetch<{
+      master_tier: string | null
+      master_window_minutes: number | null
+      action_overrides: Array<{ action_type: string; tier: string; window_minutes: number | null }>
+    }>(`/api/products/${productId}/autonomy`, pw),
+
+  updateAutonomySettings: (
+    pw: string,
+    productId: string,
+    data: {
+      master_tier: string | null
+      master_window_minutes: number | null
+      action_overrides: Array<{ action_type: string; tier: string; window_minutes: number | null }>
+    },
+  ) =>
+    apiFetch<{
+      master_tier: string | null
+      master_window_minutes: number | null
+      action_overrides: Array<{ action_type: string; tier: string; window_minutes: number | null }>
+    }>(`/api/products/${productId}/autonomy`, pw, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   getDirectiveHistory: (pw: string, productId: string) =>
     apiFetch<{ id: number; content: string; created_at: string }[]>(
       `/api/products/${productId}/directive-history`, pw,
