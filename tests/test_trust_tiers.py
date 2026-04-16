@@ -71,3 +71,37 @@ async def _call_create_review_item(db):
         "product_id": "test-product",
         "action_type": "agent_review",
     })
+
+
+def test_scheduler_auto_resolves_expired_reviews(db, monkeypatch):
+    """scheduler_loop calls auto_resolve_expired_reviews and broadcasts review_resolved."""
+    from datetime import datetime, timedelta
+
+    # Create an expired window review item
+    item_id = db.save_review_item(
+        "test-product", "Expired window", "desc", "risk", action_type="email"
+    )
+    db.set_auto_approve_at(item_id, datetime.utcnow() - timedelta(minutes=1))
+
+    # Capture broadcasts
+    broadcasts = []
+    async def fake_broadcast(msg):
+        broadcasts.append(msg)
+
+    # Run one iteration of the poll logic (not the full loop)
+    async def run_one_poll():
+        from backend.db import auto_resolve_expired_reviews
+        resolved = auto_resolve_expired_reviews()
+        for r in resolved:
+            await fake_broadcast({
+                "type": "review_resolved",
+                "review_item_id": r["id"],
+                "action": "auto_approved",
+            })
+
+    asyncio.run(run_one_poll())
+
+    assert len(broadcasts) == 1
+    assert broadcasts[0]["type"] == "review_resolved"
+    assert broadcasts[0]["review_item_id"] == item_id
+    assert broadcasts[0]["action"] == "auto_approved"

@@ -509,6 +509,7 @@ async def trigger_workstream(ws_id: int) -> None:
 async def scheduler_loop(broadcast: BroadcastFn, interval_seconds: int = 60) -> None:
     """Main loop — polls for due workstreams every `interval_seconds`."""
     log.info("Workstream scheduler started (interval=%ds)", interval_seconds)
+    _auto_resolve_counter = 0
     while True:
         try:
             from backend.db import get_due_workstreams, get_due_autonomous_objectives
@@ -521,6 +522,18 @@ async def scheduler_loop(broadcast: BroadcastFn, interval_seconds: int = 60) -> 
             for obj in due_objs:
                 if not _running_objectives.get(obj["id"]):
                     asyncio.create_task(_run_objective_loop(obj["product_id"], obj["id"]))
+            # Auto-resolve expired window reviews (every ~30s regardless of main interval)
+            _auto_resolve_counter += 1
+            if _auto_resolve_counter >= max(1, 30 // interval_seconds):
+                _auto_resolve_counter = 0
+                from backend.db import auto_resolve_expired_reviews
+                resolved = auto_resolve_expired_reviews()
+                for r in resolved:
+                    await broadcast({
+                        "type": "review_resolved",
+                        "review_item_id": r["id"],
+                        "action": "auto_approved",
+                    })
         except Exception as exc:
             log.error("Scheduler poll error: %s", exc)
         await asyncio.sleep(interval_seconds)
