@@ -1,5 +1,5 @@
 // ui/src/components/ReviewCard.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ReviewItem } from '../types'
 
 interface Props {
@@ -20,6 +20,7 @@ function formatCountdown(seconds: number): string {
 export default function ReviewCard({ item, onResolve, onCancelAutoApprove }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!item.auto_approve_at) { setSecondsLeft(null); return }
@@ -28,10 +29,16 @@ export default function ReviewCard({ item, onResolve, onCancelAutoApprove }: Pro
         (new Date(item.auto_approve_at!).getTime() - Date.now()) / 1000
       ))
       setSecondsLeft(diff)
+      if (diff === 0 && intervalRef.current !== null) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
     }
     tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
+    intervalRef.current = setInterval(tick, 1000)
+    return () => {
+      if (intervalRef.current !== null) clearInterval(intervalRef.current)
+    }
   }, [item.auto_approve_at])
 
   const isWindow = secondsLeft !== null
@@ -67,7 +74,7 @@ export default function ReviewCard({ item, onResolve, onCancelAutoApprove }: Pro
       {isWindow && (
         <div className="flex items-center justify-between">
           <span className="text-xs text-yellow-500 font-mono">
-            Auto-approving in {formatCountdown(secondsLeft!)}
+            Auto-approving in {formatCountdown(secondsLeft ?? 0)}
           </span>
           {onCancelAutoApprove && (
             <button
@@ -87,13 +94,6 @@ export default function ReviewCard({ item, onResolve, onCancelAutoApprove }: Pro
           className="flex-1 rounded-lg bg-emerald-900/50 border border-emerald-700/60 text-emerald-400 text-xs font-semibold py-1.5 hover:bg-emerald-900/80 transition-colors"
         >
           Approve
-        </button>
-        <button
-          type="button"
-          onClick={() => onResolve(item.id, 'approved')}
-          className="flex-1 rounded-lg bg-blue-900/30 border border-blue-700/50 text-blue-400 text-xs font-semibold py-1.5 hover:bg-blue-900/50 transition-colors"
-        >
-          Edit
         </button>
         <button
           type="button"

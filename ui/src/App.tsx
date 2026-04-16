@@ -7,6 +7,7 @@ import {
   ProductState,
   ActivityEvent,
   DirectiveItem,
+  ReviewItem,
   ServerMessage,
 } from './types'
 import ProductRail from './components/ProductRail'
@@ -251,12 +252,17 @@ export default function App() {
       }
 
       if (msg.type === 'review_item_updated') {
-        setProductState(msg.product_id, prev => ({
-          ...prev,
-          review_items: prev.review_items.map(i =>
-            i.id === msg.item.id ? { ...i, ...msg.item } : i
-          ),
-        }))
+        setProductState(msg.product_id, prev => {
+          const exists = prev.review_items.some((i: ReviewItem) => i.id === msg.item.id)
+          return {
+            ...prev,
+            review_items: exists
+              ? prev.review_items.map((i: ReviewItem) =>
+                  i.id === msg.item.id ? { ...i, ...msg.item } : i
+                )
+              : [...prev.review_items, msg.item],
+          }
+        })
         return
       }
 
@@ -325,6 +331,11 @@ export default function App() {
           }
           return next
         })
+        return
+      }
+
+      if (msg.type === 'autonomy_config') {
+        // handled by SettingsSidebar (Task 6)
         return
       }
 

@@ -9,7 +9,7 @@ interface Props {
   queued: DirectiveItem[]
   onCancelQueued: (id: string) => void
   agentName: string
-  onCancelAutoApprove: (id: number) => void
+  onCancelAutoApprove?: (id: number) => void
 }
 
 function truncate(s: string, max = 52) {
