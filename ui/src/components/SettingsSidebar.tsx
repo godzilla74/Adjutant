@@ -213,6 +213,7 @@ export default function SettingsSidebar({
 
   // Load config on mount / product change
   useEffect(() => {
+    let stale = false
     setLoadError('')
     api.getProductConfig(password, productId)
       .then(cfg => {
@@ -230,6 +231,7 @@ export default function SettingsSidebar({
       .catch(e => setLoadError(e.message))
 
     api.getAutonomySettings(password, productId).then(settings => {
+      if (stale) return
       setMasterTier(settings.master_tier)
       setMasterWindow(settings.master_window_minutes ?? 10)
       const tiers: Record<string, { tier: string; window_minutes: number }> = {
@@ -242,6 +244,7 @@ export default function SettingsSidebar({
       }
       setActionTiers(tiers)
     }).catch(() => {})
+    return () => { stale = true }
   }, [productId, password])
 
   useEffect(() => {
@@ -523,7 +526,7 @@ export default function SettingsSidebar({
             onToggle={() => setAutonomyOpen(o => !o)}
           />
           {autonomyOpen && (
-            <div className="px-4 py-3 flex flex-col gap-4">
+            <div className="px-4 py-3 flex flex-col gap-4 border-b border-zinc-800/60">
               {/* Master override */}
               <div>
                 <label className="block text-xs text-zinc-500 mb-1">Master override</label>
