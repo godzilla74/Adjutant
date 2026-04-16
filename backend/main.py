@@ -1079,6 +1079,19 @@ async def websocket_endpoint(ws: WebSocket):
                             _run_objective_loop(blocked_obj["product_id"], blocked_obj["id"])
                         )
 
+            elif msg_type == "cancel_auto_approve":
+                item_id = msg.get("review_item_id")
+                if item_id:
+                    from backend.db import clear_auto_approve_at, get_review_item_by_id
+                    clear_auto_approve_at(item_id)
+                    item = get_review_item_by_id(item_id)
+                    if item:
+                        await _broadcast({
+                            "type": "review_item_updated",
+                            "product_id": item["product_id"],
+                            "item": item,
+                        })
+
     except WebSocketDisconnect:
         pass
     finally:

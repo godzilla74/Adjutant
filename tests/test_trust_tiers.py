@@ -105,3 +105,71 @@ def test_scheduler_auto_resolves_expired_reviews(db, monkeypatch):
     assert broadcasts[0]["type"] == "review_resolved"
     assert broadcasts[0]["review_item_id"] == item_id
     assert broadcasts[0]["action"] == "auto_approved"
+
+
+def test_get_autonomy_settings_api(tmp_path, monkeypatch):
+    """GET /api/products/{id}/autonomy returns current settings."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    monkeypatch.setenv("AGENT_PASSWORD", "testpw")
+    import importlib
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    with db_mod._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('test-product', 'Test', 'T', '#000')")
+
+    db_mod.set_master_autonomy("test-product", "window", 10)
+    db_mod.set_action_autonomy("test-product", "social_post", "auto", None)
+
+    import backend.main as main_mod
+    importlib.reload(main_mod)
+    from fastapi.testclient import TestClient
+    client = TestClient(main_mod.app)
+
+    resp = client.get(
+        "/api/products/test-product/autonomy",
+        headers={"X-Agent-Password": "testpw"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["master_tier"] == "window"
+    assert data["master_window_minutes"] == 10
+    overrides = {o["action_type"]: o for o in data["action_overrides"]}
+    assert overrides["social_post"]["tier"] == "auto"
+
+
+def test_put_autonomy_settings_api(tmp_path, monkeypatch):
+    """PUT /api/products/{id}/autonomy saves settings (full replace)."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    monkeypatch.setenv("AGENT_PASSWORD", "testpw")
+    import importlib
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    with db_mod._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('test-product', 'Test', 'T', '#000')")
+
+    import backend.main as main_mod
+    importlib.reload(main_mod)
+    from fastapi.testclient import TestClient
+    client = TestClient(main_mod.app)
+
+    resp = client.put(
+        "/api/products/test-product/autonomy",
+        headers={"X-Agent-Password": "testpw"},
+        json={
+            "master_tier": None,
+            "master_window_minutes": None,
+            "action_overrides": [
+                {"action_type": "social_post", "tier": "auto", "window_minutes": None},
+                {"action_type": "email", "tier": "window", "window_minutes": 5},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+
+    settings = db_mod.get_product_autonomy_settings("test-product")
+    overrides = {o["action_type"]: o for o in settings["action_overrides"]}
+    assert overrides["social_post"]["tier"] == "auto"
+    assert overrides["email"]["tier"] == "window"
+    assert overrides["email"]["window_minutes"] == 5

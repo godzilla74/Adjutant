@@ -244,6 +244,17 @@ class NotesUpdate(BaseModel):
     content: str
 
 
+class ActionOverride(BaseModel):
+    action_type: str
+    tier: str
+    window_minutes: int | None = None
+
+class AutonomySettingsUpdate(BaseModel):
+    master_tier: str | None = None
+    master_window_minutes: int | None = None
+    action_overrides: list[ActionOverride] = []
+
+
 @router.get("/products/{product_id}/notes")
 def get_notes_api(product_id: str, _=Depends(_auth)):
     from backend.db import get_notes
@@ -254,6 +265,27 @@ def get_notes_api(product_id: str, _=Depends(_auth)):
 def update_notes_api(product_id: str, body: NotesUpdate, _=Depends(_auth)):
     from backend.db import set_notes
     return set_notes(product_id, body.content)
+
+
+# ── Autonomy ──────────────────────────────────────────────────────────────────
+
+@router.get("/products/{product_id}/autonomy")
+def get_autonomy_api(product_id: str, _=Depends(_auth)):
+    from backend.db import get_product_autonomy_settings
+    return get_product_autonomy_settings(product_id)
+
+
+@router.put("/products/{product_id}/autonomy")
+def update_autonomy_api(product_id: str, body: AutonomySettingsUpdate, _=Depends(_auth)):
+    from backend.db import (
+        set_master_autonomy, set_action_autonomy,
+        get_product_autonomy_settings, clear_product_autonomy,
+    )
+    clear_product_autonomy(product_id)
+    set_master_autonomy(product_id, body.master_tier, body.master_window_minutes)
+    for override in body.action_overrides:
+        set_action_autonomy(product_id, override.action_type, override.tier, override.window_minutes)
+    return get_product_autonomy_settings(product_id)
 
 
 # ── Directive history ─────────────────────────────────────────────────────────
