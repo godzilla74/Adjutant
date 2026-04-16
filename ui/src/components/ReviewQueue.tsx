@@ -9,6 +9,7 @@ interface Props {
   queued: DirectiveItem[]
   onCancelQueued: (id: string) => void
   agentName: string
+  onCancelAutoApprove: (id: number) => void
 }
 
 function truncate(s: string, max = 52) {
@@ -112,7 +113,7 @@ function QueuedStack({ queued, onCancel }: { queued: DirectiveItem[]; onCancel: 
   )
 }
 
-export default function ReviewQueue({ items, onResolve, queued, onCancelQueued, agentName }: Props) {
+export default function ReviewQueue({ items, onResolve, queued, onCancelQueued, agentName, onCancelAutoApprove }: Props) {
   return (
     <aside className="w-72 flex-shrink-0 border-l border-zinc-800/60 flex flex-col bg-zinc-950">
       <div className="px-4 py-3 border-b border-zinc-800/60 flex items-center justify-between flex-shrink-0">
@@ -131,7 +132,12 @@ export default function ReviewQueue({ items, onResolve, queued, onCancelQueued, 
           </div>
         ) : (
           items.map(item => (
-            <ReviewCard key={item.id} item={item} onResolve={onResolve} />
+            <ReviewCard
+              key={item.id}
+              item={item}
+              onResolve={onResolve}
+              onCancelAutoApprove={onCancelAutoApprove}
+            />
           ))
         )}
       </div>

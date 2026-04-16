@@ -250,6 +250,16 @@ export default function App() {
         return
       }
 
+      if (msg.type === 'review_item_updated') {
+        setProductState(msg.product_id, prev => ({
+          ...prev,
+          review_items: prev.review_items.map(i =>
+            i.id === msg.item.id ? { ...i, ...msg.item } : i
+          ),
+        }))
+        return
+      }
+
       if (msg.type === 'session_created') {
         // Use product_id from the session object — activeProductId is stale in this closure
         const pid = msg.session.product_id ?? activeProductIdRef.current
@@ -386,6 +396,13 @@ export default function App() {
       type: 'resolve_review',
       review_item_id: id,
       action,
+    }))
+  }, [])
+
+  const cancelAutoApprove = useCallback((id: number) => {
+    wsRef.current?.send(JSON.stringify({
+      type: 'cancel_auto_approve',
+      review_item_id: id,
     }))
   }, [])
 
@@ -680,6 +697,7 @@ export default function App() {
                 queued={queueByProduct[activeProductId]?.queued ?? []}
                 onCancelQueued={cancelDirective}
                 agentName={agentName}
+                onCancelAutoApprove={cancelAutoApprove}
               />
               <ObjectivesPanel
                 objectives={activeState.objectives}

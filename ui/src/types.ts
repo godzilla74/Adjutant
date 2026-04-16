@@ -61,6 +61,8 @@ export interface ReviewItem {
   risk_label: string
   status: 'pending' | 'approved' | 'skipped'
   created_at: string
+  action_type?: string | null
+  auto_approve_at?: string | null
 }
 
 export interface ProductState {
@@ -93,6 +95,8 @@ export type ServerMessage =
   | { type: 'activity_done'; product_id: string; id: number; summary: string; ts: string }
   | { type: 'review_item_added'; product_id: string; item: ReviewItem }
   | { type: 'review_resolved'; review_item_id: number; action: string }
+  | { type: 'review_item_updated'; product_id: string; item: ReviewItem }
+  | { type: 'autonomy_config'; product_id: string; master_tier: string | null; master_window_minutes: number | null; action_overrides: Array<{ action_type: string; tier: string; window_minutes: number | null }> }
   | { type: 'agent_token'; product_id: string; content: string }
   | { type: 'agent_done'; product_id: string; content: string; ts: string }
   | { type: 'queue_update'; product_id: string; current: DirectiveItem | null; queued: DirectiveItem[] }
