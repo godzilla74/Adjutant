@@ -857,7 +857,7 @@ def auto_resolve_expired_reviews() -> list[dict]:
         ids = [r[0] for r in rows]
         placeholders = ",".join("?" * len(ids))
         conn.execute(
-            f"UPDATE review_items SET status = 'approved' WHERE id IN ({placeholders})",
+            f"UPDATE review_items SET status = 'approved' WHERE id IN ({placeholders}) AND auto_approve_at IS NOT NULL AND status = 'pending'",
             ids,
         )
     return [{"id": r[0], "product_id": r[1]} for r in rows]
