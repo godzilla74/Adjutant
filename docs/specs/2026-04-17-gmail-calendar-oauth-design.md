@@ -114,9 +114,19 @@ Tools are added to `core/tools.py`. A tool is only included in the agent's tool 
 - Autonomous email sends and calendar creates appear in the activity feed with the connected account: "Sent email via retainerops@gmail.com"
 - If a token refresh fails (e.g., user revoked access), the failure surfaces as an error review item with a message explaining what happened and a link to reconnect — no silent stalls
 
+## Migration: Remove Existing Gmail MCP Integration
+
+As part of this implementation, the existing custom Gmail MCP server integration is removed:
+
+- Remove `_GMAIL_MCP` config and `run_email_agent()` from `backend/agents/runner.py`
+- Remove the `email_task` tool from the main agent's tool list
+- Remove any MCP server entries for Gmail from the `mcp_servers` table (via DB migration)
+- Update setup documentation to remove Gmail MCP server setup steps
+
+The native built-in tools replace this entirely. No fallback to the MCP server is retained.
+
 ## Out of Scope
 
 - Encryption of stored tokens (tokens are in local SQLite, same threat model as existing secrets)
 - Multi-account per product (one Gmail + one Calendar per product)
 - Google Workspace service accounts
-- Removing the existing Gmail MCP server (leave it in place, the new native tools take precedence when a connection exists)
