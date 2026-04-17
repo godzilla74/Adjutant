@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from agents.runner import run_email_agent, run_general_agent, run_research_agent
+from agents.runner import run_general_agent, run_research_agent
 
 # ── Extension auto-loader ─────────────────────────────────────────────────────
 
@@ -92,30 +92,6 @@ TOOLS_DEFINITIONS = [
                 }
             },
             "required": [],
-        },
-    },
-    {
-        "name": "email_task",
-        "description": (
-            "Perform an email task using the user's Gmail account. Use for reading, "
-            "searching, drafting, or sending emails. Be specific about what you need — "
-            "e.g. 'search for emails from john@example.com this week', "
-            "'draft a reply to the last email from Acme Corp', "
-            "'send the draft with subject X'."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "task": {
-                    "type": "string",
-                    "description": "Detailed description of the email task to perform",
-                },
-                "context": {
-                    "type": "string",
-                    "description": "Background context for the email agent AND rationale shown to the user in the activity feed. Write this as a human-readable explanation of why this email task is being done.",
-                },
-            },
-            "required": ["task"],
         },
     },
     {
@@ -581,6 +557,142 @@ TOOLS_DEFINITIONS = [
 # Load extensions and append their definitions
 TOOLS_DEFINITIONS.extend(_load_extensions())
 
+# ── Gmail tools (injected per-product when OAuth connected) ───────────────────
+
+_GMAIL_TOOLS = [
+    {
+        "name": "gmail_search",
+        "description": (
+            "Search the product's connected Gmail inbox. Returns message IDs matching the query. "
+            "Follow up with gmail_read to read specific messages. "
+            "Example queries: 'from:john@example.com', 'subject:invoice is:unread'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose Gmail account to search"},
+                "query": {"type": "string", "description": "Gmail search query"},
+                "max_results": {"type": "integer", "description": "Maximum messages to return (default 10)"},
+            },
+            "required": ["product_id", "query"],
+        },
+    },
+    {
+        "name": "gmail_read",
+        "description": "Read the full content of a Gmail message by its ID. Returns sender, subject, date, and body.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose Gmail account to read from"},
+                "message_id": {"type": "string", "description": "Gmail message ID (from gmail_search results)"},
+            },
+            "required": ["product_id", "message_id"],
+        },
+    },
+    {
+        "name": "gmail_send",
+        "description": (
+            "Send an email from the product's connected Gmail account. "
+            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead of sending immediately. "
+            "Use thread_id to reply to an existing thread."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose Gmail account to send from"},
+                "to": {"type": "string", "description": "Recipient email address"},
+                "subject": {"type": "string", "description": "Email subject line"},
+                "body": {"type": "string", "description": "Plain text email body"},
+                "thread_id": {"type": "string", "description": "Optional: Gmail thread ID to reply within"},
+            },
+            "required": ["product_id", "to", "subject", "body"],
+        },
+    },
+    {
+        "name": "gmail_draft",
+        "description": (
+            "Create a Gmail draft without sending it. Use when the user wants to compose but not send, "
+            "or when you want to prepare content for review."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose Gmail account to draft in"},
+                "to": {"type": "string", "description": "Recipient email address"},
+                "subject": {"type": "string", "description": "Email subject line"},
+                "body": {"type": "string", "description": "Plain text email body"},
+            },
+            "required": ["product_id", "to", "subject", "body"],
+        },
+    },
+]
+
+# ── Calendar tools (injected per-product when OAuth connected) ────────────────
+
+_CALENDAR_TOOLS = [
+    {
+        "name": "calendar_list_events",
+        "description": "List events on the product's Google Calendar between two ISO 8601 datetimes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose calendar to query"},
+                "start": {"type": "string", "description": "Start datetime in ISO 8601 format with timezone, e.g. '2026-04-18T00:00:00Z'"},
+                "end": {"type": "string", "description": "End datetime in ISO 8601 format with timezone"},
+            },
+            "required": ["product_id", "start", "end"],
+        },
+    },
+    {
+        "name": "calendar_create_event",
+        "description": (
+            "Create a Google Calendar event for the product. "
+            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead. "
+            "Use ISO 8601 datetimes with timezone for start and end."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose calendar to add the event to"},
+                "title": {"type": "string", "description": "Event title"},
+                "start": {"type": "string", "description": "Start datetime in ISO 8601 format, e.g. '2026-04-18T10:00:00Z'"},
+                "end": {"type": "string", "description": "End datetime in ISO 8601 format"},
+                "attendees": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of attendee email addresses",
+                },
+                "description": {"type": "string", "description": "Optional event description or agenda"},
+            },
+            "required": ["product_id", "title", "start", "end"],
+        },
+    },
+    {
+        "name": "calendar_find_free_time",
+        "description": "Find free time slots on a specific date long enough for a meeting of the given duration.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose calendar to check"},
+                "date": {"type": "string", "description": "Date to check in YYYY-MM-DD format"},
+                "duration_minutes": {"type": "integer", "description": "Required meeting duration in minutes"},
+            },
+            "required": ["product_id", "date", "duration_minutes"],
+        },
+    },
+]
+
+
+def get_tools_for_product(product_id: str) -> list[dict]:
+    from backend.db import list_oauth_connections
+    tools = list(TOOLS_DEFINITIONS)
+    connections = {c["service"] for c in list_oauth_connections(product_id)}
+    if "gmail" in connections:
+        tools.extend(_GMAIL_TOOLS)
+    if "google_calendar" in connections:
+        tools.extend(_CALENDAR_TOOLS)
+    return tools
+
 # ── Storage ───────────────────────────────────────────────────────────────────
 
 NOTES_DIR = Path.home() / ".hannah" / "notes"
@@ -709,8 +821,6 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _save_note(**inputs)
     if name == "read_notes":
         return _read_notes(**inputs)
-    if name == "email_task":
-        return await _email_task(**inputs)
     if name == "create_review_item":
         return _create_review_item(**inputs)
     if name == "create_objective":
@@ -759,6 +869,20 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _list_uploads()
     if name == "send_telegram_file":
         return await _send_telegram_file(**inputs)
+    if name == "gmail_search":
+        return await _gmail_search(**inputs)
+    if name == "gmail_read":
+        return await _gmail_read(**inputs)
+    if name == "gmail_send":
+        return await _gmail_send(**inputs)
+    if name == "gmail_draft":
+        return await _gmail_draft(**inputs)
+    if name == "calendar_list_events":
+        return await _calendar_list_events(**inputs)
+    if name == "calendar_create_event":
+        return await _calendar_create_event(**inputs)
+    if name == "calendar_find_free_time":
+        return await _calendar_find_free_time(**inputs)
     if name in _EXTENSION_EXECUTORS:
         return await _EXTENSION_EXECUTORS[name](inputs)
     return f"Unknown tool: {name}"
@@ -766,16 +890,85 @@ async def execute_tool(name: str, inputs: dict) -> str:
 
 # ── Implementations ───────────────────────────────────────────────────────────
 
-async def _email_task(task: str, context: str = "") -> str:
-    full_task = f"{task}\n\nContext: {context}" if context else task
-    return await run_email_agent(full_task)
-
-
 async def _delegate_task(task: str, agent_type: str = "general", context: str = "") -> str:
     full_task = f"{task}\n\nContext: {context}" if context else task
     if agent_type == "research":
         return await run_research_agent(full_task)
     return await run_general_agent(full_task)
+
+
+# ── Gmail / Calendar implementations ─────────────────────────────────────────
+
+def _get_effective_tier(product_id: str, action_type: str) -> str:
+    from backend.db import get_product_autonomy_settings
+    settings = get_product_autonomy_settings(product_id)
+    for override in settings.get("action_overrides", []):
+        if override["action_type"] == action_type:
+            return override["tier"]
+    return settings.get("master_tier") or "approve"
+
+
+async def _gmail_search(product_id: str, query: str, max_results: int = 10) -> str:
+    from backend.google_api import gmail_search
+    return await gmail_search(product_id, query, max_results)
+
+
+async def _gmail_read(product_id: str, message_id: str) -> str:
+    from backend.google_api import gmail_read
+    return await gmail_read(product_id, message_id)
+
+
+async def _gmail_send(product_id: str, to: str, subject: str, body: str, thread_id: str | None = None) -> str:
+    if _get_effective_tier(product_id, "email") == "approve":
+        from backend.db import save_review_item
+        item_id = save_review_item(
+            product_id=product_id,
+            title=f"Send email: {subject}",
+            description=f"To: {to}\n\n{body[:300]}",
+            risk_label="Sends email · irreversible",
+            action_type="email",
+        )
+        return json.dumps({"queued_for_review": True, "review_item_id": item_id,
+                           "message": "Email queued for approval."})
+    from backend.google_api import gmail_send
+    return await gmail_send(product_id, to, subject, body, thread_id)
+
+
+async def _gmail_draft(product_id: str, to: str, subject: str, body: str) -> str:
+    from backend.google_api import gmail_draft
+    return await gmail_draft(product_id, to, subject, body)
+
+
+async def _calendar_list_events(product_id: str, start: str, end: str) -> str:
+    from backend.google_api import calendar_list_events
+    return await calendar_list_events(product_id, start, end)
+
+
+async def _calendar_create_event(
+    product_id: str, title: str, start: str, end: str,
+    attendees: list | None = None, description: str | None = None,
+) -> str:
+    if _get_effective_tier(product_id, "agent_review") == "approve":
+        from backend.db import save_review_item
+        desc_parts = [f"Title: {title}", f"Start: {start}", f"End: {end}"]
+        if attendees:
+            desc_parts.append(f"Attendees: {', '.join(attendees)}")
+        item_id = save_review_item(
+            product_id=product_id,
+            title=f"Create calendar event: {title}",
+            description="\n".join(desc_parts),
+            risk_label="Creates calendar event · sends invites",
+            action_type="agent_review",
+        )
+        return json.dumps({"queued_for_review": True, "review_item_id": item_id,
+                           "message": "Calendar event queued for approval."})
+    from backend.google_api import calendar_create_event
+    return await calendar_create_event(product_id, title, start, end, attendees, description)
+
+
+async def _calendar_find_free_time(product_id: str, date: str, duration_minutes: int) -> str:
+    from backend.google_api import calendar_find_free_time
+    return await calendar_find_free_time(product_id, date, duration_minutes)
 
 
 def _save_note(title: str, content: str) -> str:

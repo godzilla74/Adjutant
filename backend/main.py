@@ -57,7 +57,7 @@ from backend.db import (
 from backend.social_poster import publish_social_draft
 from backend.api import router as api_router
 from core.config import get_system_prompt
-from core.tools import TOOLS_DEFINITIONS, execute_tool
+from core.tools import TOOLS_DEFINITIONS, execute_tool, get_tools_for_product
 
 init_db()
 
@@ -487,7 +487,7 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
         for s in _enabled_servers if s["type"] == "remote"
     ]
     _stdio_tools = _mcp_manager.get_tools() if _mcp_manager else []
-    _all_tools = TOOLS_DEFINITIONS + _stdio_tools
+    _all_tools = get_tools_for_product(product_id) + _stdio_tools
 
     # Read model config fresh so Settings changes take effect without restart
     _live_cfg = _get_agent_config()
@@ -564,16 +564,14 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
 
         async def _run_one_tool(block) -> dict:
             """Execute one tool call and handle activity events / side-effects."""
-            is_agent_task = block.name in ("delegate_task", "email_task")
+            is_agent_task = block.name == "delegate_task"
             is_review     = block.name == "create_review_item"
             ev_id = None
 
             if is_agent_task:
                 headline   = block.input.get("task", block.name)
                 rationale  = block.input.get("context", "")
-                agent_type = block.input.get(
-                    "agent_type", "email" if block.name == "email_task" else "general"
-                )
+                agent_type = block.input.get("agent_type", "general")
                 ev_id = save_activity_event(
                     product_id=product_id, agent_type=agent_type,
                     headline=headline, rationale=rationale, status="running",

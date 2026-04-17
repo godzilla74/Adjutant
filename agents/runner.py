@@ -69,33 +69,3 @@ async def run_general_agent(task: str) -> str:
         return f"General agent timed out after {AGENT_TIMEOUT}s."
 
 
-_GMAIL_MCP = {
-    "gmail": {
-        "type": "sse",
-        "url": "http://localhost:8765/sse",
-    }
-}
-
-
-async def run_email_agent(task: str) -> str:
-    """Spawn a sub-agent with Gmail MCP access."""
-    result = "Email agent completed with no output."
-
-    async for message in query(
-        prompt=task,
-        options=ClaudeAgentOptions(
-            model=SUBAGENT_MODEL,
-            mcp_servers=_GMAIL_MCP,
-            max_turns=20,
-            permission_mode="bypassPermissions",
-            system_prompt=(
-                _SUBAGENT_SYSTEM
-                + " You have access to Gmail tools. Use them to read, search, "
-                "draft, and send emails as instructed."
-            ),
-        ),
-    ):
-        if isinstance(message, ResultMessage):
-            result = message.result
-
-    return result
