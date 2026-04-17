@@ -252,6 +252,24 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE review_items ADD COLUMN {col_name} {col_def}")
             except Exception:
                 pass  # column already exists
+
+        # Add oauth_connections table (idempotent)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS oauth_connections (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id    TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                service       TEXT NOT NULL,
+                email         TEXT NOT NULL,
+                access_token  TEXT NOT NULL,
+                refresh_token TEXT NOT NULL,
+                token_expiry  TEXT,
+                scopes        TEXT NOT NULL DEFAULT '',
+                created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(product_id, service)
+            )
+        """)
+
         # Migrate: rename hannah_model key → agent_model (idempotent)
         conn.execute(
             "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
@@ -1445,6 +1463,56 @@ def update_mcp_server(id: int, enabled: bool) -> None:
         conn.execute(
             "UPDATE mcp_servers SET enabled = ? WHERE id = ?", (int(enabled), id)
         )
+
+
+# ── OAuth connections ─────────────────────────────────────────────────────────
+
+def save_oauth_connection(
+    product_id: str,
+    service: str,
+    email: str,
+    access_token: str,
+    refresh_token: str,
+    token_expiry: str,
+    scopes: str,
+) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO oauth_connections
+               (product_id, service, email, access_token, refresh_token, token_expiry, scopes, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+               ON CONFLICT(product_id, service) DO UPDATE SET
+                   email=excluded.email, access_token=excluded.access_token,
+                   refresh_token=excluded.refresh_token, token_expiry=excluded.token_expiry,
+                   scopes=excluded.scopes, updated_at=excluded.updated_at""",
+            (product_id, service, email, access_token, refresh_token, token_expiry, scopes),
+        )
+
+
+def get_oauth_connection(product_id: str, service: str) -> "dict | None":
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM oauth_connections WHERE product_id=? AND service=?",
+            (product_id, service),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_oauth_connection(product_id: str, service: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM oauth_connections WHERE product_id=? AND service=?",
+            (product_id, service),
+        )
+
+
+def list_oauth_connections(product_id: str) -> list:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT service, email, scopes, updated_at FROM oauth_connections WHERE product_id=?",
+            (product_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def delete_mcp_server(id: int) -> None:
