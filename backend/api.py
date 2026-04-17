@@ -529,6 +529,8 @@ async def oauth_callback(code: str, state: str):
         service = state_data["service"]
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid state parameter")
+    if service not in ("gmail", "google_calendar"):
+        raise HTTPException(status_code=400, detail="Invalid state parameter")
     config = get_agent_config()
     client_id = config.get("google_oauth_client_id", "")
     client_secret = config.get("google_oauth_client_secret", "")

@@ -75,8 +75,7 @@ def test_start_oauth_flow_invalid_service(client):
     assert resp.status_code == 422
 
 
-def test_start_oauth_flow_returns_auth_url(client, tmp_path, monkeypatch):
-    import importlib
+def test_start_oauth_flow_returns_auth_url(client):
     import backend.db as db_mod
     with db_mod._conn() as conn:
         conn.execute(
@@ -94,7 +93,7 @@ def test_start_oauth_flow_returns_auth_url(client, tmp_path, monkeypatch):
     assert "accounts.google.com" in resp.json()["auth_url"]
 
 
-def test_list_oauth_connections_empty(client, monkeypatch):
+def test_list_oauth_connections_empty(client):
     import backend.db as db_mod
     with db_mod._conn() as conn:
         conn.execute(
