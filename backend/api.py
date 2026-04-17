@@ -57,6 +57,11 @@ class ObjectiveUpdate(BaseModel):
     progress_target:  int | None = None
 
 
+class GoogleOAuthSettings(BaseModel):
+    google_oauth_client_id:     str | None = None
+    google_oauth_client_secret: str | None = None
+
+
 class McpServerCreate(BaseModel):
     name: str
     type: str
@@ -466,3 +471,25 @@ async def upload_file(file: UploadFile = File(...), _=Depends(_auth)):
 
     path = save_uploaded_file(file.filename or "upload", data)
     return {"path": str(path), "mime_type": mime, "name": file.filename, "size": len(data)}
+
+
+# ── Google OAuth global settings ──────────────────────────────────────────────
+
+@router.get("/settings/google-oauth")
+def get_google_oauth_settings(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    config = get_agent_config()
+    return {
+        "google_oauth_client_id": config.get("google_oauth_client_id", ""),
+        "google_oauth_client_secret": "",  # never expose the secret
+    }
+
+
+@router.put("/settings/google-oauth")
+def update_google_oauth_settings(body: GoogleOAuthSettings, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    if body.google_oauth_client_id is not None:
+        set_agent_config("google_oauth_client_id", body.google_oauth_client_id)
+    if body.google_oauth_client_secret is not None:
+        set_agent_config("google_oauth_client_secret", body.google_oauth_client_secret)
+    return {"ok": True}
