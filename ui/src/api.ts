@@ -187,6 +187,33 @@ export const api = {
   deleteMcpServer: (pw: string, id: number) =>
     apiFetch<void>(`/api/mcp-servers/${id}`, pw, { method: 'DELETE' }),
 
+  getGoogleOAuthSettings: (pw: string) =>
+    apiFetch<{ google_oauth_client_id: string; google_oauth_client_secret: string }>(
+      '/api/settings/google-oauth', pw,
+    ),
+
+  updateGoogleOAuthSettings: (
+    pw: string,
+    data: { google_oauth_client_id?: string; google_oauth_client_secret?: string },
+  ) =>
+    apiFetch<{ ok: boolean }>('/api/settings/google-oauth', pw, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  startOAuthFlow: (pw: string, productId: string, service: 'gmail' | 'google_calendar') =>
+    apiFetch<{ auth_url: string }>(
+      `/api/products/${productId}/oauth/start/${service}`, pw,
+    ),
+
+  getOAuthConnections: (pw: string, productId: string) =>
+    apiFetch<{ service: string; email: string; scopes: string; updated_at: string }[]>(
+      `/api/products/${productId}/oauth/connections`, pw,
+    ),
+
+  deleteOAuthConnection: (pw: string, productId: string, service: string) =>
+    apiFetch<void>(`/api/products/${productId}/oauth/${service}`, pw, { method: 'DELETE' }),
+
   uploadFile: async (
     file: File,
     password: string,
