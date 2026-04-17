@@ -153,6 +153,19 @@ export default function SettingsSidebar({
   const [agentName,         setAgentName]         = useState('Adjutant')
   const [agentConfigSaving, setAgentConfigSaving] = useState(false)
 
+  // Google OAuth global settings
+  const [googleOAuthOpen, setGoogleOAuthOpen] = useState(false)
+  const [googleClientId, setGoogleClientId] = useState('')
+  const [googleClientSecret, setGoogleClientSecret] = useState('')
+  const [googleOAuthSaving, setGoogleOAuthSaving] = useState(false)
+
+  // Product OAuth connections
+  const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const [oauthConnections, setOauthConnections] = useState<
+    { service: string; email: string; updated_at: string }[]
+  >([])
+  const [connectingService, setConnectingService] = useState<string | null>(null)
+
   // Brand form
   const [brandVoice,    setBrandVoice]    = useState('')
   const [tone,          setTone]          = useState('')
@@ -255,6 +268,18 @@ export default function SettingsSidebar({
     if (addingObj && newObjRef.current) newObjRef.current.focus()
   }, [addingObj])
 
+  useEffect(() => {
+    if (!googleOAuthOpen) return
+    api.getGoogleOAuthSettings(password).then((data) => {
+      setGoogleClientId(data.google_oauth_client_id || '')
+    }).catch(() => {})
+  }, [googleOAuthOpen, password])
+
+  useEffect(() => {
+    if (!connectionsOpen || !productId) return
+    api.getOAuthConnections(password, productId).then(setOauthConnections).catch(() => {})
+  }, [connectionsOpen, password, productId])
+
   async function saveAgentConfig() {
     setAgentConfigSaving(true)
     try {
@@ -266,6 +291,53 @@ export default function SettingsSidebar({
     } finally {
       setAgentConfigSaving(false)
     }
+  }
+
+  async function saveGoogleOAuth() {
+    setGoogleOAuthSaving(true)
+    try {
+      const update: { google_oauth_client_id?: string; google_oauth_client_secret?: string } = {
+        google_oauth_client_id: googleClientId,
+      }
+      if (googleClientSecret) update.google_oauth_client_secret = googleClientSecret
+      await api.updateGoogleOAuthSettings(password, update)
+      setGoogleClientSecret('')
+    } finally {
+      setGoogleOAuthSaving(false)
+    }
+  }
+
+  async function handleConnectOAuth(service: 'gmail' | 'google_calendar') {
+    if (!productId) return
+    setConnectingService(service)
+    try {
+      const { auth_url } = await api.startOAuthFlow(password, productId, service)
+      const popup = window.open(auth_url, '_blank', 'width=500,height=600')
+      const poll = setInterval(async () => {
+        try {
+          const conns = await api.getOAuthConnections(password, productId)
+          if (conns.some((c) => c.service === service)) {
+            setOauthConnections(conns)
+            clearInterval(poll)
+            setConnectingService(null)
+            return
+          }
+        } catch {}
+        if (!popup || popup.closed) {
+          clearInterval(poll)
+          setConnectingService(null)
+        }
+      }, 1500)
+    } catch (e: any) {
+      alert(e.message || 'Failed to start OAuth flow')
+      setConnectingService(null)
+    }
+  }
+
+  async function handleDisconnectOAuth(service: string) {
+    if (!productId) return
+    await api.deleteOAuthConnection(password, productId, service)
+    setOauthConnections((prev) => prev.filter((c) => c.service !== service))
   }
 
   async function saveInfo() {
@@ -662,6 +734,99 @@ export default function SettingsSidebar({
               >
                 {agentConfigSaving ? 'Saving…' : 'Save'}
               </button>
+            </div>
+          )}
+
+          {/* ── Google OAuth ─────────────────────────────────────────────── */}
+          <SectionHeader
+            title="Google OAuth"
+            open={googleOAuthOpen}
+            onToggle={() => setGoogleOAuthOpen(o => !o)}
+          />
+          {googleOAuthOpen && (
+            <div className="px-4 py-4 space-y-3 border-b border-zinc-800/60">
+              <p className="text-xs text-zinc-500">
+                Enter your Google Cloud OAuth credentials. Required for Gmail and Calendar connections.{' '}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  Google Cloud Console
+                </a>
+              </p>
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Client ID</label>
+                <input
+                  type="text"
+                  value={googleClientId}
+                  onChange={(e) => setGoogleClientId(e.target.value)}
+                  placeholder="your-client-id.apps.googleusercontent.com"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Client Secret</label>
+                <input
+                  type="password"
+                  value={googleClientSecret}
+                  onChange={(e) => setGoogleClientSecret(e.target.value)}
+                  placeholder="Leave blank to keep existing secret"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600 transition-colors"
+                />
+              </div>
+              <button
+                onClick={saveGoogleOAuth}
+                disabled={googleOAuthSaving}
+                className="w-full py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-200 font-medium transition-colors disabled:opacity-50"
+              >
+                {googleOAuthSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
+
+          {/* ── Connections ───────────────────────────────────────────────── */}
+          <SectionHeader
+            title="Connections"
+            open={connectionsOpen}
+            onToggle={() => setConnectionsOpen(o => !o)}
+          />
+          {connectionsOpen && (
+            <div className="px-4 py-4 border-b border-zinc-800/60 space-y-3">
+              {(['gmail', 'google_calendar'] as const).map((service) => {
+                const conn = oauthConnections.find((c) => c.service === service)
+                const label = service === 'gmail' ? 'Gmail' : 'Google Calendar'
+                const isConnecting = connectingService === service
+                return (
+                  <div key={service} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-zinc-300 font-medium">{label}</p>
+                      {conn ? (
+                        <p className="text-xs text-zinc-500">Connected as {conn.email}</p>
+                      ) : (
+                        <p className="text-xs text-zinc-600">Not connected</p>
+                      )}
+                    </div>
+                    {conn ? (
+                      <button
+                        onClick={() => handleDisconnectOAuth(service)}
+                        className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleConnectOAuth(service)}
+                        disabled={isConnecting}
+                        className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded disabled:opacity-50"
+                      >
+                        {isConnecting ? 'Connecting…' : 'Connect'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 
