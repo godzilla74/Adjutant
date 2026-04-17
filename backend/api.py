@@ -345,10 +345,10 @@ def _compile_digest_task(data: dict) -> str:
 async def send_digest_api(_=Depends(_auth)):
     import asyncio
     from backend.db import get_digest_data
-    from agents.runner import run_email_agent
+    from agents.runner import run_general_agent
     data = get_digest_data()
     task_text = _compile_digest_task(data)
-    asyncio.create_task(run_email_agent(task_text))
+    asyncio.create_task(run_general_agent(task_text))
     return {"queued": True}
 
 
