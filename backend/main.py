@@ -57,7 +57,7 @@ from backend.db import (
 from backend.social_poster import publish_social_draft
 from backend.api import router as api_router
 from core.config import get_system_prompt
-from core.tools import TOOLS_DEFINITIONS, execute_tool, get_tools_for_product
+from core.tools import execute_tool, get_tools_for_product
 
 init_db()
 
