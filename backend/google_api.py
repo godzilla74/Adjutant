@@ -22,7 +22,10 @@ async def gmail_search(product_id: str, query: str, max_results: int = 10) -> st
             headers={"Authorization": f"Bearer {token}"},
             params={"q": query, "maxResults": max_results},
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Gmail API error: {e.response.status_code}") from e
         data = resp.json()
     messages = data.get("messages", [])
     if not messages:
@@ -49,9 +52,12 @@ async def gmail_read(product_id: str, message_id: str) -> str:
             headers={"Authorization": f"Bearer {token}"},
             params={"format": "full"},
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Gmail API error: {e.response.status_code}") from e
         data = resp.json()
-    hdrs = {h["name"]: h["value"] for h in data.get("payload", {}).get("headers", [])}
+    hdrs = {h["name"]: h["value"] for h in data.get("payload", {}).get("headers", []) if "name" in h and "value" in h}
     body = _extract_body(data.get("payload", {}))
     return json.dumps({
         "from": hdrs.get("From", ""),
@@ -82,9 +88,12 @@ async def gmail_send(
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json=payload,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Gmail API error: {e.response.status_code}") from e
         data = resp.json()
-    return json.dumps({"message_id": data.get("id"), "thread_id": data.get("threadId"), "sent": True})
+    return json.dumps({"message_id": data.get("id"), **({"thread_id": data["threadId"]} if data.get("threadId") else {}), "sent": True})
 
 
 async def gmail_draft(product_id: str, to: str, subject: str, body: str) -> str:
@@ -95,6 +104,9 @@ async def gmail_draft(product_id: str, to: str, subject: str, body: str) -> str:
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json={"message": {"raw": _build_raw_email(to, subject, body)}},
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Gmail API error: {e.response.status_code}") from e
         data = resp.json()
     return json.dumps({"draft_id": data.get("id"), "created": True})
