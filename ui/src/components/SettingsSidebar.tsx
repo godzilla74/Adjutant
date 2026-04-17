@@ -162,7 +162,7 @@ export default function SettingsSidebar({
   // Product OAuth connections
   const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [oauthConnections, setOauthConnections] = useState<
-    { service: string; email: string; updated_at: string }[]
+    { service: string; email: string; scopes: string; updated_at: string }[]
   >([])
   const [connectingService, setConnectingService] = useState<string | null>(null)
 
