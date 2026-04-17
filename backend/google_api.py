@@ -170,7 +170,7 @@ async def calendar_create_event(
 
 
 async def calendar_find_free_time(product_id: str, date: str, duration_minutes: int) -> str:
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime
     token = await google_oauth.get_valid_access_token(product_id, "google_calendar")
     day_start = f"{date}T00:00:00Z"
     day_end = f"{date}T23:59:59Z"
