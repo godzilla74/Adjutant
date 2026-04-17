@@ -1473,7 +1473,7 @@ def save_oauth_connection(
     email: str,
     access_token: str,
     refresh_token: str,
-    token_expiry: str,
+    token_expiry: str | None,
     scopes: str,
 ) -> None:
     with _conn() as conn:
@@ -1489,7 +1489,7 @@ def save_oauth_connection(
         )
 
 
-def get_oauth_connection(product_id: str, service: str) -> "dict | None":
+def get_oauth_connection(product_id: str, service: str) -> dict | None:
     with _conn() as conn:
         row = conn.execute(
             "SELECT * FROM oauth_connections WHERE product_id=? AND service=?",
@@ -1506,7 +1506,7 @@ def delete_oauth_connection(product_id: str, service: str) -> None:
         )
 
 
-def list_oauth_connections(product_id: str) -> list:
+def list_oauth_connections(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             "SELECT service, email, scopes, updated_at FROM oauth_connections WHERE product_id=?",
