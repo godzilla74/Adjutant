@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 
 import httpx
 
+import backend.google_oauth as google_oauth
 from backend.google_oauth import get_valid_access_token
 
 _GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -110,3 +111,89 @@ async def gmail_draft(product_id: str, to: str, subject: str, body: str) -> str:
             raise RuntimeError(f"Gmail API error: {e.response.status_code}") from e
         data = resp.json()
     return json.dumps({"draft_id": data.get("id"), "created": True})
+
+
+# ── Calendar ──────────────────────────────────────────────────────────────────
+
+async def calendar_list_events(product_id: str, start: str, end: str) -> str:
+    token = await google_oauth.get_valid_access_token(product_id, "google_calendar")
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{_CALENDAR_BASE}/calendars/primary/events",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"timeMin": start, "timeMax": end, "singleEvents": "true", "orderBy": "startTime"},
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Calendar API error: {e.response.status_code}") from e
+        data = resp.json()
+    events = [
+        {
+            "id": e["id"],
+            "summary": e.get("summary", ""),
+            "start": e.get("start", {}).get("dateTime", e.get("start", {}).get("date", "")),
+            "end": e.get("end", {}).get("dateTime", e.get("end", {}).get("date", "")),
+            "attendees": [a["email"] for a in e.get("attendees", [])],
+        }
+        for e in data.get("items", [])
+    ]
+    return json.dumps({"events": events, "count": len(events)})
+
+
+async def calendar_create_event(
+    product_id: str,
+    title: str,
+    start: str,
+    end: str,
+    attendees: list | None = None,
+    description: str | None = None,
+) -> str:
+    token = await google_oauth.get_valid_access_token(product_id, "google_calendar")
+    event: dict = {"summary": title, "start": {"dateTime": start}, "end": {"dateTime": end}}
+    if attendees:
+        event["attendees"] = [{"email": e} for e in attendees]
+    if description:
+        event["description"] = description
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_CALENDAR_BASE}/calendars/primary/events",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=event,
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Calendar API error: {e.response.status_code}") from e
+        data = resp.json()
+    return json.dumps({"event_id": data.get("id"), "html_link": data.get("htmlLink"), "created": True})
+
+
+async def calendar_find_free_time(product_id: str, date: str, duration_minutes: int) -> str:
+    from datetime import datetime, timedelta, timezone
+    token = await google_oauth.get_valid_access_token(product_id, "google_calendar")
+    day_start = f"{date}T00:00:00Z"
+    day_end = f"{date}T23:59:59Z"
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_CALENDAR_BASE}/freeBusy",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"timeMin": day_start, "timeMax": day_end, "items": [{"id": "primary"}]},
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Calendar API error: {e.response.status_code}") from e
+        data = resp.json()
+    busy = data.get("calendars", {}).get("primary", {}).get("busy", [])
+    cursor = datetime.fromisoformat(day_start.replace("Z", "+00:00"))
+    end_of_day = datetime.fromisoformat(day_end.replace("Z", "+00:00"))
+    slots = []
+    for period in busy:
+        busy_start = datetime.fromisoformat(period["start"].replace("Z", "+00:00"))
+        if (busy_start - cursor).total_seconds() >= duration_minutes * 60:
+            slots.append({"start": cursor.isoformat(), "end": busy_start.isoformat()})
+        cursor = datetime.fromisoformat(period["end"].replace("Z", "+00:00"))
+    if (end_of_day - cursor).total_seconds() >= duration_minutes * 60:
+        slots.append({"start": cursor.isoformat(), "end": end_of_day.isoformat()})
+    return json.dumps({"free_slots": slots[:5], "date": date, "duration_minutes": duration_minutes})

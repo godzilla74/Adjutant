@@ -192,3 +192,54 @@ def test_gmail_read_body_capped_at_3000_chars():
             return json.loads(await gmail_read("p1", "msg-abc"))
     result = asyncio.run(run())
     assert len(result["body"]) == 3000
+
+
+def test_calendar_list_events():
+    from backend.google_api import calendar_list_events
+    events_payload = {"items": [
+        {
+            "id": "evt1",
+            "summary": "Standup",
+            "start": {"dateTime": "2026-04-18T09:00:00Z"},
+            "end": {"dateTime": "2026-04-18T09:30:00Z"},
+            "attendees": [{"email": "a@x.com"}],
+        }
+    ]}
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = events_payload
+    mock_resp.raise_for_status = MagicMock()
+    async def run():
+        with patch("backend.google_oauth.get_valid_access_token", new=AsyncMock(return_value="tok")), \
+             patch("httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get = AsyncMock(return_value=mock_resp)
+            mock_cls.return_value = mock_client
+            return json.loads(await calendar_list_events("p1", "2026-04-18T00:00:00Z", "2026-04-18T23:59:59Z"))
+    result = asyncio.run(run())
+    assert result["count"] == 1
+    assert result["events"][0]["summary"] == "Standup"
+    assert result["events"][0]["attendees"] == ["a@x.com"]
+
+
+def test_calendar_create_event():
+    from backend.google_api import calendar_create_event
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"id": "new-evt", "htmlLink": "https://cal.google.com/evt"}
+    mock_resp.raise_for_status = MagicMock()
+    async def run():
+        with patch("backend.google_oauth.get_valid_access_token", new=AsyncMock(return_value="tok")), \
+             patch("httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_cls.return_value = mock_client
+            return json.loads(await calendar_create_event(
+                "p1", "Team Sync", "2026-04-18T10:00:00Z", "2026-04-18T10:30:00Z",
+                attendees=["b@x.com"],
+            ))
+    result = asyncio.run(run())
+    assert result["created"] is True
+    assert result["event_id"] == "new-evt"
