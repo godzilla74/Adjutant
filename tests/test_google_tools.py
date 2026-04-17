@@ -123,8 +123,10 @@ def test_gmail_send_auto_tier_sends_immediately(db):
     db.set_action_autonomy("prod-1", "email", "auto", None)
     async def run():
         with patch("backend.google_api.gmail_send", new=AsyncMock(return_value='{"sent": true}')):
-            from core.tools import execute_tool
-            result = await execute_tool(
+            import importlib as il
+            import core.tools as tools_mod
+            il.reload(tools_mod)
+            result = await tools_mod.execute_tool(
                 "gmail_send",
                 {"product_id": "prod-1", "to": "x@x.com", "subject": "Hi", "body": "Body"},
             )
