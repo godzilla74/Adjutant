@@ -56,3 +56,82 @@ def test_get_google_oauth_settings_after_update(client):
 def test_google_oauth_settings_requires_auth(client):
     resp = client.get("/api/settings/google-oauth")
     assert resp.status_code == 401
+
+
+def test_start_oauth_flow_no_client_id(client):
+    """Returns 400 when no client ID is configured."""
+    resp = client.get("/api/products/prod-1/oauth/start/gmail", headers=AUTH)
+    assert resp.status_code == 400
+    assert "Client ID" in resp.json()["detail"]
+
+
+def test_start_oauth_flow_invalid_service(client):
+    client.put(
+        "/api/settings/google-oauth",
+        json={"google_oauth_client_id": "cid", "google_oauth_client_secret": "csec"},
+        headers=AUTH,
+    )
+    resp = client.get("/api/products/prod-1/oauth/start/bad_service", headers=AUTH)
+    assert resp.status_code == 422
+
+
+def test_start_oauth_flow_returns_auth_url(client, tmp_path, monkeypatch):
+    import importlib
+    import backend.db as db_mod
+    with db_mod._conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO products (id, name, icon_label, color) "
+            "VALUES ('prod-1', 'Prod 1', 'P1', '#000')"
+        )
+    client.put(
+        "/api/settings/google-oauth",
+        json={"google_oauth_client_id": "my-cid", "google_oauth_client_secret": "csec"},
+        headers=AUTH,
+    )
+    resp = client.get("/api/products/prod-1/oauth/start/gmail", headers=AUTH)
+    assert resp.status_code == 200
+    assert "auth_url" in resp.json()
+    assert "accounts.google.com" in resp.json()["auth_url"]
+
+
+def test_list_oauth_connections_empty(client, monkeypatch):
+    import backend.db as db_mod
+    with db_mod._conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO products (id, name, icon_label, color) "
+            "VALUES ('prod-1', 'Prod 1', 'P1', '#000')"
+        )
+    resp = client.get("/api/products/prod-1/oauth/connections", headers=AUTH)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_list_oauth_connections_returns_connections(client):
+    import backend.db as db_mod
+    with db_mod._conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO products (id, name, icon_label, color) "
+            "VALUES ('prod-1', 'Prod 1', 'P1', '#000')"
+        )
+    db_mod.save_oauth_connection("prod-1", "gmail", "a@x.com", "tok", "ref", "2099-01-01T00:00:00+00:00", "s")
+    resp = client.get("/api/products/prod-1/oauth/connections", headers=AUTH)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["service"] == "gmail"
+    assert data[0]["email"] == "a@x.com"
+
+
+def test_delete_oauth_connection(client):
+    import backend.db as db_mod
+    from unittest.mock import patch, AsyncMock
+    with db_mod._conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO products (id, name, icon_label, color) "
+            "VALUES ('prod-1', 'Prod 1', 'P1', '#000')"
+        )
+    db_mod.save_oauth_connection("prod-1", "gmail", "a@x.com", "tok", "ref", "2099-01-01T00:00:00+00:00", "s")
+    with patch("backend.google_oauth.revoke_token", new=AsyncMock()):
+        resp = client.delete("/api/products/prod-1/oauth/gmail", headers=AUTH)
+    assert resp.status_code == 204
+    assert db_mod.get_oauth_connection("prod-1", "gmail") is None

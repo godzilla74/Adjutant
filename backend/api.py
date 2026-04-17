@@ -493,3 +493,74 @@ def update_google_oauth_settings(body: GoogleOAuthSettings, _=Depends(_auth)):
     if body.google_oauth_client_secret is not None:
         set_agent_config("google_oauth_client_secret", body.google_oauth_client_secret)
     return {"ok": True}
+
+
+# ── OAuth flow ─────────────────────────────────────────────────────────────────
+
+@router.get("/products/{product_id}/oauth/start/{service}")
+async def start_oauth_flow(product_id: str, service: str, _=Depends(_auth)):
+    from backend.db import get_agent_config
+    from backend.google_oauth import build_authorization_url
+    if service not in ("gmail", "google_calendar"):
+        raise HTTPException(status_code=422, detail="service must be 'gmail' or 'google_calendar'")
+    config = get_agent_config()
+    client_id = config.get("google_oauth_client_id", "")
+    if not client_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth not configured. Add Client ID in Global Settings → Google OAuth.",
+        )
+    auth_url = build_authorization_url(product_id, service, client_id)
+    return {"auth_url": auth_url}
+
+
+@router.get("/oauth/callback")
+async def oauth_callback(code: str, state: str):
+    import base64 as _b64
+    import json as _json
+    from datetime import datetime, timezone, timedelta
+    from fastapi.responses import HTMLResponse
+    from backend.db import get_agent_config, save_oauth_connection
+    from backend.google_oauth import exchange_code_for_tokens, get_user_email
+    try:
+        padded = state + "==" * ((4 - len(state) % 4) % 4)
+        state_data = _json.loads(_b64.urlsafe_b64decode(padded).decode())
+        product_id = state_data["product_id"]
+        service = state_data["service"]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid state parameter")
+    config = get_agent_config()
+    client_id = config.get("google_oauth_client_id", "")
+    client_secret = config.get("google_oauth_client_secret", "")
+    token_data = await exchange_code_for_tokens(code, client_id, client_secret)
+    access_token = token_data["access_token"]
+    refresh_token = token_data.get("refresh_token", "")
+    expiry = (
+        datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))
+    ).isoformat()
+    email = await get_user_email(access_token)
+    save_oauth_connection(
+        product_id=product_id, service=service, email=email,
+        access_token=access_token, refresh_token=refresh_token,
+        token_expiry=expiry, scopes=token_data.get("scope", ""),
+    )
+    return HTMLResponse(
+        "<html><body><script>window.close()</script>"
+        "<p>Connected successfully! You can close this tab.</p></body></html>"
+    )
+
+
+@router.get("/products/{product_id}/oauth/connections")
+def list_oauth_connections_api(product_id: str, _=Depends(_auth)):
+    from backend.db import list_oauth_connections
+    return list_oauth_connections(product_id)
+
+
+@router.delete("/products/{product_id}/oauth/{service}", status_code=204)
+async def delete_oauth_connection_api(product_id: str, service: str, _=Depends(_auth)):
+    from backend.db import get_oauth_connection, delete_oauth_connection
+    from backend.google_oauth import revoke_token
+    conn_row = get_oauth_connection(product_id, service)
+    if conn_row:
+        await revoke_token(conn_row["access_token"])
+    delete_oauth_connection(product_id, service)
