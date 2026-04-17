@@ -57,3 +57,11 @@ def test_list_oauth_connections(db):
 
 def test_list_oauth_connections_empty(db):
     assert db.list_oauth_connections("prod-1") == []
+
+
+def test_google_oauth_keys_have_defaults(db):
+    config = db.get_agent_config()
+    assert "google_oauth_client_id" in config
+    assert "google_oauth_client_secret" in config
+    assert config["google_oauth_client_id"] == ""
+    assert config["google_oauth_client_secret"] == ""
