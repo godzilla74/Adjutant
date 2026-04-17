@@ -68,7 +68,7 @@ def test_scheduler_loop_calls_run_objective_loop(db, monkeypatch):
                 asyncio.create_task(fake_run_objective_loop(obj["product_id"], obj["id"]))
         await asyncio.sleep(0)  # allow tasks to run
 
-    asyncio.get_event_loop().run_until_complete(run_one_tick())
+    asyncio.run(run_one_tick())
     assert ("p1", oid) in called
 
 
@@ -99,7 +99,7 @@ def test_objective_goes_dormant_on_exception(db, monkeypatch):
         with patch("backend.main._build_context", side_effect=RuntimeError("boom")):
             await sched_mod._run_objective_loop("p1", oid)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    asyncio.run(run())
     with db._conn() as conn:
         row = conn.execute("SELECT autonomous, next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
     assert row["autonomous"] == 0
