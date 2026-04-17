@@ -900,12 +900,9 @@ async def _delegate_task(task: str, agent_type: str = "general", context: str = 
 # ── Gmail / Calendar implementations ─────────────────────────────────────────
 
 def _get_effective_tier(product_id: str, action_type: str) -> str:
-    from backend.db import get_product_autonomy_settings
-    settings = get_product_autonomy_settings(product_id)
-    for override in settings.get("action_overrides", []):
-        if override["action_type"] == action_type:
-            return override["tier"]
-    return settings.get("master_tier") or "approve"
+    from backend.db import get_autonomy_config
+    tier, _ = get_autonomy_config(product_id, action_type)
+    return tier
 
 
 async def _gmail_search(product_id: str, query: str, max_results: int = 10) -> str:

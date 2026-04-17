@@ -315,8 +315,8 @@ def _compile_digest_task(data: dict) -> str:
     lines = [
         f"Adjutant Digest — {data['generated_at']}",
         "",
-        "Use gmail_get_profile to find the user's email address, then compose and",
-        "send a clean summary email to that address.",
+        "Use gmail_send to send a clean summary email to the owner. "
+        "The owner's email is available in the system context or oauth connection info.",
         f"Subject: Adjutant Digest — {data['generated_at']}",
         "Keep it concise and action-oriented. Here is the data:",
         "",
