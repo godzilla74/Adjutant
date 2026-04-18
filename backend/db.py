@@ -626,6 +626,7 @@ def update_objective_by_id(
     text: str | None = None,
     progress_current: int | None = None,
     progress_target: int | None = None,
+    autonomous: int | None = None,
 ) -> None:
     sets, vals = [], []
     if text is not None:
@@ -634,6 +635,14 @@ def update_objective_by_id(
         sets.append("progress_current = ?"); vals.append(progress_current)
     if progress_target is not None:
         sets.append("progress_target = ?"); vals.append(progress_target)
+    if autonomous is not None:
+        sets.append("autonomous = ?"); vals.append(autonomous)
+        # When enabling autonomous mode, schedule an immediate run; when disabling, clear schedule
+        if autonomous == 1:
+            sets.append("next_run_at = datetime('now')")
+        else:
+            sets.append("next_run_at = NULL")
+            sets.append("blocked_by_review_id = NULL")
     if not sets:
         return
     vals.append(obj_id)

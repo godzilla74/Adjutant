@@ -11,9 +11,9 @@ interface Props {
 
 export default function ObjectivesSettings({ productId, objectives, password, onObjectiveUpdated }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [editText, setEditText] = useState('')
-  const [editCur, setEditCur] = useState('')
-  const [editTgt, setEditTgt] = useState('')
+  const [form, setForm] = useState<{ text: string; cur: string; tgt: string; autonomous: number }>({
+    text: '', cur: '', tgt: '', autonomous: 0,
+  })
 
   const [adding, setAdding] = useState(false)
   const [newText, setNewText] = useState('')
@@ -23,24 +23,29 @@ export default function ObjectivesSettings({ productId, objectives, password, on
 
   const startEdit = (obj: Objective) => {
     setEditingId(obj.id)
-    setEditText(obj.text)
-    setEditCur(String(obj.progress_current))
-    setEditTgt(obj.progress_target != null ? String(obj.progress_target) : '')
+    setForm({
+      text: obj.text,
+      cur: String(obj.progress_current),
+      tgt: obj.progress_target != null ? String(obj.progress_target) : '',
+      autonomous: obj.autonomous ?? 0,
+    })
   }
 
   const saveEdit = async (obj: Objective) => {
-    const cur = parseInt(editCur)
+    const cur = parseInt(form.cur)
     if (isNaN(cur)) { setEditingId(null); return }
-    const tgt = editTgt.trim() ? parseInt(editTgt) : null
+    const tgt = form.tgt.trim() ? parseInt(form.tgt) : null
     const patch: Partial<Objective> = {
-      text: editText,
+      text: form.text,
       progress_current: cur,
+      autonomous: form.autonomous,
       ...(tgt !== null ? { progress_target: tgt } : { progress_target: null }),
     }
     await api.updateObjective(password, obj.id, {
-      text: editText,
+      text: form.text,
       progress_current: cur,
       progress_target: tgt,
+      autonomous: form.autonomous,
     })
     onObjectiveUpdated(obj.id, patch)
     setEditingId(null)
@@ -84,23 +89,23 @@ export default function ObjectivesSettings({ productId, objectives, password, on
               <div className="space-y-2">
                 <input
                   className="w-full bg-adj-elevated border border-adj-border rounded px-3 py-1.5 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent"
-                  value={editText}
-                  onChange={e => setEditText(e.target.value)}
+                  value={form.text}
+                  onChange={e => setForm(f => ({ ...f, text: e.target.value }))}
                   placeholder="Objective description"
                 />
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    value={editCur}
-                    onChange={e => setEditCur(e.target.value)}
+                    value={form.cur}
+                    onChange={e => setForm(f => ({ ...f, cur: e.target.value }))}
                     className="w-20 bg-adj-elevated border border-adj-border rounded px-2 py-1 text-xs text-adj-text-primary focus:outline-none focus:border-adj-accent"
                     placeholder="Current"
                   />
                   <span className="text-adj-text-faint text-xs">/</span>
                   <input
                     type="number"
-                    value={editTgt}
-                    onChange={e => setEditTgt(e.target.value)}
+                    value={form.tgt}
+                    onChange={e => setForm(f => ({ ...f, tgt: e.target.value }))}
                     className="w-20 bg-adj-elevated border border-adj-border rounded px-2 py-1 text-xs text-adj-text-primary focus:outline-none focus:border-adj-accent"
                     placeholder="Target"
                   />
@@ -113,11 +118,24 @@ export default function ObjectivesSettings({ productId, objectives, password, on
                     className="text-xs text-adj-text-faint hover:text-adj-text-muted"
                   >✕</button>
                 </div>
+                <div className="mb-3 flex items-center gap-3">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-adj-text-muted">Autonomous</label>
+                  <button
+                    onClick={() => setForm(f => ({ ...f, autonomous: f.autonomous === 1 ? 0 : 1 }))}
+                    className={`w-8 h-4 rounded-full transition-colors flex-shrink-0 ${form.autonomous === 1 ? 'bg-adj-accent' : 'bg-adj-border'}`}
+                    role="switch"
+                    aria-checked={form.autonomous === 1}
+                  >
+                    <span className={`block w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${form.autonomous === 1 ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                  <span className="text-xs text-adj-text-muted">{form.autonomous === 1 ? 'Runs automatically' : 'Requires approval'}</span>
+                </div>
               </div>
             ) : (
               <>
                 <div className="flex items-start gap-2">
                   <span className="flex-1 text-sm text-adj-text-primary leading-snug">{obj.text}</span>
+                  {obj.autonomous === 1 && <span className="text-[9px] text-adj-accent font-semibold">AUTO</span>}
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <button onClick={() => startEdit(obj)} className="text-xs text-adj-accent hover:underline">Edit</button>
                     <button onClick={() => del(obj)} className="text-xs text-red-400 hover:underline">Delete</button>

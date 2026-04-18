@@ -71,7 +71,7 @@ export const api = {
   updateObjective: (
     pw: string,
     objId: number,
-    data: { text?: string; progress_current?: number; progress_target?: number | null },
+    data: { text?: string; progress_current?: number; progress_target?: number | null; autonomous?: number },
   ) =>
     apiFetch<void>(`/api/objectives/${objId}`, pw, {
       method: 'PATCH',

@@ -55,6 +55,7 @@ class ObjectiveUpdate(BaseModel):
     text:             str | None = None
     progress_current: int | None = None
     progress_target:  int | None = None
+    autonomous:       int | None = None
 
 
 class GoogleOAuthSettings(BaseModel):
@@ -171,6 +172,7 @@ def update_objective_api(obj_id: int, body: ObjectiveUpdate, _=Depends(_auth)):
         text=body.text,
         progress_current=body.progress_current,
         progress_target=body.progress_target,
+        autonomous=body.autonomous,
     )
     return {"id": obj_id}
 
