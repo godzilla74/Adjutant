@@ -6,11 +6,12 @@ interface Props {
   product: Product | undefined
   password: string
   onRefresh: () => void
+  onProductUpdated: (updates: { name?: string; icon_label?: string; color?: string }) => void
 }
 
 const COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#06b6d4']
 
-export default function OverviewSettings({ product, password, onRefresh }: Props) {
+export default function OverviewSettings({ product, password, onRefresh, onProductUpdated }: Props) {
   const [config, setConfig] = useState<Partial<ProductConfig>>({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -26,6 +27,11 @@ export default function OverviewSettings({ product, password, onRefresh }: Props
     setSaving(true)
     try {
       await api.updateProductConfig(password, product.id, config)
+      onProductUpdated({
+        name: config.name,
+        icon_label: config.icon_label,
+        color: config.color,
+      })
       onRefresh()
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -47,7 +53,7 @@ export default function OverviewSettings({ product, password, onRefresh }: Props
   )
 
   return (
-    <div className="max-w-lg">
+    <div className="max-w-4xl">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">Product Overview</h2>
       <p className="text-xs text-adj-text-muted mb-6">Identity and brand voice for {product.name}</p>
 
@@ -66,6 +72,7 @@ export default function OverviewSettings({ product, password, onRefresh }: Props
             className="w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-center text-adj-text-primary focus:outline-none focus:border-adj-accent"
             value={config.icon_label ?? product.icon_label}
             onChange={e => setConfig(c => ({ ...c, icon_label: e.target.value }))}
+            maxLength={4}
           />
         </div>
       </div>

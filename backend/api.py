@@ -365,12 +365,23 @@ async def send_digest_api(_=Depends(_auth)):
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
+class TelegramTokenRequest(BaseModel):
+    token: str
+
+
+def _get_telegram_creds() -> tuple[str, str]:
+    """Return (token, chat_id) — env vars take precedence over DB."""
+    from backend.db import get_agent_config
+    token   = os.environ.get("TELEGRAM_BOT_TOKEN") or get_agent_config("telegram_bot_token") or ""
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")   or get_agent_config("telegram_chat_id")   or ""
+    return token, chat_id
+
+
 @router.get("/telegram/status")
 async def get_telegram_status(_=Depends(_auth)):
     """Return Telegram configuration and connectivity status."""
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
-    if not token or not chat_id:
+    token, chat_id = _get_telegram_creds()
+    if not token:
         return {"configured": False, "connected": False, "bot_username": None}
     try:
         async with httpx.AsyncClient(timeout=5) as client:
@@ -379,12 +390,60 @@ async def get_telegram_status(_=Depends(_auth)):
             if data.get("ok"):
                 return {
                     "configured": True,
-                    "connected": True,
+                    "connected": bool(chat_id),
                     "bot_username": data["result"].get("username"),
                 }
     except Exception:
         pass
     return {"configured": True, "connected": False, "bot_username": None}
+
+
+@router.put("/telegram/token")
+async def save_telegram_token(body: TelegramTokenRequest, _=Depends(_auth)):
+    """Validate and save a Telegram bot token, then hot-reload the bot."""
+    from backend.db import set_agent_config
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(f"https://api.telegram.org/bot{body.token}/getMe")
+            data = resp.json()
+    except Exception:
+        raise HTTPException(400, detail="Could not reach Telegram API")
+    if not data.get("ok"):
+        raise HTTPException(400, detail="Invalid bot token")
+    set_agent_config("telegram_bot_token", body.token)
+    bot_username = data["result"].get("username")
+    _, chat_id = _get_telegram_creds()
+    from backend import telegram_state
+    await telegram_state.restart(body.token, chat_id)
+    return {"bot_username": bot_username}
+
+
+@router.get("/telegram/discover-chat")
+async def discover_telegram_chat(_=Depends(_auth)):
+    """Poll getUpdates to find the user's chat_id after they message the bot."""
+    from backend.db import set_agent_config
+    token, _ = _get_telegram_creds()
+    if not token:
+        raise HTTPException(400, detail="No bot token configured")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"https://api.telegram.org/bot{token}/getUpdates",
+                params={"limit": 20},
+            )
+            data = resp.json()
+    except Exception:
+        raise HTTPException(502, detail="Could not reach Telegram API")
+    if data.get("ok"):
+        for update in reversed(data.get("result", [])):
+            msg = update.get("message") or {}
+            chat_id = str(msg.get("from", {}).get("id", ""))
+            if chat_id:
+                set_agent_config("telegram_chat_id", chat_id)
+                from backend import telegram_state
+                await telegram_state.restart(token, chat_id)
+                return {"chat_id": chat_id}
+    return {"chat_id": None}
 
 
 # ── MCP Servers ───────────────────────────────────────────────────────────────

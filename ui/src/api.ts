@@ -160,6 +160,15 @@ export const api = {
       '/api/telegram/status', pw,
     ),
 
+  saveTelegramToken: (pw: string, token: string) =>
+    apiFetch<{ bot_username: string }>('/api/telegram/token', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ token }),
+    }),
+
+  discoverTelegramChat: (pw: string) =>
+    apiFetch<{ chat_id: string | null }>('/api/telegram/discover-chat', pw),
+
   getMcpServers: (pw: string, productId?: string) =>
     apiFetch<{
       id: number; name: string; type: string; url: string | null;

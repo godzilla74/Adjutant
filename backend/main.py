@@ -103,7 +103,8 @@ _worker_events:    dict[str, asyncio.Event] = {}
 _worker_tasks:     dict[str, asyncio.Task] = {}
 
 _last_active_product: str = "retainerops"
-_telegram_bot = None  # set in lifespan; module-level so _broadcast can reach it
+_telegram_bot  = None  # set in lifespan; module-level so _broadcast can reach it
+_telegram_task = None  # module-level so hot-reload can cancel it
 _mcp_manager = None  # set in lifespan; module-level so manage_mcp_server tool can reach it
 
 
@@ -202,24 +203,49 @@ async def _bootstrap_product_workspace() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _telegram_bot, _mcp_manager
+    global _telegram_bot, _mcp_manager, _telegram_task
     from backend.scheduler import scheduler_loop, register_broadcast
     from backend.telegram import TelegramBot
     from backend.mcp_manager import MCPManager
-    from backend.db import list_all_mcp_servers
+    from backend.db import list_all_mcp_servers, get_agent_config
+    from backend import telegram_state
     register_broadcast(_broadcast)
     scheduler_task = asyncio.create_task(scheduler_loop(_broadcast, interval_seconds=60))
 
+    tg_token   = os.environ.get("TELEGRAM_BOT_TOKEN") or get_agent_config("telegram_bot_token") or ""
+    tg_chat_id = os.environ.get("TELEGRAM_CHAT_ID")   or get_agent_config("telegram_chat_id")   or ""
+
     _telegram_bot = TelegramBot(
-        token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
-        chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+        token=tg_token,
+        chat_id=tg_chat_id,
         directive_callback=_handle_telegram_directive,
         products_fn=get_products,
         last_active_product_fn=lambda: _last_active_product,
         resolve_review_fn=resolve_review_item,
         broadcast_fn=_broadcast,
     )
-    telegram_task = asyncio.create_task(_telegram_bot.start())
+    _telegram_task = asyncio.create_task(_telegram_bot.start())
+
+    async def _restart_telegram(token: str, chat_id: str) -> None:
+        global _telegram_bot, _telegram_task
+        if _telegram_task and not _telegram_task.done():
+            _telegram_task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(_telegram_task), timeout=2)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        _telegram_bot = TelegramBot(
+            token=token,
+            chat_id=chat_id,
+            directive_callback=_handle_telegram_directive,
+            products_fn=get_products,
+            last_active_product_fn=lambda: _last_active_product,
+            resolve_review_fn=resolve_review_item,
+            broadcast_fn=_broadcast,
+        )
+        _telegram_task = asyncio.create_task(_telegram_bot.start())
+
+    telegram_state.register(_restart_telegram)
 
     _mcp_manager = MCPManager()
     stdio_servers = [s for s in list_all_mcp_servers() if s["type"] == "stdio" and s["enabled"]]
@@ -230,7 +256,7 @@ async def lifespan(app: FastAPI):
     yield
 
     await _mcp_manager.stop()
-    tasks_to_cancel = [scheduler_task, telegram_task, *_worker_tasks.values()]
+    tasks_to_cancel = [scheduler_task, _telegram_task, *_worker_tasks.values()]
     for t in tasks_to_cancel:
         t.cancel()
     await asyncio.gather(*tasks_to_cancel, return_exceptions=True)

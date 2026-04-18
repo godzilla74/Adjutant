@@ -66,8 +66,18 @@ export default function SocialSettings({ password }: Props) {
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
 
   return (
-    <div className="max-w-lg">
-      <h2 className="text-base font-bold text-adj-text-primary mb-1">Social Accounts</h2>
+    <div className="max-w-4xl">
+      <div className="flex items-baseline justify-between mb-1">
+        <h2 className="text-base font-bold text-adj-text-primary">Social Accounts</h2>
+        <a
+          href="/social-setup-guide.html"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-adj-accent hover:underline"
+        >
+          How to get credentials →
+        </a>
+      </div>
       <p className="text-xs text-adj-text-muted mb-6">Store OAuth app credentials for social platform integrations</p>
 
       <div className="flex flex-col gap-6">

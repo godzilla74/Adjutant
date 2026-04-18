@@ -29,6 +29,7 @@ interface Props {
   onRefreshData: (productId: string) => void
   onWorkstreamUpdated: (wsId: number, patch: Partial<Workstream>) => void
   onObjectiveUpdated: (objId: number, patch: Partial<Objective>) => void
+  onProductUpdated: (productId: string, updates: { name?: string; icon_label?: string; color?: string }) => void
 }
 
 const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
@@ -52,7 +53,7 @@ export default function SettingsPage({
   products, activeProductId, productStates, password,
   initialTab = 'overview',
   onClose, onSwitchProduct, onNewProduct, onRefreshData,
-  onWorkstreamUpdated, onObjectiveUpdated,
+  onWorkstreamUpdated, onObjectiveUpdated, onProductUpdated,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [settingsProductId, setSettingsProductId] = useState(activeProductId)
@@ -84,11 +85,11 @@ export default function SettingsPage({
     const common = { password }
     const productCommon = { ...common, productId: settingsProductId }
     switch (tab) {
-      case 'overview':      return <OverviewSettings product={activeProduct} onRefresh={() => onRefreshData(settingsProductId)} {...common} />
+      case 'overview':      return <OverviewSettings product={activeProduct} onRefresh={() => onRefreshData(settingsProductId)} onProductUpdated={updates => onProductUpdated(settingsProductId, updates)} {...common} />
       case 'workstreams':   return <WorkstreamsSettings workstreams={activeState?.workstreams ?? []} onWorkstreamUpdated={onWorkstreamUpdated} onRefresh={() => onRefreshData(settingsProductId)} {...productCommon} />
       case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
       case 'autonomy':      return <AutonomySettings {...productCommon} />
-      case 'connections':   return <ConnectionsSettings {...productCommon} />
+      case 'connections':   return <ConnectionsSettings {...productCommon} onOpenSettings={tab => { setTab(tab as Tab) }} />
       case 'social':        return <SocialSettings {...common} />
       case 'agent-model':   return <AgentModelSettings {...common} />
       case 'google-oauth':  return <GoogleOAuthSettings {...common} />

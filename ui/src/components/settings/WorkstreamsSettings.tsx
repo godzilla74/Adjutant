@@ -10,7 +10,7 @@ interface Props {
   onRefresh?: () => void
 }
 
-const SCHEDULES = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'] as const
+const SCHEDULE_CHIPS = ['manual', 'hourly', 'every 4 hours', 'every 12 hours', 'daily', 'weekdays', 'weekly']
 
 export default function WorkstreamsSettings({ productId, workstreams, password, onWorkstreamUpdated, onRefresh }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -83,7 +83,7 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
   }
 
   return (
-    <div className="max-w-lg">
+    <div className="max-w-4xl">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">Workstreams</h2>
       <p className="text-xs text-adj-text-muted mb-6">Automated recurring tasks for this product</p>
 
@@ -147,29 +147,40 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
                       className="w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent resize-none leading-relaxed"
                     />
                   </div>
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1">Schedule</label>
-                      <select
-                        value={editSchedule}
-                        onChange={e => setEditSchedule(e.target.value)}
-                        className="w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent"
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted">Schedule</label>
+                      <button
+                        onClick={() => runNow(ws)}
+                        disabled={isRunning || !ws.mission?.trim()}
+                        className="px-3 py-1.5 rounded-md bg-adj-elevated hover:bg-adj-panel text-xs text-adj-text-secondary font-medium transition-colors disabled:opacity-40 whitespace-nowrap border border-adj-border"
+                        title={hasMission ? 'Run now' : 'Save a mission first'}
                       >
-                        {SCHEDULES.map(s => (
-                          <option key={s} value={s}>
-                            {s === 'manual' ? 'Manual only' : s === 'hourly' ? 'Every hour' : s === 'daily' ? 'Daily at 9am' : s === 'weekdays' ? 'Weekdays at 9am' : 'Mondays at 9am'}
-                          </option>
-                        ))}
-                      </select>
+                        {isRunning ? '…' : '▶ Run now'}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => runNow(ws)}
-                      disabled={isRunning || !ws.mission?.trim()}
-                      className="px-3 py-2 rounded-md bg-adj-elevated hover:bg-adj-panel text-xs text-adj-text-secondary font-medium transition-colors disabled:opacity-40 whitespace-nowrap border border-adj-border"
-                      title={hasMission ? 'Run now' : 'Save a mission first'}
-                    >
-                      {isRunning ? '…' : '▶ Run now'}
-                    </button>
+                    <input
+                      type="text"
+                      value={editSchedule}
+                      onChange={e => setEditSchedule(e.target.value)}
+                      placeholder="e.g. daily, every 4 hours, every Monday at 9am"
+                      className="w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent mb-2"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {SCHEDULE_CHIPS.map(chip => (
+                        <button
+                          key={chip}
+                          onClick={() => setEditSchedule(chip)}
+                          className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+                            editSchedule === chip
+                              ? 'border-adj-accent bg-adj-accent text-white'
+                              : 'border-adj-border text-adj-text-muted hover:border-adj-accent hover:text-adj-accent'
+                          }`}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   {ws.last_run_at && (
                     <p className="text-[11px] text-adj-text-faint">

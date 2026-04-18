@@ -7,6 +7,7 @@ Each workstream with a mission + schedule fires its own agent on time.
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Awaitable, Callable
 
@@ -37,34 +38,112 @@ def register_broadcast(fn: BroadcastFn) -> None:
 def calc_next_run(schedule: str, from_dt: datetime | None = None) -> datetime | None:
     """Return the next datetime this schedule should fire, or None for 'manual'."""
     now = from_dt or datetime.now()
+    s = (schedule or "").strip().lower()
 
-    if not schedule or schedule == "manual":
+    if not s or s == "manual":
         return None
 
-    def at_nine(dt: datetime) -> datetime:
-        return dt.replace(hour=9, minute=0, second=0, microsecond=0)
+    def at_hour(dt: datetime, hour: int, minute: int = 0) -> datetime:
+        return dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
-    if schedule == "hourly":
+    def at_nine(dt: datetime) -> datetime:
+        return at_hour(dt, 9)
+
+    # ── Keyword shortcuts ─────────────────────────────────────────────────────
+    if s == "hourly":
         return (now + timedelta(hours=1)).replace(second=0, microsecond=0)
 
-    if schedule == "daily":
+    if s == "daily":
         candidate = at_nine(now)
         if candidate <= now:
             candidate += timedelta(days=1)
         return candidate
 
-    if schedule == "weekdays":
+    if s == "weekdays":
         candidate = at_nine(now)
         if candidate <= now:
             candidate += timedelta(days=1)
-        while candidate.weekday() >= 5:   # 5=Sat, 6=Sun
+        while candidate.weekday() >= 5:
             candidate += timedelta(days=1)
         return candidate
 
-    if schedule == "weekly":
-        # Next Monday at 9am
-        days_ahead = (0 - now.weekday()) % 7   # 0 = Monday
+    if s == "weekly":
+        days_ahead = (0 - now.weekday()) % 7
         candidate = at_nine(now + timedelta(days=days_ahead))
+        if candidate <= now:
+            candidate += timedelta(days=7)
+        return candidate
+
+    # ── Natural language ──────────────────────────────────────────────────────
+
+    # "every N minutes" / "every N mins"
+    m = re.match(r"every\s+(\d+)\s+min(?:utes?|s)?$", s)
+    if m:
+        return (now + timedelta(minutes=int(m.group(1)))).replace(second=0, microsecond=0)
+
+    # "every N hours" / "every hour"
+    m = re.match(r"every\s+(\d+)\s+hours?$", s)
+    if m:
+        return (now + timedelta(hours=int(m.group(1)))).replace(second=0, microsecond=0)
+    if re.match(r"every\s+hour$", s):
+        return (now + timedelta(hours=1)).replace(second=0, microsecond=0)
+
+    # "every N days"
+    m = re.match(r"every\s+(\d+)\s+days?$", s)
+    if m:
+        candidate = at_nine(now + timedelta(days=int(m.group(1))))
+        return candidate
+
+    # "twice daily"
+    if re.match(r"twice\s+daily$", s):
+        return (now + timedelta(hours=12)).replace(second=0, microsecond=0)
+
+    # "every day at Xam/pm" / "daily at X:30pm"
+    m = re.match(r"(?:every\s+day|daily)\s+at\s+(\d+)(?::(\d+))?\s*(am|pm)?$", s)
+    if m:
+        hour, minute = int(m.group(1)), int(m.group(2) or 0)
+        ampm = (m.group(3) or "").lower()
+        if ampm == "pm" and hour != 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        candidate = at_hour(now, hour, minute)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        return candidate
+
+    # "every weekday at X" / "weekdays at X"
+    m = re.match(r"(?:every\s+)?weekdays?\s+at\s+(\d+)(?::(\d+))?\s*(am|pm)?$", s)
+    if m:
+        hour, minute = int(m.group(1)), int(m.group(2) or 0)
+        ampm = (m.group(3) or "").lower()
+        if ampm == "pm" and hour != 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        candidate = at_hour(now, hour, minute)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        while candidate.weekday() >= 5:
+            candidate += timedelta(days=1)
+        return candidate
+
+    # "every [day of week]" / "every monday at X"
+    DAYS = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+            "friday": 4, "saturday": 5, "sunday": 6}
+    m = re.match(r"every\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                 r"(?:\s+at\s+(\d+)(?::(\d+))?\s*(am|pm)?)?$", s)
+    if m:
+        target_day = DAYS[m.group(1)]
+        hour = int(m.group(2) or 9)
+        minute = int(m.group(3) or 0)
+        ampm = (m.group(4) or "").lower()
+        if ampm == "pm" and hour != 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        days_ahead = (target_day - now.weekday()) % 7
+        candidate = at_hour(now + timedelta(days=days_ahead), hour, minute)
         if candidate <= now:
             candidate += timedelta(days=7)
         return candidate

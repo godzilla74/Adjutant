@@ -568,6 +568,9 @@ export default function App() {
                   : prev.objectives.map(o => o.id === objId ? { ...o, ...patch } : o),
               }))
             }
+            onProductUpdated={(productId, updates) =>
+              setProducts(prev => prev.map(p => p.id === productId ? { ...p, ...updates } : p))
+            }
           />
         ) : showOverview ? (
           <div className="flex flex-1 overflow-hidden">
