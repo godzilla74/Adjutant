@@ -463,12 +463,16 @@ async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
 
 # ── Wizard plan ──────────────────────────────────────────────────────────────
 
+class WizardPlanRequest(BaseModel):
+    intent: str
+
+
 @router.post("/wizard-plan")
-async def generate_wizard_plan(body: dict, _=Depends(_auth)):
-    """Use Claude to derive workstream and objective suggestions from user intent text."""
+async def generate_wizard_plan(body: WizardPlanRequest, _=Depends(_auth)):
+    """Use Claude to derive workstream/objective suggestions from user intent."""
     import anthropic
     import json as _json
-    intent = (body.get("intent") or "").strip()
+    intent = body.intent.strip()
     if not intent:
         raise HTTPException(status_code=422, detail="intent is required")
 
@@ -476,29 +480,23 @@ async def generate_wizard_plan(body: dict, _=Depends(_auth)):
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        messages=[{
-            "role": "user",
-            "content": f"""You are helping set up an AI agent system. A user described what they want the system to do:
-
-<intent>
-{intent}
-</intent>
-
-Based on this, suggest:
-1. 2-5 workstreams (automated recurring tasks the AI should run on a schedule)
-2. 1-3 objectives (measurable goals to track progress toward)
-3. Required integrations from this list only: gmail, google_calendar, twitter, linkedin, facebook, instagram
+        system="""You are helping set up an AI agent system. Given a user's description of what they want the system to do, suggest workstreams, objectives, and required integrations.
 
 Respond with ONLY valid JSON in this exact format, no explanation:
-{{
+{
   "workstreams": [
-    {{"name": "string", "mission": "string describing what the AI does", "schedule": "daily|weekly|monthly|none"}}
+    {"name": "string", "mission": "string describing what the AI does", "schedule": "daily|weekly|monthly|none"}
   ],
   "objectives": [
-    {{"text": "string describing the goal", "progress_target": number_or_null}}
+    {"text": "string describing the goal", "progress_target": number_or_null}
   ],
   "required_integrations": ["gmail", "twitter"]
-}}"""
+}
+
+The required_integrations list must only contain values from: gmail, google_calendar, twitter, linkedin, facebook, instagram.""",
+        messages=[{
+            "role": "user",
+            "content": intent,
         }],
     )
 
@@ -508,7 +506,14 @@ Respond with ONLY valid JSON in this exact format, no explanation:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
-        return _json.loads(raw)
+        ALLOWED_INTEGRATIONS = {"gmail", "google_calendar", "twitter", "linkedin", "facebook", "instagram"}
+        result = _json.loads(raw)
+        if isinstance(result.get("required_integrations"), list):
+            result["required_integrations"] = [
+                i for i in result["required_integrations"]
+                if i in ALLOWED_INTEGRATIONS
+            ]
+        return result
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to parse AI response")
 
