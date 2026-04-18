@@ -338,9 +338,9 @@ export default function SettingsSidebar({
       else if (platform === 'linkedin') await api.updateLinkedInSettings(password, data as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       else await api.updateMetaSettings(password, data as any)
-      setTwitterClientSecret('')
-      setLinkedinClientSecret('')
-      setMetaAppSecret('')
+      if (platform === 'twitter') setTwitterClientSecret('')
+      else if (platform === 'linkedin') setLinkedinClientSecret('')
+      else setMetaAppSecret('')
     } finally {
       setSocialSaving(null)
     }
