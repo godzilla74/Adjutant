@@ -12,7 +12,7 @@ import GoogleOAuthSettings from './settings/GoogleOAuthSettings'
 import RemoteAccessSettings from './settings/RemoteAccessSettings'
 import MCPSettings from './settings/MCPSettings'
 
-type Tab =
+export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social'
   | 'agent-model' | 'google-oauth' | 'remote-access' | 'mcp'

@@ -21,7 +21,7 @@ import DirectiveHistoryDrawer from './components/DirectiveHistoryDrawer'
 import OverviewPanel from './components/OverviewPanel'
 import ProductDropdown from './components/ProductDropdown'
 import StatusStrip from './components/StatusStrip'
-import SettingsPage from './components/SettingsPage'
+import SettingsPage, { Tab as SettingsTab } from './components/SettingsPage'
 import ProductWizard from './components/ProductWizard'
 
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
@@ -49,14 +49,13 @@ export default function App() {
   const [agentDraftByProduct, setAgentDraftByProduct] = useState<Record<string, string>>({})
   const [agentName,       setAgentName]       = useState<string>('Adjutant')
   const [settingsOpen,    setSettingsOpen]    = useState(false)
-  const [settingsTab,     setSettingsTab]     = useState<string>('overview')
+  const [settingsTab,     setSettingsTab]     = useState<SettingsTab>('overview')
   const [wizardOpen,      setWizardOpen]      = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
   const [notesOpen,       setNotesOpen]       = useState(false)
   const [historyOpen,     setHistoryOpen]     = useState(false)
   const [showOverview,    setShowOverview]    = useState(false)
-  const [_wizardProgress, setWizardProgress]  = useState<Record<string, string>>({})
   const [globalViewMode,  setGlobalViewMode]  = useState<'chat' | 'overview'>('overview')
   const [errorBanner,     setErrorBanner]     = useState<string | null>(null)
 
@@ -211,12 +210,10 @@ export default function App() {
       }
 
       if (msg.type === 'wizard_progress') {
-        setWizardProgress(prev => ({ ...prev, [msg.product_id]: msg.message }))
         return
       }
 
       if (msg.type === 'launch_complete') {
-        setWizardProgress(prev => ({ ...prev, [msg.product_id]: '' }))
         return
       }
 
@@ -438,8 +435,8 @@ export default function App() {
     }))
   }, [])
 
-  const openSettings = useCallback((tab = 'overview') => {
-    setSettingsTab(tab)
+  const openSettings = useCallback((tab: string = 'overview') => {
+    setSettingsTab(tab as SettingsTab)
     setSettingsOpen(true)
   }, [])
 
@@ -552,7 +549,7 @@ export default function App() {
             activeProductId={activeProductId}
             productStates={productStates}
             password={pw}
-            initialTab={settingsTab as any}
+            initialTab={settingsTab}
             onClose={() => setSettingsOpen(false)}
             onSwitchProduct={switchProduct}
             onNewProduct={() => { setSettingsOpen(false); setWizardOpen(true) }}
@@ -715,6 +712,7 @@ export default function App() {
         <ProductWizard
           password={pw}
           onComplete={({ name, intent }) => {
+            // icon/color/workstreams/objectives not yet consumed by backend launch_product
             setWizardOpen(false)
             launchProduct(name, intent, intent)
           }}
