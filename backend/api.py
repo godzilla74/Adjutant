@@ -62,6 +62,15 @@ class GoogleOAuthSettings(BaseModel):
     google_oauth_client_secret: str | None = None
 
 
+class SocialAccountSettings(BaseModel):
+    twitter_client_id:      str | None = None
+    twitter_client_secret:  str | None = None
+    linkedin_client_id:     str | None = None
+    linkedin_client_secret: str | None = None
+    meta_app_id:            str | None = None
+    meta_app_secret:        str | None = None
+
+
 class McpServerCreate(BaseModel):
     name: str
     type: str
@@ -495,22 +504,66 @@ def update_google_oauth_settings(body: GoogleOAuthSettings, _=Depends(_auth)):
     return {"ok": True}
 
 
+# ── Social Account global settings ────────────────────────────────────────────
+
+@router.get("/settings/social-accounts")
+def get_social_settings(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    config = get_agent_config()
+    return {
+        "twitter_client_id":      config.get("twitter_client_id", ""),
+        "twitter_client_secret":  "",
+        "linkedin_client_id":     config.get("linkedin_client_id", ""),
+        "linkedin_client_secret": "",
+        "meta_app_id":            config.get("meta_app_id", ""),
+        "meta_app_secret":        "",
+    }
+
+
+@router.put("/settings/social-accounts")
+def update_social_settings(body: SocialAccountSettings, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    for key in (
+        "twitter_client_id", "twitter_client_secret",
+        "linkedin_client_id", "linkedin_client_secret",
+        "meta_app_id", "meta_app_secret",
+    ):
+        val = getattr(body, key)
+        if val is not None:
+            set_agent_config(key, val)
+    return {"ok": True}
+
+
 # ── OAuth flow ─────────────────────────────────────────────────────────────────
 
 @router.get("/products/{product_id}/oauth/start/{service}")
 async def start_oauth_flow(product_id: str, service: str, _=Depends(_auth)):
     from backend.db import get_agent_config
-    from backend.google_oauth import build_authorization_url
-    if service not in ("gmail", "google_calendar"):
-        raise HTTPException(status_code=422, detail="service must be 'gmail' or 'google_calendar'")
+    GOOGLE_SERVICES = ("gmail", "google_calendar")
+    SOCIAL_SERVICES = ("twitter", "linkedin", "meta")
+    if service not in GOOGLE_SERVICES + SOCIAL_SERVICES:
+        raise HTTPException(status_code=422, detail=f"Unknown service: {service}")
     config = get_agent_config()
-    client_id = config.get("google_oauth_client_id", "")
-    if not client_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Google OAuth not configured. Add Client ID in Global Settings → Google OAuth.",
-        )
-    auth_url = build_authorization_url(product_id, service, client_id)
+    if service in GOOGLE_SERVICES:
+        from backend.google_oauth import build_authorization_url
+        client_id = config.get("google_oauth_client_id", "")
+        if not client_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Google OAuth not configured. Add Client ID in Settings → Google OAuth.",
+            )
+        auth_url = build_authorization_url(product_id, service, client_id)
+    else:
+        from backend.social_oauth import build_authorization_url as social_build_url
+        client_id_key = {"twitter": "twitter_client_id", "linkedin": "linkedin_client_id", "meta": "meta_app_id"}[service]
+        platform_label = {"twitter": "Twitter", "linkedin": "LinkedIn", "meta": "Meta"}[service]
+        client_id = config.get(client_id_key, "")
+        if not client_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{platform_label} credentials not configured. Add them in Settings → Social Accounts.",
+            )
+        auth_url = social_build_url(product_id, service, client_id)
     return {"auth_url": auth_url}
 
 
@@ -521,7 +574,6 @@ async def oauth_callback(code: str, state: str):
     from datetime import datetime, timezone, timedelta
     from fastapi.responses import HTMLResponse
     from backend.db import get_agent_config, save_oauth_connection
-    from backend.google_oauth import exchange_code_for_tokens, get_user_email
     try:
         padded = state + "==" * ((4 - len(state) % 4) % 4)
         state_data = _json.loads(_b64.urlsafe_b64decode(padded).decode())
@@ -529,23 +581,72 @@ async def oauth_callback(code: str, state: str):
         service = state_data["service"]
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid state parameter")
-    if service not in ("gmail", "google_calendar"):
+    GOOGLE_SERVICES = ("gmail", "google_calendar")
+    SOCIAL_SERVICES = ("twitter", "linkedin", "meta")
+    if service not in GOOGLE_SERVICES + SOCIAL_SERVICES:
         raise HTTPException(status_code=400, detail="Invalid state parameter")
     config = get_agent_config()
-    client_id = config.get("google_oauth_client_id", "")
-    client_secret = config.get("google_oauth_client_secret", "")
-    token_data = await exchange_code_for_tokens(code, client_id, client_secret)
-    access_token = token_data["access_token"]
-    refresh_token = token_data.get("refresh_token", "")
-    expiry = (
-        datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))
-    ).isoformat()
-    email = await get_user_email(access_token)
-    save_oauth_connection(
-        product_id=product_id, service=service, email=email,
-        access_token=access_token, refresh_token=refresh_token,
-        token_expiry=expiry, scopes=token_data.get("scope", ""),
-    )
+    if service in GOOGLE_SERVICES:
+        from backend.google_oauth import exchange_code_for_tokens, get_user_email
+        client_id = config.get("google_oauth_client_id", "")
+        client_secret = config.get("google_oauth_client_secret", "")
+        token_data = await exchange_code_for_tokens(code, client_id, client_secret)
+        access_token = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token", "")
+        expiry = (datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))).isoformat()
+        email = await get_user_email(access_token)
+        save_oauth_connection(
+            product_id=product_id, service=service, email=email,
+            access_token=access_token, refresh_token=refresh_token,
+            token_expiry=expiry, scopes=token_data.get("scope", ""),
+        )
+    elif service == "twitter":
+        from backend.social_oauth import exchange_code_for_tokens, get_twitter_username
+        client_id = config.get("twitter_client_id", "")
+        client_secret = config.get("twitter_client_secret", "")
+        token_data = await exchange_code_for_tokens(code, "twitter", client_id, client_secret, state=state)
+        access_token = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token", "")
+        expiry = (datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 7200))).isoformat()
+        username = await get_twitter_username(access_token)
+        save_oauth_connection(
+            product_id=product_id, service="twitter", email=username,
+            access_token=access_token, refresh_token=refresh_token,
+            token_expiry=expiry, scopes=token_data.get("scope", ""),
+        )
+    elif service == "linkedin":
+        from backend.social_oauth import exchange_code_for_tokens, get_linkedin_urn
+        client_id = config.get("linkedin_client_id", "")
+        client_secret = config.get("linkedin_client_secret", "")
+        token_data = await exchange_code_for_tokens(code, "linkedin", client_id, client_secret)
+        access_token = token_data["access_token"]
+        expires_in = token_data.get("expires_in", 5184000)
+        expiry = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()
+        urn = await get_linkedin_urn(access_token)
+        save_oauth_connection(
+            product_id=product_id, service="linkedin", email=urn,
+            access_token=access_token, refresh_token="",
+            token_expiry=expiry, scopes=token_data.get("scope", ""),
+        )
+    elif service == "meta":
+        from backend.social_oauth import exchange_code_for_tokens, get_meta_assets
+        client_id = config.get("meta_app_id", "")
+        client_secret = config.get("meta_app_secret", "")
+        token_data = await exchange_code_for_tokens(code, "meta", client_id, client_secret)
+        access_token = token_data.get("access_token", "")
+        assets = await get_meta_assets(access_token)
+        if not assets:
+            return HTMLResponse(
+                "<html><body><script>window.close()</script>"
+                "<p>No Facebook Pages or Instagram Business accounts found.</p></body></html>"
+            )
+        expiry = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
+        for asset in assets:
+            save_oauth_connection(
+                product_id=product_id, service=asset["service"], email=asset["account_id"],
+                access_token=asset["access_token"], refresh_token="",
+                token_expiry=expiry, scopes="pages_manage_posts",
+            )
     return HTMLResponse(
         "<html><body><script>window.close()</script>"
         "<p>Connected successfully! You can close this tab.</p></body></html>"

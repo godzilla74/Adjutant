@@ -134,3 +134,60 @@ def test_delete_oauth_connection(client):
         resp = client.delete("/api/products/prod-1/oauth/gmail", headers=AUTH)
     assert resp.status_code == 204
     assert db_mod.get_oauth_connection("prod-1", "gmail") is None
+
+
+def test_get_social_settings_defaults(client):
+    resp = client.get("/api/settings/social-accounts", headers=AUTH)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["twitter_client_id"] == ""
+    assert data["linkedin_client_id"] == ""
+    assert data["meta_app_id"] == ""
+    # Secrets must never be returned
+    assert data.get("twitter_client_secret", "") == ""
+    assert data.get("linkedin_client_secret", "") == ""
+    assert data.get("meta_app_secret", "") == ""
+
+
+def test_update_social_settings(client):
+    resp = client.put(
+        "/api/settings/social-accounts",
+        json={"twitter_client_id": "tw-id", "twitter_client_secret": "tw-sec"},
+        headers=AUTH,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+
+
+def test_social_settings_persists(client):
+    client.put(
+        "/api/settings/social-accounts",
+        json={"linkedin_client_id": "li-id", "linkedin_client_secret": "li-sec"},
+        headers=AUTH,
+    )
+    resp = client.get("/api/settings/social-accounts", headers=AUTH)
+    assert resp.json()["linkedin_client_id"] == "li-id"
+    assert resp.json().get("linkedin_client_secret", "") == ""
+
+
+def test_start_social_oauth_no_credentials(client):
+    resp = client.get("/api/products/prod-1/oauth/start/twitter", headers=AUTH)
+    assert resp.status_code == 400
+    assert "Twitter" in resp.json()["detail"]
+
+
+def test_start_social_oauth_returns_url(client):
+    import backend.db as db_mod
+    with db_mod._conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO products (id, name, icon_label, color) "
+            "VALUES ('prod-1', 'Prod 1', 'P1', '#000')"
+        )
+    client.put(
+        "/api/settings/social-accounts",
+        json={"twitter_client_id": "tw-id", "twitter_client_secret": "tw-sec"},
+        headers=AUTH,
+    )
+    resp = client.get("/api/products/prod-1/oauth/start/twitter", headers=AUTH)
+    assert resp.status_code == 200
+    assert "twitter.com" in resp.json()["auth_url"]
