@@ -10,22 +10,19 @@ import {
   ReviewItem,
   ServerMessage,
 } from './types'
-import ProductRail from './components/ProductRail'
 import SessionsPanel from './components/SessionsPanel'
-import WorkstreamsPanel from './components/WorkstreamsPanel'
-import ObjectivesPanel from './components/ObjectivesPanel'
 import ActivityFeed from './components/ActivityFeed'
-import ReviewQueue from './components/ReviewQueue'
 import DirectiveBar from './components/DirectiveBar'
 import DirectiveTemplates from './components/DirectiveTemplates'
 import LiveAgents from './components/LiveAgents'
 import PasswordGate from './components/PasswordGate'
-import SettingsSidebar from './components/SettingsSidebar'
 import NotesDrawer from './components/NotesDrawer'
 import DirectiveHistoryDrawer from './components/DirectiveHistoryDrawer'
 import OverviewPanel from './components/OverviewPanel'
-import LaunchWizardPanel from './components/LaunchWizardPanel'
-import LaunchFormModal from './components/LaunchFormModal'
+import ProductDropdown from './components/ProductDropdown'
+import StatusStrip from './components/StatusStrip'
+import SettingsPage from './components/SettingsPage'
+import ProductWizard from './components/ProductWizard'
 
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
 
@@ -52,13 +49,14 @@ export default function App() {
   const [agentDraftByProduct, setAgentDraftByProduct] = useState<Record<string, string>>({})
   const [agentName,       setAgentName]       = useState<string>('Adjutant')
   const [settingsOpen,    setSettingsOpen]    = useState(false)
+  const [settingsTab,     setSettingsTab]     = useState<string>('overview')
+  const [wizardOpen,      setWizardOpen]      = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
   const [notesOpen,       setNotesOpen]       = useState(false)
   const [historyOpen,     setHistoryOpen]     = useState(false)
   const [showOverview,    setShowOverview]    = useState(false)
-  const [launchFormOpen,  setLaunchFormOpen]  = useState(false)
-  const [wizardProgress,  setWizardProgress]  = useState<Record<string, string>>({})
+  const [_wizardProgress, setWizardProgress]  = useState<Record<string, string>>({})
   const [globalViewMode,  setGlobalViewMode]  = useState<'chat' | 'overview'>('overview')
   const [errorBanner,     setErrorBanner]     = useState<string | null>(null)
 
@@ -410,13 +408,6 @@ export default function App() {
     }))
   }, [])
 
-  const cancelAutoApprove = useCallback((id: number) => {
-    wsRef.current?.send(JSON.stringify({
-      type: 'cancel_auto_approve',
-      review_item_id: id,
-    }))
-  }, [])
-
   const createSession = useCallback((name: string) => {
     const prodId = activeProductId === '__global__' ? null : activeProductId
     wsRef.current?.send(JSON.stringify({
@@ -438,14 +429,6 @@ export default function App() {
     wsRef.current?.send(JSON.stringify({ type: 'delete_session', session_id: sessionId }))
   }, [])
 
-  const toggleObjectiveAutonomous = useCallback((objectiveId: number, autonomous: boolean) => {
-    wsRef.current?.send(JSON.stringify({
-      type: 'set_objective_autonomous',
-      objective_id: objectiveId,
-      autonomous,
-    }))
-  }, [])
-
   const launchProduct = useCallback((name: string, description: string, primaryGoal: string) => {
     wsRef.current?.send(JSON.stringify({
       type: 'launch_product',
@@ -455,18 +438,19 @@ export default function App() {
     }))
   }, [])
 
+  const openSettings = useCallback((tab = 'overview') => {
+    setSettingsTab(tab)
+    setSettingsOpen(true)
+  }, [])
+
   if (connState === 'auth' || connState === 'connecting') {
     return <PasswordGate onSubmit={sendAuth} connecting={connState === 'connecting'} />
   }
 
   const pw = sessionStorage.getItem('agent_pw') ?? ''
 
-  // Header stats
-  const activeAgentCount = activeState.events.filter(e => e.status === 'running').length
-  const reviewCount      = activeState.review_items.filter(i => i.status === 'pending').length
-
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
+    <div className="flex flex-col h-full bg-adj-base text-adj-text-primary overflow-hidden">
 
       {/* Error banner */}
       {errorBanner && (
@@ -482,85 +466,113 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="flex items-center justify-between pl-0 pr-5 h-12 border-b border-zinc-800/60 flex-shrink-0 bg-zinc-950">
-        <div className="flex items-center h-full">
-          {/* Rail spacer */}
-          <div className="w-14 h-full border-r border-zinc-800/60 flex items-center justify-center flex-shrink-0">
-            <span className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center">{agentName[0]?.toUpperCase() ?? 'A'}</span>
-          </div>
-          <div className="flex items-center gap-2 pl-4">
-            <span className="font-semibold text-zinc-100 text-sm">{agentName}</span>
-            {!showOverview && (
-              <>
-                <span className="text-zinc-700">/</span>
-                <span className="text-sm text-zinc-400">{activeProduct?.name ?? '…'}</span>
-              </>
-            )}
-            {/* Notes button */}
-            <button
-              onClick={() => { setNotesOpen(o => !o); setHistoryOpen(false) }}
-              title="Product notes"
-              className={`ml-1 w-6 h-6 flex items-center justify-center rounded transition-colors ${notesOpen ? 'text-zinc-200 bg-zinc-800' : 'text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800'}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
-            {/* Directive history button */}
-            <button
-              onClick={() => { setHistoryOpen(o => !o); setNotesOpen(false) }}
-              title="Directive history"
-              className={`ml-1 w-6 h-6 flex items-center justify-center rounded transition-colors ${historyOpen ? 'text-zinc-200 bg-zinc-800' : 'text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800'}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setSettingsOpen(o => !o)}
-              title="Product settings"
-              className="ml-1 w-6 h-6 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-5">
-          {activeAgentCount > 0 && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {activeAgentCount} active
-            </span>
-          )}
-          {reviewCount > 0 && (
-            <span className="flex items-center gap-1.5 text-xs text-amber-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              {reviewCount} need review
-            </span>
-          )}
-          <span className={`flex items-center gap-1.5 text-xs ${connState === 'ready' ? 'text-emerald-500' : 'text-zinc-500'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${connState === 'ready' ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+      <header className="flex items-center gap-3 px-5 h-12 border-b border-adj-border flex-shrink-0 bg-adj-surface">
+        {/* Logo */}
+        <span className="w-7 h-7 rounded-lg bg-adj-accent text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+          {agentName[0]?.toUpperCase() ?? 'A'}
+        </span>
+        <span className="w-px h-4 bg-adj-border flex-shrink-0" />
+
+        {/* Product dropdown */}
+        {!showOverview && (
+          <ProductDropdown
+            products={products}
+            activeProductId={activeProductId}
+            onSelect={switchProduct}
+            onNewProduct={() => setWizardOpen(true)}
+          />
+        )}
+        {showOverview && (
+          <button onClick={switchToGlobal} className="text-sm font-semibold text-adj-text-secondary hover:text-adj-text-primary transition-colors">
+            Overview
+          </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Connection status */}
+          <span className={`flex items-center gap-1.5 text-xs ${connState === 'ready' ? 'text-green-500' : 'text-adj-text-faint'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${connState === 'ready' ? 'bg-green-500' : 'bg-adj-text-faint'}`} />
             {connState === 'ready' ? 'connected' : 'disconnected'}
           </span>
+
+          {/* Notes */}
+          <button
+            onClick={() => { setNotesOpen(o => !o); setHistoryOpen(false) }}
+            title="Product notes"
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${notesOpen ? 'text-adj-text-primary bg-adj-elevated' : 'text-adj-text-muted hover:text-adj-text-secondary hover:bg-adj-elevated'}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+
+          {/* History */}
+          <button
+            onClick={() => { setHistoryOpen(o => !o); setNotesOpen(false) }}
+            title="Directive history"
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${historyOpen ? 'text-adj-text-primary bg-adj-elevated' : 'text-adj-text-muted hover:text-adj-text-secondary hover:bg-adj-elevated'}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+
+          {/* Settings */}
+          <button
+            onClick={() => openSettings()}
+            title="Settings"
+            className="w-7 h-7 flex items-center justify-center rounded bg-adj-elevated border border-adj-accent text-adj-accent hover:bg-adj-accent hover:text-white transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
         </div>
       </header>
 
+      {/* Status strip — shown only in product workspace, not overview or settings */}
+      {!showOverview && !settingsOpen && (
+        <StatusStrip
+          workstreams={activeState.workstreams}
+          reviewItems={activeState.review_items}
+          events={activeState.events}
+          objectives={activeState.objectives}
+          onResolveReview={resolveReview}
+          onCancelAgent={cancelDirective}
+          onOpenSettings={openSettings}
+        />
+      )}
+
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* Product rail */}
-        <ProductRail
-          products={products}
-          activeProductId={showOverview ? '__overview__' : activeProductId}
-          onSwitch={switchProduct}
-          onOverview={switchToGlobal}
-          onLaunch={() => setLaunchFormOpen(true)}
-        />
-
-        {showOverview ? (
+        {settingsOpen ? (
+          <SettingsPage
+            products={products}
+            activeProductId={activeProductId}
+            productStates={productStates}
+            password={pw}
+            initialTab={settingsTab as any}
+            onClose={() => setSettingsOpen(false)}
+            onSwitchProduct={switchProduct}
+            onNewProduct={() => { setSettingsOpen(false); setWizardOpen(true) }}
+            onRefreshData={pid => wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: pid }))}
+            onWorkstreamUpdated={(wsId, patch) =>
+              setProductState(activeProductId, prev => ({
+                ...prev,
+                workstreams: prev.workstreams.map(ws => ws.id === wsId ? { ...ws, ...patch } : ws),
+              }))
+            }
+            onObjectiveUpdated={(objId, patch) =>
+              setProductState(activeProductId, prev => ({
+                ...prev,
+                objectives: patch.text === ''
+                  ? prev.objectives.filter(o => o.id !== objId)
+                  : prev.objectives.map(o => o.id === objId ? { ...o, ...patch } : o),
+              }))
+            }
+          />
+        ) : showOverview ? (
           <div className="flex flex-1 overflow-hidden">
             {/* Left: global sessions + mode toggle */}
             <div className="flex flex-col border-r border-zinc-800/60 w-48 flex-shrink-0">
@@ -595,7 +607,6 @@ export default function App() {
             {globalViewMode === 'overview' ? (
               <OverviewPanel password={pw} onSelectProduct={switchProduct} />
             ) : (
-              /* Global chat */
               <div className="flex-1 flex flex-col overflow-hidden">
                 {productStates['__global__']?.activeSessionId && (
                   <div className="flex items-center px-4 py-1 border-b border-zinc-800/30">
@@ -625,21 +636,11 @@ export default function App() {
               </div>
             )}
           </div>
-        ) : activeState?.launch_wizard_active === 1 ? (
-          <LaunchWizardPanel
-            productName={activeProduct?.name ?? activeProductId}
-            activeState={activeState}
-            wizardProgress={wizardProgress[activeProductId] ?? ''}
-            directives={directives[activeProductId] ?? []}
-            agentMessages={agentMessages[activeProductId] ?? []}
-            agentDraft={agentDraftByProduct[activeProductId] ?? ''}
-            onSend={sendDirective}
-            agentName={agentName}
-          />
         ) : (
-          <>
-            {/* Left column: Sessions + Workstreams */}
-            <div className="flex flex-col">
+          /* Product workspace — two column */
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left: sessions only */}
+            <div className="flex flex-col border-r border-adj-border w-52 flex-shrink-0 bg-adj-panel">
               <SessionsPanel
                 sessions={activeState.sessions}
                 activeSessionId={activeState.activeSessionId}
@@ -648,25 +649,13 @@ export default function App() {
                 onRename={renameSession}
                 onDelete={deleteSession}
               />
-              <WorkstreamsPanel
-                workstreams={activeState.workstreams}
-                password={pw}
-                onWorkstreamUpdated={(wsId, patch) => {
-                  setProductState(activeProductId, prev => ({
-                    ...prev,
-                    workstreams: prev.workstreams.map(ws =>
-                      ws.id === wsId ? { ...ws, ...patch } : ws
-                    ),
-                  }))
-                }}
-              />
             </div>
 
-            {/* Activity feed */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Center: full-width activity feed */}
+            <div className="flex-1 flex flex-col overflow-hidden bg-adj-base">
               {activeState.activeSessionId && (
-                <div className="flex items-center px-4 py-1 border-b border-zinc-800/30">
-                  <span className="text-[10px] text-zinc-600 ml-auto">
+                <div className="flex items-center px-4 py-1 border-b border-adj-border">
+                  <span className="text-[10px] text-adj-text-faint ml-auto">
                     {activeState.sessions.find(s => s.id === activeState.activeSessionId)?.name ?? ''} session
                   </span>
                 </div>
@@ -699,39 +688,9 @@ export default function App() {
                 password={pw}
               />
             </div>
-
-            {/* Right column: Review queue + Objectives */}
-            <div className="flex flex-col">
-              <ReviewQueue
-                items={activeState.review_items.filter(i => i.status === 'pending')}
-                onResolve={resolveReview}
-                queued={queueByProduct[activeProductId]?.queued ?? []}
-                onCancelQueued={cancelDirective}
-                agentName={agentName}
-                onCancelAutoApprove={cancelAutoApprove}
-              />
-              <ObjectivesPanel
-                objectives={activeState.objectives}
-                onToggleAutonomous={toggleObjectiveAutonomous}
-              />
-            </div>
-          </>
+          </div>
         )}
-
       </div>
-
-      {/* Settings sidebar */}
-      {settingsOpen && (
-        <SettingsSidebar
-          productId={activeProductId}
-          workstreams={activeState.workstreams}
-          objectives={activeState.objectives}
-          password={pw}
-          onClose={() => setSettingsOpen(false)}
-          onRefreshData={() => wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: activeProductId }))}
-          onRefreshProducts={() => wsRef.current?.send(JSON.stringify({ type: 'get_products' }))}
-        />
-      )}
 
       {/* Notes drawer */}
       {notesOpen && (
@@ -752,10 +711,14 @@ export default function App() {
         />
       )}
 
-      {launchFormOpen && (
-        <LaunchFormModal
-          onSubmit={launchProduct}
-          onClose={() => setLaunchFormOpen(false)}
+      {wizardOpen && (
+        <ProductWizard
+          password={pw}
+          onComplete={({ name, intent }) => {
+            setWizardOpen(false)
+            launchProduct(name, intent, intent)
+          }}
+          onClose={() => setWizardOpen(false)}
         />
       )}
     </div>
