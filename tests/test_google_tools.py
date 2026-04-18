@@ -184,3 +184,81 @@ def test_get_tools_for_product_with_calendar(db):
     assert "calendar_create_event" in names
     assert "calendar_find_free_time" in names
     assert "gmail_search" not in names
+
+
+def test_social_tools_in_lists():
+    from core.tools import _TWITTER_TOOLS, _LINKEDIN_TOOLS, _FACEBOOK_TOOLS, _INSTAGRAM_TOOLS
+    assert any(t["name"] == "twitter_post" for t in _TWITTER_TOOLS)
+    assert any(t["name"] == "linkedin_post" for t in _LINKEDIN_TOOLS)
+    assert any(t["name"] == "facebook_post" for t in _FACEBOOK_TOOLS)
+    assert any(t["name"] == "instagram_post" for t in _INSTAGRAM_TOOLS)
+
+
+def test_social_tools_not_in_tools_definitions():
+    from core.tools import TOOLS_DEFINITIONS
+    names = [t["name"] for t in TOOLS_DEFINITIONS]
+    assert "twitter_post" not in names
+    assert "instagram_post" not in names
+
+
+def test_instagram_post_schema_requires_image_url():
+    from core.tools import _INSTAGRAM_TOOLS
+    tool = next(t for t in _INSTAGRAM_TOOLS if t["name"] == "instagram_post")
+    assert "image_url" in tool["input_schema"]["required"]
+    assert "caption" in tool["input_schema"]["required"]
+
+
+def test_get_tools_for_product_with_twitter(db):
+    db.save_oauth_connection("prod-1", "twitter", "@handle", "tok", "ref", "2099-01-01T00:00:00+00:00", "s")
+    import importlib as il
+    import core.tools as tools_mod
+    il.reload(tools_mod)
+    tools = tools_mod.get_tools_for_product("prod-1")
+    names = [t["name"] for t in tools]
+    assert "twitter_post" in names
+    assert "linkedin_post" not in names
+    assert "gmail_search" not in names
+
+
+def test_get_tools_for_product_with_meta(db):
+    db.save_oauth_connection("prod-1", "facebook", "page-123", "tok", "", "2099-01-01T00:00:00+00:00", "s")
+    db.save_oauth_connection("prod-1", "instagram", "ig-456", "tok", "", "2099-01-01T00:00:00+00:00", "s")
+    import importlib as il
+    import core.tools as tools_mod
+    il.reload(tools_mod)
+    tools = tools_mod.get_tools_for_product("prod-1")
+    names = [t["name"] for t in tools]
+    assert "facebook_post" in names
+    assert "instagram_post" in names
+    assert "linkedin_post" not in names
+
+
+def test_twitter_post_approve_tier_creates_review_item(db):
+    db.set_action_autonomy("prod-1", "social_post", "approve", None)
+    async def run():
+        with patch("backend.social_api.twitter_post", new=AsyncMock()) as mock_post:
+            import importlib as il
+            import core.tools as tools_mod
+            il.reload(tools_mod)
+            result = json.loads(await tools_mod.execute_tool(
+                "twitter_post",
+                {"product_id": "prod-1", "text": "Hello world"},
+            ))
+            mock_post.assert_not_called()
+        assert result.get("queued_for_review") is True
+    asyncio.run(run())
+
+
+def test_twitter_post_auto_tier_posts_immediately(db):
+    db.set_action_autonomy("prod-1", "social_post", "auto", None)
+    async def run():
+        with patch("backend.social_api.twitter_post", new=AsyncMock(return_value='{"posted": true}')):
+            import importlib as il
+            import core.tools as tools_mod
+            il.reload(tools_mod)
+            result = await tools_mod.execute_tool(
+                "twitter_post",
+                {"product_id": "prod-1", "text": "Hello world"},
+            )
+        assert "posted" in result
+    asyncio.run(run())

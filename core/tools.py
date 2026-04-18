@@ -683,6 +683,85 @@ _CALENDAR_TOOLS = [
 ]
 
 
+_TWITTER_TOOLS = [
+    {
+        "name": "twitter_post",
+        "description": (
+            "Post a tweet from the product's connected Twitter/X account. "
+            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead. "
+            "Maximum 280 characters."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose Twitter account to post from"},
+                "text": {"type": "string", "description": "Tweet text (max 280 characters)"},
+                "media_url": {"type": "string", "description": "Optional URL of image/video to attach"},
+            },
+            "required": ["product_id", "text"],
+        },
+    },
+]
+
+_LINKEDIN_TOOLS = [
+    {
+        "name": "linkedin_post",
+        "description": (
+            "Publish a post to the product's connected LinkedIn profile. "
+            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose LinkedIn profile to post from"},
+                "text": {"type": "string", "description": "Post text"},
+                "media_url": {"type": "string", "description": "Optional URL of image to attach"},
+            },
+            "required": ["product_id", "text"],
+        },
+    },
+]
+
+_FACEBOOK_TOOLS = [
+    {
+        "name": "facebook_post",
+        "description": (
+            "Publish a post to the product's connected Facebook Page. "
+            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose Facebook Page to post to"},
+                "text": {"type": "string", "description": "Post text"},
+                "media_url": {"type": "string", "description": "Optional URL of image to attach"},
+            },
+            "required": ["product_id", "text"],
+        },
+    },
+]
+
+_INSTAGRAM_TOOLS = [
+    {
+        "name": "instagram_post",
+        "description": (
+            "Publish an image post to the product's connected Instagram Business account. "
+            "Requires an image URL — Instagram does not support text-only posts. "
+            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "The product whose Instagram account to post to"},
+                "caption": {"type": "string", "description": "Post caption text"},
+                "image_url": {"type": "string", "description": "Publicly accessible URL of the image to post"},
+            },
+            "required": ["product_id", "caption", "image_url"],
+        },
+    },
+]
+
+
 def get_tools_for_product(product_id: str) -> list[dict]:
     from backend.db import list_oauth_connections
     tools = list(TOOLS_DEFINITIONS)
@@ -691,6 +770,14 @@ def get_tools_for_product(product_id: str) -> list[dict]:
         tools.extend(_GMAIL_TOOLS)
     if "google_calendar" in connections:
         tools.extend(_CALENDAR_TOOLS)
+    if "twitter" in connections:
+        tools.extend(_TWITTER_TOOLS)
+    if "linkedin" in connections:
+        tools.extend(_LINKEDIN_TOOLS)
+    if "facebook" in connections:
+        tools.extend(_FACEBOOK_TOOLS)
+    if "instagram" in connections:
+        tools.extend(_INSTAGRAM_TOOLS)
     return tools
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -883,6 +970,14 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return await _calendar_create_event(**inputs)
     if name == "calendar_find_free_time":
         return await _calendar_find_free_time(**inputs)
+    if name == "twitter_post":
+        return await _twitter_post(**inputs)
+    if name == "linkedin_post":
+        return await _linkedin_post(**inputs)
+    if name == "facebook_post":
+        return await _facebook_post(**inputs)
+    if name == "instagram_post":
+        return await _instagram_post(**inputs)
     if name in _EXTENSION_EXECUTORS:
         return await _EXTENSION_EXECUTORS[name](inputs)
     return f"Unknown tool: {name}"
@@ -966,6 +1061,70 @@ async def _calendar_create_event(
 async def _calendar_find_free_time(product_id: str, date: str, duration_minutes: int) -> str:
     from backend.google_api import calendar_find_free_time
     return await calendar_find_free_time(product_id, date, duration_minutes)
+
+
+async def _twitter_post(product_id: str, text: str, media_url: str | None = None) -> str:
+    if _get_effective_tier(product_id, "social_post") == "approve":
+        from backend.db import save_review_item
+        item_id = save_review_item(
+            product_id=product_id,
+            title=f"Tweet: {text[:60]}{'…' if len(text) > 60 else ''}",
+            description=text,
+            risk_label="Posts tweet · public · irreversible",
+            action_type="social_post",
+        )
+        return json.dumps({"queued_for_review": True, "review_item_id": item_id,
+                           "message": "Tweet queued for approval."})
+    from backend.social_api import twitter_post
+    return await twitter_post(product_id, text, media_url)
+
+
+async def _linkedin_post(product_id: str, text: str, media_url: str | None = None) -> str:
+    if _get_effective_tier(product_id, "social_post") == "approve":
+        from backend.db import save_review_item
+        item_id = save_review_item(
+            product_id=product_id,
+            title=f"LinkedIn post: {text[:60]}{'…' if len(text) > 60 else ''}",
+            description=text,
+            risk_label="Posts to LinkedIn · public",
+            action_type="social_post",
+        )
+        return json.dumps({"queued_for_review": True, "review_item_id": item_id,
+                           "message": "LinkedIn post queued for approval."})
+    from backend.social_api import linkedin_post
+    return await linkedin_post(product_id, text, media_url)
+
+
+async def _facebook_post(product_id: str, text: str, media_url: str | None = None) -> str:
+    if _get_effective_tier(product_id, "social_post") == "approve":
+        from backend.db import save_review_item
+        item_id = save_review_item(
+            product_id=product_id,
+            title=f"Facebook post: {text[:60]}{'…' if len(text) > 60 else ''}",
+            description=text,
+            risk_label="Posts to Facebook Page · public",
+            action_type="social_post",
+        )
+        return json.dumps({"queued_for_review": True, "review_item_id": item_id,
+                           "message": "Facebook post queued for approval."})
+    from backend.social_api import facebook_post
+    return await facebook_post(product_id, text, media_url)
+
+
+async def _instagram_post(product_id: str, caption: str, image_url: str) -> str:
+    if _get_effective_tier(product_id, "social_post") == "approve":
+        from backend.db import save_review_item
+        item_id = save_review_item(
+            product_id=product_id,
+            title=f"Instagram post: {caption[:60]}{'…' if len(caption) > 60 else ''}",
+            description=f"{caption}\n\nImage: {image_url}",
+            risk_label="Posts to Instagram · public · irreversible",
+            action_type="social_post",
+        )
+        return json.dumps({"queued_for_review": True, "review_item_id": item_id,
+                           "message": "Instagram post queued for approval."})
+    from backend.social_api import instagram_post
+    return await instagram_post(product_id, caption, image_url)
 
 
 def _save_note(title: str, content: str) -> str:
