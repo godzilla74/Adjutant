@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google OAuth Setup Guide — Adjutant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #c9d1d9;
+      line-height: 1.7;
+      padding: 48px 24px 96px;
+    }
+
+    .container { max-width: 700px; margin: 0 auto; }
+
+    .back { display: inline-block; font-size: 0.8rem; color: #8b949e; margin-bottom: 36px; cursor: pointer; }
+    .back:hover { color: #58a6ff; }
+
+    h1 { font-size: 1.5rem; font-weight: 700; color: #e6edf3; margin-bottom: 6px; }
+    .subtitle { font-size: 0.875rem; color: #8b949e; margin-bottom: 48px; }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 32px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .card-icon { font-size: 1.5rem; line-height: 1; }
+    .card-title { font-size: 1.05rem; font-weight: 700; color: #e6edf3; }
+
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #58a6ff;
+      margin-bottom: 12px;
+      margin-top: 24px;
+    }
+
+    .section-title:first-of-type { margin-top: 0; }
+
+    .steps { list-style: none; padding: 0; margin-bottom: 0; }
+
+    .steps li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      font-size: 0.875rem;
+      margin-bottom: 10px;
+    }
+
+    .steps li:last-child { margin-bottom: 0; }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #21262d;
+      border: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #8b949e;
+      margin-top: 1px;
+    }
+
+    .steps li p { margin: 0; }
+
+    .divider { border: none; border-top: 1px solid #21262d; margin: 20px 0; }
+
+    .field-map { display: flex; flex-direction: column; gap: 6px; }
+
+    .field-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    .field-key {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.78rem;
+      color: #79c0ff;
+      white-space: nowrap;
+    }
+
+    .field-arrow { color: #484f58; font-size: 0.8rem; }
+    .field-dest { color: #c9d1d9; }
+
+    code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.8rem;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 1px 5px;
+      color: #d2a8ff;
+    }
+
+    .tip {
+      margin-top: 18px;
+      padding: 12px 16px;
+      border: 1px solid #30363d;
+      border-left: 3px solid #388bfd;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: #8b949e;
+    }
+
+    .tip strong { color: #79c0ff; }
+
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <a class="back" onclick="history.back()">← Back to Settings</a>
+
+    <h1>Google OAuth Setup Guide</h1>
+    <p class="subtitle">How to create a Google Cloud OAuth app and get the Client ID and Secret that Adjutant needs to connect Gmail and Google Calendar.</p>
+
+    <!-- ── Create the project ───────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">☁️</span>
+        <span class="card-title">Step 1 — Create a Google Cloud project</span>
+      </div>
+
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">console.cloud.google.com</a> and sign in with the Google account you want to use.</p></li>
+        <li><span class="step-num">2</span><p>At the top of the page, click the project selector dropdown (it may say <strong>Select a project</strong>). Click <strong>New Project</strong>, give it a name like <em>Adjutant</em>, and click <strong>Create</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Make sure the new project is selected in the dropdown before continuing.</p></li>
+      </ol>
+    </div>
+
+    <!-- ── Enable APIs ───────────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🔌</span>
+        <span class="card-title">Step 2 — Enable the Gmail and Calendar APIs</span>
+      </div>
+
+      <p class="section-title">Enable Gmail</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Go to <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noreferrer">APIs &amp; Services → Library → Gmail API</a>.</p></li>
+        <li><span class="step-num">2</span><p>Click <strong>Enable</strong>.</p></li>
+      </ol>
+
+      <p class="section-title">Enable Google Calendar</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Go to <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" rel="noreferrer">APIs &amp; Services → Library → Google Calendar API</a>.</p></li>
+        <li><span class="step-num">2</span><p>Click <strong>Enable</strong>.</p></li>
+      </ol>
+    </div>
+
+    <!-- ── OAuth consent screen ──────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📋</span>
+        <span class="card-title">Step 3 — Configure the OAuth consent screen</span>
+      </div>
+
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, go to <strong>APIs &amp; Services → OAuth consent screen</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Select <strong>External</strong> as the user type, then click <strong>Create</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Fill in the required fields: <strong>App name</strong> (e.g. <em>Adjutant</em>), <strong>User support email</strong> (your email), and <strong>Developer contact information</strong> (your email again). Everything else can be left blank. Click <strong>Save and Continue</strong>.</p></li>
+        <li><span class="step-num">4</span><p>On the <strong>Scopes</strong> step, click <strong>Add or remove scopes</strong>. Search for and add these scopes:</p></li>
+      </ol>
+
+      <ul style="list-style:none;padding:0;margin:12px 0 12px 36px;display:flex;flex-direction:column;gap:6px;font-size:0.8rem;">
+        <li><code>https://www.googleapis.com/auth/gmail.send</code></li>
+        <li><code>https://www.googleapis.com/auth/gmail.readonly</code></li>
+        <li><code>https://www.googleapis.com/auth/calendar</code></li>
+      </ul>
+
+      <ol class="steps" style="counter-reset: step 4;">
+        <li><span class="step-num">5</span><p>Click <strong>Update</strong>, then <strong>Save and Continue</strong>.</p></li>
+        <li><span class="step-num">6</span><p>On the <strong>Test users</strong> step, click <strong>Add users</strong> and add your own Google email address. Click <strong>Save and Continue</strong>.</p></li>
+        <li><span class="step-num">7</span><p>Review the summary and click <strong>Back to Dashboard</strong>.</p></li>
+      </ol>
+
+      <div class="tip"><strong>Note:</strong> Keeping the app in <em>Testing</em> mode is fine for personal use — it just means only the email addresses you add as Test Users can connect. You don't need to go through Google's verification process.</div>
+    </div>
+
+    <!-- ── Create credentials ─────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">🔑</span>
+        <span class="card-title">Step 4 — Create OAuth credentials</span>
+      </div>
+
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, go to <strong>APIs &amp; Services → Credentials</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Click <strong>+ Create Credentials</strong> at the top, then select <strong>OAuth client ID</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Under <strong>Application type</strong>, select <strong>Web application</strong>.</p></li>
+        <li><span class="step-num">4</span><p>Give it a name (e.g. <em>Adjutant Web Client</em>).</p></li>
+        <li><span class="step-num">5</span><p>Under <strong>Authorized redirect URIs</strong>, click <strong>+ Add URI</strong> and enter: <code>http://localhost:8001/api/oauth/callback/gmail</code></p></li>
+        <li><span class="step-num">6</span><p>Add a second redirect URI: <code>http://localhost:8001/api/oauth/callback/google_calendar</code></p></li>
+        <li><span class="step-num">7</span><p>Click <strong>Create</strong>. A dialog will show your <strong>Client ID</strong> and <strong>Client Secret</strong> — copy both.</p></li>
+      </ol>
+
+      <hr class="divider">
+
+      <p class="section-title">What to paste into Adjutant</p>
+      <div class="field-map">
+        <div class="field-row"><span class="field-key">Client ID</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Client ID</strong> field in Settings → Google OAuth</span></div>
+        <div class="field-row"><span class="field-key">Client Secret</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Client Secret</strong> field in Settings → Google OAuth</span></div>
+      </div>
+
+      <div class="tip"><strong>Note:</strong> If you close the dialog without copying the Client Secret, you can retrieve it later by going to <strong>Credentials</strong>, clicking the pencil icon next to your OAuth client, and clicking <strong>Download JSON</strong> — the secret is in that file.</div>
+    </div>
+
+  </div>
+</body>
+</html>

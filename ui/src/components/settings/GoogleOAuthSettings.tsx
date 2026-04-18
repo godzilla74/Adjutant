@@ -41,22 +41,18 @@ export default function GoogleOAuthSettings({ password }: Props) {
 
   return (
     <div className="w-full">
-      <h2 className="text-base font-bold text-adj-text-primary mb-1">Google OAuth</h2>
-      <p className="text-xs text-adj-text-muted mb-6">Configure Google Cloud OAuth credentials for Gmail and Calendar connections</p>
-
-      <div className="mb-4 p-3 bg-adj-panel border border-adj-border rounded-md">
-        <p className="text-xs text-adj-text-muted">
-          Enter your Google Cloud OAuth credentials. Required for Gmail and Calendar connections.{' '}
-          <a
-            href="https://console.cloud.google.com/apis/credentials"
-            target="_blank"
-            rel="noreferrer"
-            className="text-adj-accent hover:underline"
-          >
-            Open Google Cloud Console
-          </a>
-        </p>
+      <div className="flex items-baseline justify-between mb-1">
+        <h2 className="text-base font-bold text-adj-text-primary">Google OAuth</h2>
+        <a
+          href="/google-oauth-guide.html"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-adj-accent hover:underline"
+        >
+          How to get credentials →
+        </a>
       </div>
+      <p className="text-xs text-adj-text-muted mb-6">Configure Google Cloud OAuth credentials for Gmail and Calendar connections</p>
 
       <div className="flex flex-col gap-4">
         <div>
