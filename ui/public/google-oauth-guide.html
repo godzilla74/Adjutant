@@ -181,11 +181,18 @@
         <span class="card-title">Step 3 — Configure the OAuth consent screen</span>
       </div>
 
+      <p class="section-title">Basic info</p>
       <ol class="steps">
         <li><span class="step-num">1</span><p>In the left sidebar, go to <strong>APIs &amp; Services → OAuth consent screen</strong>.</p></li>
         <li><span class="step-num">2</span><p>Select <strong>External</strong> as the user type, then click <strong>Create</strong>.</p></li>
-        <li><span class="step-num">3</span><p>Fill in the required fields: <strong>App name</strong> (e.g. <em>Adjutant</em>), <strong>User support email</strong> (your email), and <strong>Developer contact information</strong> (your email again). Everything else can be left blank. Click <strong>Save and Continue</strong>.</p></li>
-        <li><span class="step-num">4</span><p>On the <strong>Scopes</strong> step, click <strong>Add or remove scopes</strong>. Search for and add these scopes:</p></li>
+        <li><span class="step-num">3</span><p>Fill in <strong>App name</strong> (e.g. <em>Adjutant</em>), <strong>User support email</strong> (your email), and scroll down to add your email under <strong>Developer contact information</strong>. Leave everything else blank and click <strong>Save</strong>.</p></li>
+      </ol>
+
+      <p class="section-title">Add scopes</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar under your app, click <strong>Data Access</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Click <strong>Add or remove scopes</strong>.</p></li>
+        <li><span class="step-num">3</span><p>In the panel that opens, search for and check each of these scopes:</p></li>
       </ol>
 
       <ul style="list-style:none;padding:0;margin:12px 0 12px 36px;display:flex;flex-direction:column;gap:6px;font-size:0.8rem;">
@@ -194,13 +201,17 @@
         <li><code>https://www.googleapis.com/auth/calendar</code></li>
       </ul>
 
-      <ol class="steps" style="counter-reset: step 4;">
-        <li><span class="step-num">5</span><p>Click <strong>Update</strong>, then <strong>Save and Continue</strong>.</p></li>
-        <li><span class="step-num">6</span><p>On the <strong>Test users</strong> step, click <strong>Add users</strong> and add your own Google email address. Click <strong>Save and Continue</strong>.</p></li>
-        <li><span class="step-num">7</span><p>Review the summary and click <strong>Back to Dashboard</strong>.</p></li>
+      <ol class="steps">
+        <li><span class="step-num">4</span><p>Click <strong>Update</strong> to save the scopes.</p></li>
       </ol>
 
-      <div class="tip"><strong>Note:</strong> Keeping the app in <em>Testing</em> mode is fine for personal use — it just means only the email addresses you add as Test Users can connect. You don't need to go through Google's verification process.</div>
+      <p class="section-title">Add yourself as a test user</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, click <strong>Audience</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Under <strong>Test users</strong>, click <strong>Add users</strong> and enter your own Google email address. Click <strong>Save</strong>.</p></li>
+      </ol>
+
+      <div class="tip"><strong>Note:</strong> Keeping the app in <em>Testing</em> mode is fine for personal use — only email addresses you add as Test Users can connect. You don't need to go through Google's app verification process.</div>
     </div>
 
     <!-- ── Create credentials ─────────────────────────────────────────────── -->
