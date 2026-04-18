@@ -54,8 +54,31 @@ from backend.db import (
     get_product_config,
     create_product as _create_product_db,
 )
-from backend.social_poster import publish_social_draft
 from backend.api import router as api_router
+
+
+async def _publish_social_draft(draft: dict) -> dict:
+    platform = draft.get("platform", "")
+    product_id = draft.get("product_id", "")
+    text = draft.get("content", "")
+    image_url = draft.get("image_url")
+    from backend.social_api import twitter_post, linkedin_post, facebook_post, instagram_post
+    try:
+        if platform == "twitter":
+            result = await twitter_post(product_id, text, image_url)
+        elif platform == "linkedin":
+            result = await linkedin_post(product_id, text, image_url)
+        elif platform == "facebook":
+            result = await facebook_post(product_id, text, image_url)
+        elif platform == "instagram":
+            if not image_url:
+                return {"success": False, "error": "Instagram requires an image URL"}
+            result = await instagram_post(product_id, text, image_url)
+        else:
+            return {"success": False, "error": f"Unknown platform: {platform}"}
+        return {"success": True, "result": result}
+    except RuntimeError as e:
+        return {"success": False, "error": str(e)}
 from core.config import get_system_prompt
 from core.tools import execute_tool, get_tools_for_product
 
@@ -1047,7 +1070,7 @@ async def websocket_endpoint(ws: WebSocket):
                             })
 
                             try:
-                                result = await publish_social_draft(draft)
+                                result = await _publish_social_draft(draft)
                             except Exception as exc:
                                 result = {"success": False, "error": str(exc)}
 

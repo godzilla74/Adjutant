@@ -662,8 +662,13 @@ def list_oauth_connections_api(product_id: str, _=Depends(_auth)):
 @router.delete("/products/{product_id}/oauth/{service}", status_code=204)
 async def delete_oauth_connection_api(product_id: str, service: str, _=Depends(_auth)):
     from backend.db import get_oauth_connection, delete_oauth_connection
-    from backend.google_oauth import revoke_token
     conn_row = get_oauth_connection(product_id, service)
     if conn_row:
-        await revoke_token(conn_row["access_token"])
+        GOOGLE_SERVICES = ("gmail", "google_calendar")
+        if service in GOOGLE_SERVICES:
+            from backend.google_oauth import revoke_token
+            await revoke_token(conn_row["access_token"])
+        else:
+            from backend.social_oauth import revoke_social_token
+            await revoke_social_token(conn_row["access_token"], service)
     delete_oauth_connection(product_id, service)
