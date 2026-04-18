@@ -61,13 +61,13 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
     <div className="flex-1 flex flex-col overflow-hidden">
 
       {/* Tab bar */}
-      <div className="flex-shrink-0 flex items-center gap-1 px-5 py-2 border-b border-zinc-800/40">
+      <div className="flex-shrink-0 flex items-center gap-1 px-5 py-2 border-b border-adj-border">
         <button
           onClick={() => setActiveTab('chat')}
           className={`text-xs px-3 py-1 rounded-full transition-colors ${
             activeTab === 'chat'
-              ? 'bg-zinc-800 text-zinc-200'
-              : 'text-zinc-600 hover:text-zinc-400'
+              ? 'bg-adj-surface text-adj-text-primary'
+              : 'text-adj-text-faint hover:text-adj-text-secondary'
           }`}
         >
           Chat
@@ -76,8 +76,8 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
           onClick={() => setActiveTab('activity')}
           className={`text-xs px-3 py-1 rounded-full transition-colors flex items-center gap-1 ${
             activeTab === 'activity'
-              ? 'bg-zinc-800 text-zinc-200'
-              : 'text-zinc-600 hover:text-zinc-400'
+              ? 'bg-adj-surface text-adj-text-primary'
+              : 'text-adj-text-faint hover:text-adj-text-secondary'
           }`}
         >
           Activity
@@ -94,7 +94,7 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
             if (entry.type === 'directive') {
               return (
                 <div key={`directive-${entry.ts}`} className="self-end max-w-lg">
-                  <div className="text-xs text-zinc-600 text-right mb-1">You · directive</div>
+                  <div className="text-xs text-adj-text-faint text-right mb-1">You · directive</div>
                   <div className="rounded-xl rounded-tr-sm bg-blue-600/20 border border-blue-700/40 px-4 py-2.5 text-sm text-blue-200">
                     {entry.content}
                   </div>
@@ -103,8 +103,8 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
             }
             return (
               <div key={`agent-${entry.ts}`} className="max-w-xl">
-                <div className="text-xs text-zinc-600 mb-1">{agentName}</div>
-                <div className="rounded-xl rounded-tl-sm bg-zinc-800/60 border border-zinc-700/40 px-4 py-2.5 text-sm text-zinc-300 leading-relaxed">
+                <div className="text-xs text-adj-text-faint mb-1">{agentName}</div>
+                <div className="rounded-xl rounded-tl-sm bg-adj-elevated border border-zinc-700/40 px-4 py-2.5 text-sm text-adj-text-secondary leading-relaxed">
                   <MarkdownContent>{entry.content}</MarkdownContent>
                 </div>
               </div>
@@ -113,10 +113,10 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
 
           {agentDraft && (
             <div className="max-w-xl">
-              <div className="text-xs text-zinc-600 mb-1">{agentName}</div>
-              <div className="rounded-xl rounded-tl-sm bg-zinc-800/60 border border-zinc-700/40 px-4 py-2.5 text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
+              <div className="text-xs text-adj-text-faint mb-1">{agentName}</div>
+              <div className="rounded-xl rounded-tl-sm bg-adj-elevated border border-zinc-700/40 px-4 py-2.5 text-sm text-adj-text-secondary whitespace-pre-wrap leading-relaxed">
                 {agentDraft}
-                <span className="inline-block w-0.5 h-4 bg-zinc-400 ml-0.5 animate-pulse align-middle" />
+                <span className="inline-block w-0.5 h-4 bg-adj-text-secondary ml-0.5 animate-pulse align-middle" />
               </div>
             </div>
           )}
@@ -124,7 +124,7 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
           {chatEntries.length === 0 && !agentDraft && (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-zinc-700 py-20">
               <div className="text-4xl opacity-30">🛰</div>
-              <div className="text-sm font-medium text-zinc-600">No activity yet</div>
+              <div className="text-sm font-medium text-adj-text-faint">No activity yet</div>
               <div className="text-xs text-center leading-relaxed">
                 Give {agentName} a directive below to get started.
               </div>
@@ -138,13 +138,13 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
       {/* Activity tab */}
       {activeTab === 'activity' && (
         <>
-          <div className="flex-shrink-0 flex items-center gap-2 px-5 py-2 border-b border-zinc-800/40">
+          <div className="flex-shrink-0 flex items-center gap-2 px-5 py-2 border-b border-adj-border">
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search activity…"
-              className="flex-1 min-w-0 text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-300 placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-blue-600"
+              className="flex-1 min-w-0 text-xs bg-adj-panel border border-adj-border rounded px-2 py-1 text-adj-text-secondary placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-blue-600"
             />
             <div className="flex items-center gap-1 flex-shrink-0">
               {FILTER_TYPES.map(ft => (
@@ -154,8 +154,8 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
                   className={[
                     'text-[10px] px-2 py-0.5 rounded-full border transition-colors',
                     typeFilter === ft.value
-                      ? 'bg-blue-600/20 border-blue-600/50 text-blue-400'
-                      : 'bg-transparent border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:border-zinc-600',
+                      ? 'bg-blue-600/20 border-blue-600/50 text-adj-accent'
+                      : 'bg-transparent border-adj-border text-adj-text-faint hover:text-adj-text-secondary hover:border-zinc-600',
                   ].join(' ')}
                 >
                   {ft.label}
@@ -164,7 +164,7 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
               {isFiltering && (
                 <button
                   onClick={() => { setSearch(''); setTypeFilter(null) }}
-                  className="text-[10px] text-zinc-600 hover:text-zinc-400 px-1"
+                  className="text-[10px] text-adj-text-faint hover:text-adj-text-secondary px-1"
                   title="Clear filters"
                 >
                   ✕

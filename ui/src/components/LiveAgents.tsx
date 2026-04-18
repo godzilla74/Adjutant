@@ -47,19 +47,19 @@ export default function LiveAgents({ events, currentDirective, onCancelDirective
   if (!isVisible) return null
 
   return (
-    <div className="flex-shrink-0 border-b border-zinc-800/60 bg-zinc-950 px-4 py-2.5 flex flex-col gap-2">
+    <div className="flex-shrink-0 border-b border-adj-border bg-adj-base px-4 py-2.5 flex flex-col gap-2">
 
       {/* Header row */}
       <div className="flex items-center gap-2">
         {currentDirective ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-            <span className="text-xs text-zinc-400 flex-1 min-w-0 truncate">
+            <span className="text-xs text-adj-text-secondary flex-1 min-w-0 truncate">
               {truncate(currentDirective.content)}
             </span>
             <button
               onClick={() => onCancelDirective(currentDirective.id)}
-              className="flex-shrink-0 flex items-center gap-1 text-[10px] font-medium text-zinc-600 hover:text-red-400 hover:bg-zinc-800 px-2 py-0.5 rounded transition-colors"
+              className="flex-shrink-0 flex items-center gap-1 text-[10px] font-medium text-adj-text-faint hover:text-red-400 hover:bg-adj-elevated px-2 py-0.5 rounded transition-colors"
               title="Cancel this directive"
             >
               <span>■</span> Stop
@@ -69,7 +69,7 @@ export default function LiveAgents({ events, currentDirective, onCancelDirective
           // Directive was stopped but agents are still finishing
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
-            <span className="text-xs text-zinc-500 flex-1 min-w-0">
+            <span className="text-xs text-adj-text-muted flex-1 min-w-0">
               Agents finishing up…
             </span>
           </>
@@ -88,7 +88,7 @@ export default function LiveAgents({ events, currentDirective, onCancelDirective
               <div className="flex-1 min-w-0">
                 <div className="font-medium leading-snug truncate">{ev.headline}</div>
               </div>
-              <span className="flex-shrink-0 font-mono text-zinc-600 text-[10px] mt-0.5">
+              <span className="flex-shrink-0 font-mono text-adj-text-faint text-[10px] mt-0.5">
                 {elapsedLabel(ev.created_at)}
               </span>
             </div>

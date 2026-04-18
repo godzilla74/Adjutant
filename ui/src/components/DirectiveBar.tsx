@@ -102,19 +102,19 @@ export default function DirectiveBar({
   }
 
   return (
-    <div className="flex-shrink-0 border-t border-zinc-800/60 px-5 py-3 bg-zinc-950">
+    <div className="flex-shrink-0 border-t border-adj-border px-5 py-3 bg-adj-base">
 
       {/* Attachment pill */}
       {attachment && (
         <div className="flex items-center gap-2 mb-2">
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 max-w-xs">
-            <span className="text-zinc-500">{attachment.mime_type.startsWith('video/') ? '🎬' : attachment.mime_type === 'application/pdf' ? '📄' : '🖼'}</span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-adj-surface border border-zinc-700 text-xs text-adj-text-secondary max-w-xs">
+            <span className="text-adj-text-muted">{attachment.mime_type.startsWith('video/') ? '🎬' : attachment.mime_type === 'application/pdf' ? '📄' : '🖼'}</span>
             <span className="truncate">{attachment.name}</span>
-            <span className="text-zinc-600 flex-shrink-0">{formatSize(attachment.file.size)}</span>
+            <span className="text-adj-text-faint flex-shrink-0">{formatSize(attachment.file.size)}</span>
           </span>
           <button
             onClick={removeAttachment}
-            className="text-zinc-600 hover:text-zinc-400 transition-colors text-sm leading-none"
+            className="text-adj-text-faint hover:text-adj-text-secondary transition-colors text-sm leading-none"
             aria-label="Remove attachment"
           >×</button>
         </div>
@@ -127,7 +127,7 @@ export default function DirectiveBar({
 
       {/* Input row */}
       <div className="flex items-end gap-3">
-        <span className="text-xs text-zinc-600 whitespace-nowrap flex-shrink-0 pb-2">
+        <span className="text-xs text-adj-text-faint whitespace-nowrap flex-shrink-0 pb-2">
           Direct {agentName} →
         </span>
 
@@ -137,7 +137,7 @@ export default function DirectiveBar({
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || uploading}
           title="Attach file"
-          className="flex-shrink-0 pb-2 text-zinc-600 hover:text-zinc-400 disabled:opacity-40 transition-colors text-base"
+          className="flex-shrink-0 pb-2 text-adj-text-faint hover:text-adj-text-secondary disabled:opacity-40 transition-colors text-base"
         >
           📎
         </button>
@@ -157,14 +157,14 @@ export default function DirectiveBar({
           disabled={disabled || uploading}
           rows={1}
           placeholder={`e.g. Focus all agents on ${productName} growth this week.`}
-          className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-blue-600 disabled:opacity-40 resize-none overflow-hidden leading-relaxed min-h-[36px] max-h-40"
+          className="flex-1 rounded-lg border border-adj-border bg-adj-panel px-3 py-2 text-sm text-adj-text-secondary placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-blue-600 disabled:opacity-40 resize-none overflow-hidden leading-relaxed min-h-[36px] max-h-40"
         />
 
         <button
           type="button"
           onClick={submit}
           disabled={disabled || uploading || (!value.trim() && !attachment)}
-          className="flex-shrink-0 rounded-lg bg-blue-600/20 border border-blue-600/50 text-blue-400 px-4 h-9 text-sm font-medium hover:bg-blue-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="flex-shrink-0 rounded-lg bg-blue-600/20 border border-blue-600/50 text-adj-accent px-4 h-9 text-sm font-medium hover:bg-blue-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {uploading ? '…' : 'Send'}
         </button>

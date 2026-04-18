@@ -77,9 +77,9 @@ export default function SessionsPanel({
   }
 
   return (
-    <div className="border-b border-zinc-800/60 pb-2">
+    <div className="border-b border-adj-border pb-2">
       <div className="flex items-center justify-between px-3.5 pt-3 pb-1">
-        <span className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">
+        <span className="text-[10px] font-semibold text-adj-text-faint uppercase tracking-widest">
           Sessions
         </span>
         <button
@@ -100,7 +100,7 @@ export default function SessionsPanel({
             onKeyDown={handleNewKey}
             onBlur={() => { if (!newName.trim()) { setCreating(false) } }}
             placeholder="Session name"
-            className="w-full bg-zinc-900 border border-zinc-700 rounded text-[11px] text-zinc-200 px-2 py-1 focus:outline-none focus:border-zinc-500"
+            className="w-full bg-adj-panel border border-zinc-700 rounded text-[11px] text-adj-text-primary px-2 py-1 focus:outline-none focus:border-zinc-500"
           />
         </div>
       )}
@@ -121,7 +121,7 @@ export default function SessionsPanel({
                     onChange={e => setRenameValue(e.target.value)}
                     onKeyDown={handleRenameKey}
                     onBlur={submitRename}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded text-[11px] text-zinc-200 px-2 py-1 focus:outline-none focus:border-zinc-500"
+                    className="w-full bg-adj-panel border border-zinc-700 rounded text-[11px] text-adj-text-primary px-2 py-1 focus:outline-none focus:border-zinc-500"
                   />
                 </div>
               ) : isConfirm ? (
@@ -134,7 +134,7 @@ export default function SessionsPanel({
                     >Delete</button>
                     <button
                       onClick={() => setConfirmDeleteId(null)}
-                      className="flex-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-400 text-[10px] rounded px-2 py-1 transition-colors"
+                      className="flex-1 bg-adj-surface hover:bg-adj-elevated border border-zinc-700 text-adj-text-secondary text-[10px] rounded px-2 py-1 transition-colors"
                     >Cancel</button>
                   </div>
                 </div>
@@ -144,8 +144,8 @@ export default function SessionsPanel({
                   onDoubleClick={() => isActive && startRename(s)}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 cursor-default select-none ${
                     isActive
-                      ? 'bg-blue-600/10 border-l-2 border-blue-600 text-zinc-200'
-                      : 'text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-300'
+                      ? 'bg-blue-600/10 border-l-2 border-blue-600 text-adj-text-primary'
+                      : 'text-adj-text-muted hover:bg-adj-elevated hover:text-adj-text-secondary'
                   }`}
                 >
                   <span className="text-sm flex-1 truncate leading-snug">💬 {s.name}</span>
@@ -153,7 +153,7 @@ export default function SessionsPanel({
                     {isActive && (
                       <button
                         onClick={e => { e.stopPropagation(); startRename(s) }}
-                        className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                        className="text-adj-text-faint hover:text-adj-text-secondary transition-colors"
                         aria-label="Rename session"
                         title="Rename"
                       ><PencilIcon /></button>
@@ -161,7 +161,7 @@ export default function SessionsPanel({
                     {sessions.length > 1 && (
                       <button
                         onClick={e => { e.stopPropagation(); setConfirmDeleteId(s.id) }}
-                        className="text-zinc-600 hover:text-red-400 transition-colors"
+                        className="text-adj-text-faint hover:text-red-400 transition-colors"
                         aria-label="Delete session"
                         title="Delete"
                       ><TrashIcon /></button>
