@@ -83,7 +83,7 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">Workstreams</h2>
       <p className="text-xs text-adj-text-muted mb-6">Automated recurring tasks for this product</p>
 

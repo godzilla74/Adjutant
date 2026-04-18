@@ -99,7 +99,7 @@ export default function SettingsPage({
   }
 
   return (
-    <div className="flex flex-col h-full bg-adj-base text-adj-text-primary overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-adj-base text-adj-text-primary overflow-hidden">
       {/* Header */}
       <header className="flex items-center gap-3 px-5 h-12 border-b border-adj-border flex-shrink-0 bg-adj-surface">
         <span className="text-sm font-bold text-adj-text-primary">Settings</span>

@@ -192,7 +192,7 @@ export default function MCPSettings({ productId, password }: Props) {
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">MCP Servers</h2>
       <p className="text-xs text-adj-text-muted mb-6">Manage Model Context Protocol server connections</p>
 

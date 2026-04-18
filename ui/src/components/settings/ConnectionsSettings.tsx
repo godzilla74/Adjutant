@@ -83,7 +83,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">Connections</h2>
       <p className="text-xs text-adj-text-muted mb-6">Manage OAuth integrations for this product</p>
 
@@ -129,12 +129,18 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                 >
                   Disconnect
                 </button>
+              ) : needsGoogleOAuth ? (
+                <span
+                  title="Set up Google OAuth credentials first"
+                  className="px-3 py-1.5 text-xs border border-adj-border text-adj-text-faint rounded cursor-not-allowed select-none"
+                >
+                  Connect
+                </span>
               ) : (
                 <button
-                  onClick={() => !needsGoogleOAuth && handleConnectOAuth(connectAs)}
-                  disabled={isConnecting || needsGoogleOAuth}
-                  title={needsGoogleOAuth ? 'Set up Google OAuth credentials first' : undefined}
-                  className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={() => handleConnectOAuth(connectAs)}
+                  disabled={isConnecting}
+                  className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isConnecting ? 'Connecting…' : 'Connect'}
                 </button>

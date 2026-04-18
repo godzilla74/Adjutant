@@ -66,7 +66,7 @@ export default function SocialSettings({ password }: Props) {
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <div className="flex items-baseline justify-between mb-1">
         <h2 className="text-base font-bold text-adj-text-primary">Social Accounts</h2>
         <a

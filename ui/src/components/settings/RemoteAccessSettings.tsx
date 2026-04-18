@@ -59,7 +59,7 @@ export default function RemoteAccessSettings({ password }: Props) {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">Remote Access</h2>
       <p className="text-xs text-adj-text-muted mb-6">Connect Telegram to chat with your assistant from anywhere</p>
 
