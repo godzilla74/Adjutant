@@ -161,20 +161,33 @@
         <span class="platform-name">Twitter / X</span>
       </div>
 
-      <p class="section-title">Step 1 — Create a developer app</p>
+      <div class="tip" style="margin-top:0;margin-bottom:20px;border-left-color:#f97316;">
+        <strong style="color:#fb923c;">Heads up:</strong> X requires a paid developer plan to use the API. You'll need to subscribe at <a href="https://developer.twitter.com/en/portal/products" target="_blank" rel="noreferrer">developer.twitter.com/en/portal/products</a> before your app can post.
+      </div>
+
+      <p class="section-title">Step 1 — Create a developer account</p>
       <ol class="steps">
-        <li><span class="step-num">1</span><p>Go to <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noreferrer">developer.twitter.com/en/portal/dashboard</a> and sign in with your Twitter account.</p></li>
-        <li><span class="step-num">2</span><p>Click <strong>+ Add App</strong> (or create a new Project first, then add an App inside it). Give it a name like <em>My Adjutant</em>.</p></li>
-        <li><span class="step-num">3</span><p>In your app's dashboard, click the <strong>App Settings</strong> tab, then scroll to <strong>User authentication settings</strong> and click <strong>Set up</strong>.</p></li>
+        <li><span class="step-num">1</span><p>Go to <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noreferrer">developer.twitter.com/en/portal/dashboard</a> and sign in with your X account.</p></li>
+        <li><span class="step-num">2</span><p>If this is your first time, you'll be asked to set an <strong>Account Name</strong> (this is just a label for your developer account, not your @handle) and fill in the <strong>"Describe all of your use cases"</strong> field. It requires at least 100 characters — something like: <em>"Personal AI assistant that reads my timeline and posts scheduled content on my behalf. Used only for my own account. No data resale or third-party access."</em></p></li>
+        <li><span class="step-num">3</span><p>Check all three agreement boxes and click <strong>Submit</strong>.</p></li>
       </ol>
 
-      <p class="section-title">Step 2 — Configure OAuth 2.0</p>
+      <p class="section-title">Step 2 — Create an app</p>
       <ol class="steps">
-        <li><span class="step-num">1</span><p>Under <strong>App permissions</strong>, select <strong>Read and write</strong>.</p></li>
-        <li><span class="step-num">2</span><p>Under <strong>Type of App</strong>, select <strong>Web App, Automated App or Bot</strong>.</p></li>
-        <li><span class="step-num">3</span><p>Set <strong>Callback URI / Redirect URL</strong> to: <code>http://localhost:8001/api/oauth/callback/twitter</code></p></li>
-        <li><span class="step-num">4</span><p>Set <strong>Website URL</strong> to anything valid (e.g. <code>https://example.com</code>).</p></li>
-        <li><span class="step-num">5</span><p>Click <strong>Save</strong>. Twitter will show you a <strong>Client ID</strong> and <strong>Client Secret</strong>.</p></li>
+        <li><span class="step-num">1</span><p>From the dashboard, click <strong>Create App</strong> (or <strong>+ Add App</strong> if you're inside a Project).</p></li>
+        <li><span class="step-num">2</span><p>Give it a name like <em>My Adjutant</em>.</p></li>
+        <li><span class="step-num">3</span><p>When asked to choose an environment, select <strong>Development</strong> — this is fine for personal use and doesn't require any review process.</p></li>
+        <li><span class="step-num">4</span><p>After the app is created, X will show you a <strong>Bearer Token</strong>, <strong>Consumer Key</strong>, and <strong>Consumer Secret</strong>. These are for OAuth 1.0a — you don't need them. You can dismiss or save them somewhere safe, but Adjutant doesn't use them.</p></li>
+      </ol>
+
+      <p class="section-title">Step 3 — Set up User Authentication (OAuth 2.0)</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>From your app's panel in the dashboard, scroll down to <strong>User authentication settings</strong> and click <strong>Set up</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Under <strong>App permissions</strong>, select <strong>Read, Write, and Direct Message</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Under <strong>Type of App</strong>, select <strong>Web App, Automated App or Bot</strong>.</p></li>
+        <li><span class="step-num">4</span><p>Set <strong>Callback URI / Redirect URL</strong> to: <code>http://localhost:8001/api/oauth/callback/twitter</code></p></li>
+        <li><span class="step-num">5</span><p>Set <strong>Website URL</strong> to anything valid (e.g. <code>https://example.com</code>).</p></li>
+        <li><span class="step-num">6</span><p>Click <strong>Save</strong>. X will now show you an OAuth 2.0 <strong>Client ID</strong> and <strong>Client Secret</strong> — copy both.</p></li>
       </ol>
 
       <hr class="divider">
@@ -185,7 +198,7 @@
         <div class="field-row"><span class="field-key">Client Secret</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Client Secret</strong> field</span></div>
       </div>
 
-      <div class="tip"><strong>Note:</strong> The API Key shown immediately after app creation is for OAuth 1.0a — it's different from the OAuth 2.0 Client ID. Make sure you complete "User authentication settings" to get the right credentials.</div>
+      <div class="tip"><strong>Note:</strong> The Consumer Key / Bearer Token shown right after app creation are OAuth 1.0a credentials — ignore those. The Client ID and Client Secret only appear after you complete the <strong>User authentication settings</strong> step above.</div>
     </div>
 
     <!-- ── LinkedIn ───────────────────────────────────────────────────────── -->
