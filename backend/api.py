@@ -461,6 +461,58 @@ async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
     delete_mcp_server(server_id)
 
 
+# ── Wizard plan ──────────────────────────────────────────────────────────────
+
+@router.post("/wizard-plan")
+async def generate_wizard_plan(body: dict, _=Depends(_auth)):
+    """Use Claude to derive workstream and objective suggestions from user intent text."""
+    import anthropic
+    import json as _json
+    intent = (body.get("intent") or "").strip()
+    if not intent:
+        raise HTTPException(status_code=422, detail="intent is required")
+
+    client = anthropic.Anthropic()
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": f"""You are helping set up an AI agent system. A user described what they want the system to do:
+
+<intent>
+{intent}
+</intent>
+
+Based on this, suggest:
+1. 2-5 workstreams (automated recurring tasks the AI should run on a schedule)
+2. 1-3 objectives (measurable goals to track progress toward)
+3. Required integrations from this list only: gmail, google_calendar, twitter, linkedin, facebook, instagram
+
+Respond with ONLY valid JSON in this exact format, no explanation:
+{{
+  "workstreams": [
+    {{"name": "string", "mission": "string describing what the AI does", "schedule": "daily|weekly|monthly|none"}}
+  ],
+  "objectives": [
+    {{"text": "string describing the goal", "progress_target": number_or_null}}
+  ],
+  "required_integrations": ["gmail", "twitter"]
+}}"""
+        }],
+    )
+
+    try:
+        raw = message.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return _json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to parse AI response")
+
+
 # ── File upload ───────────────────────────────────────────────────────────────
 
 _IMAGE_PDF_LIMIT = 20 * 1024 * 1024   # 20 MB

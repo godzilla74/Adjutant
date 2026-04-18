@@ -232,6 +232,16 @@ export const api = {
     return res.json()
   },
 
+  getWizardPlan: (pw: string, intent: string) =>
+    apiFetch<{
+      workstreams: Array<{ name: string; mission: string; schedule: string }>
+      objectives: Array<{ text: string; progress_target: number | null }>
+      required_integrations: string[]
+    }>('/api/wizard-plan', pw, {
+      method: 'POST',
+      body: JSON.stringify({ intent }),
+    }),
+
   getSocialSettings: (pw: string) =>
     apiFetch<{
       twitter_client_id: string; linkedin_client_id: string; meta_app_id: string;
