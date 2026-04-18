@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Product, ProductState, Workstream, Objective } from '../types'
 import ProductDropdown from './ProductDropdown'
 import OverviewSettings from './settings/OverviewSettings'
@@ -67,7 +67,6 @@ export default function SettingsPage({
 
   const navItem = (key: Tab, label: string, icon: string) => (
     <button
-      key={key}
       data-testid={`settings-tab-${key}`}
       onClick={() => setTab(key)}
       className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm text-left transition-colors ${
@@ -135,7 +134,7 @@ export default function SettingsPage({
               Product
               <span className="px-1 py-0.5 rounded text-[7px] bg-blue-900 text-blue-300 font-bold">this product</span>
             </div>
-            {PRODUCT_TABS.map(t => navItem(t.key, t.label, t.icon))}
+            {PRODUCT_TABS.map(t => <Fragment key={t.key}>{navItem(t.key, t.label, t.icon)}</Fragment>)}
           </div>
 
           {/* Integration tabs */}
@@ -144,7 +143,7 @@ export default function SettingsPage({
               Integrations
               <span className="px-1 py-0.5 rounded text-[7px] bg-blue-900 text-blue-300 font-bold">this product</span>
             </div>
-            {INTEGRATION_TABS.map(t => navItem(t.key, t.label, t.icon))}
+            {INTEGRATION_TABS.map(t => <Fragment key={t.key}>{navItem(t.key, t.label, t.icon)}</Fragment>)}
           </div>
 
           {/* Global tabs */}
@@ -153,7 +152,7 @@ export default function SettingsPage({
               Global
               <span className="px-1 py-0.5 rounded text-[7px] bg-purple-900 text-purple-300 font-bold">all products</span>
             </div>
-            {GLOBAL_TABS.map(t => navItem(t.key, t.label, t.icon))}
+            {GLOBAL_TABS.map(t => <Fragment key={t.key}>{navItem(t.key, t.label, t.icon)}</Fragment>)}
           </div>
         </nav>
 
