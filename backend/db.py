@@ -1274,6 +1274,12 @@ _AGENT_CONFIG_DEFAULTS = {
     "agent_name":                 os.environ.get("AGENT_NAME", "Adjutant"),
     "google_oauth_client_id":     "",
     "google_oauth_client_secret": "",
+    "twitter_client_id":          "",
+    "twitter_client_secret":      "",
+    "linkedin_client_id":         "",
+    "linkedin_client_secret":     "",
+    "meta_app_id":                "",
+    "meta_app_secret":            "",
 }
 
 def get_agent_config() -> dict:
