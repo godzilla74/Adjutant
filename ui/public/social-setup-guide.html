@@ -5,181 +5,265 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Social Platform Setup Guide — Adjutant</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #0f1117;
       color: #c9d1d9;
-      line-height: 1.65;
-      padding: 40px 20px 80px;
+      line-height: 1.7;
+      padding: 48px 24px 96px;
     }
-    .container { max-width: 760px; margin: 0 auto; }
-    h1 { font-size: 1.6rem; font-weight: 700; color: #e6edf3; margin-bottom: 8px; }
-    .subtitle { color: #8b949e; font-size: 0.9rem; margin-bottom: 48px; }
-    h2 { font-size: 1.1rem; font-weight: 700; color: #e6edf3; margin-bottom: 16px; }
-    h3 { font-size: 0.85rem; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
-    p { margin-bottom: 12px; font-size: 0.9rem; }
-    ol { padding-left: 20px; margin-bottom: 16px; }
-    ol li { font-size: 0.9rem; margin-bottom: 8px; }
-    a { color: #58a6ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .platform { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 28px; margin-bottom: 28px; }
-    .platform-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-    .platform-icon { font-size: 1.4rem; }
-    .platform-name { font-size: 1.1rem; font-weight: 700; color: #e6edf3; }
-    .step-list { counter-reset: step; list-style: none; padding: 0; }
-    .step-list li { counter-increment: step; display: flex; gap: 14px; margin-bottom: 14px; font-size: 0.9rem; }
-    .step-list li::before {
-      content: counter(step);
+
+    .container { max-width: 700px; margin: 0 auto; }
+
+    /* back link */
+    .back { display: inline-block; font-size: 0.8rem; color: #8b949e; margin-bottom: 36px; cursor: pointer; }
+    .back:hover { color: #58a6ff; }
+
+    /* page header */
+    h1 { font-size: 1.5rem; font-weight: 700; color: #e6edf3; margin-bottom: 6px; }
+    .subtitle { font-size: 0.875rem; color: #8b949e; margin-bottom: 48px; }
+
+    /* platform cards */
+    .platform {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 32px;
+    }
+
+    .platform-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .platform-icon { font-size: 1.5rem; line-height: 1; }
+    .platform-name { font-size: 1.05rem; font-weight: 700; color: #e6edf3; }
+
+    /* section headings inside cards */
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #58a6ff;
+      margin-bottom: 12px;
+      margin-top: 24px;
+    }
+
+    .section-title:first-of-type { margin-top: 0; }
+
+    /* numbered steps */
+    .steps { list-style: none; padding: 0; margin-bottom: 0; }
+
+    .steps li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      font-size: 0.875rem;
+      margin-bottom: 10px;
+    }
+
+    .steps li:last-child { margin-bottom: 0; }
+
+    .step-num {
       flex-shrink: 0;
-      width: 24px; height: 24px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
       background: #21262d;
       border: 1px solid #30363d;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.75rem; font-weight: 700; color: #8b949e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #8b949e;
       margin-top: 1px;
     }
+
+    .steps li p { margin: 0; }
+
+    /* divider before "What to paste" section */
+    .divider {
+      border: none;
+      border-top: 1px solid #21262d;
+      margin: 20px 0;
+    }
+
+    /* field mapping table */
+    .field-map { display: flex; flex-direction: column; gap: 6px; margin-bottom: 0; }
+
+    .field-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    .field-key {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.78rem;
+      color: #79c0ff;
+      white-space: nowrap;
+    }
+
+    .field-arrow { color: #484f58; font-size: 0.8rem; }
+    .field-dest { color: #c9d1d9; }
+
+    /* inline code */
     code {
-      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
-      font-size: 0.82rem;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.8rem;
       background: #21262d;
       border: 1px solid #30363d;
       border-radius: 4px;
-      padding: 1px 6px;
+      padding: 1px 5px;
       color: #d2a8ff;
     }
+
+    /* tip box */
     .tip {
-      background: #0d1117;
+      margin-top: 18px;
+      padding: 12px 16px;
+      background: transparent;
       border: 1px solid #30363d;
       border-left: 3px solid #388bfd;
       border-radius: 6px;
-      padding: 12px 16px;
-      margin-top: 16px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       color: #8b949e;
     }
-    .tip strong { color: #58a6ff; }
-    .where-to-put { margin-top: 20px; padding-top: 20px; border-top: 1px solid #21262d; }
-    .field-row { display: flex; gap: 8px; align-items: baseline; margin-bottom: 6px; font-size: 0.88rem; }
-    .field-label { font-family: monospace; color: #79c0ff; font-size: 0.82rem; min-width: 140px; }
-    .back-link { display: inline-block; margin-bottom: 32px; color: #8b949e; font-size: 0.85rem; }
-    .back-link:hover { color: #58a6ff; }
+
+    .tip strong { color: #79c0ff; }
+
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="container">
-    <a href="javascript:history.back()" class="back-link">← Back to Settings</a>
-    <h1>Social Platform Setup Guide</h1>
-    <p class="subtitle">Step-by-step instructions for creating developer apps on each platform and finding the credentials Adjutant needs.</p>
 
-    <!-- Twitter / X -->
+    <a class="back" onclick="history.back()">← Back to Settings</a>
+
+    <h1>Social Platform Setup Guide</h1>
+    <p class="subtitle">How to create developer apps on Twitter/X, LinkedIn, and Meta — and where to find the credentials Adjutant needs.</p>
+
+    <!-- ── Twitter / X ───────────────────────────────────────────────────── -->
     <div class="platform">
       <div class="platform-header">
         <span class="platform-icon">𝕏</span>
         <span class="platform-name">Twitter / X</span>
       </div>
 
-      <h3>Step 1 — Create a Developer App</h3>
-      <ol class="step-list">
-        <li>Go to <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noreferrer">developer.twitter.com/en/portal/dashboard</a> and sign in with your Twitter account.</li>
-        <li>Click <strong>+ Add App</strong> (or create a new Project and add an App inside it).</li>
-        <li>Give your app a name (e.g. <em>My Adjutant</em>) and click <strong>Next</strong>.</li>
-        <li>You'll see your API Key and API Secret — you won't need these for OAuth 2.0, but save them anyway.</li>
-        <li>Click <strong>App Settings</strong>, then scroll to <strong>User authentication settings</strong> and click <strong>Set up</strong>.</li>
+      <p class="section-title">Step 1 — Create a developer app</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Go to <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noreferrer">developer.twitter.com/en/portal/dashboard</a> and sign in with your Twitter account.</p></li>
+        <li><span class="step-num">2</span><p>Click <strong>+ Add App</strong> (or create a new Project first, then add an App inside it). Give it a name like <em>My Adjutant</em>.</p></li>
+        <li><span class="step-num">3</span><p>In your app's dashboard, click the <strong>App Settings</strong> tab, then scroll to <strong>User authentication settings</strong> and click <strong>Set up</strong>.</p></li>
       </ol>
 
-      <h3>Step 2 — Configure OAuth 2.0</h3>
-      <ol class="step-list">
-        <li>Under <strong>App permissions</strong>, select <strong>Read and write</strong>.</li>
-        <li>Under <strong>Type of App</strong>, select <strong>Web App, Automated App or Bot</strong>.</li>
-        <li>Set the <strong>Callback URI / Redirect URL</strong> to: <code>http://localhost:7079/api/oauth/callback/twitter</code> (replace the port if yours differs).</li>
-        <li>Set the <strong>Website URL</strong> to anything (e.g. <code>https://example.com</code>).</li>
-        <li>Click <strong>Save</strong>. You'll see your <strong>Client ID</strong> and <strong>Client Secret</strong>.</li>
+      <p class="section-title">Step 2 — Configure OAuth 2.0</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Under <strong>App permissions</strong>, select <strong>Read and write</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Under <strong>Type of App</strong>, select <strong>Web App, Automated App or Bot</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Set <strong>Callback URI / Redirect URL</strong> to: <code>http://localhost:8001/api/oauth/callback/twitter</code></p></li>
+        <li><span class="step-num">4</span><p>Set <strong>Website URL</strong> to anything valid (e.g. <code>https://example.com</code>).</p></li>
+        <li><span class="step-num">5</span><p>Click <strong>Save</strong>. Twitter will show you a <strong>Client ID</strong> and <strong>Client Secret</strong>.</p></li>
       </ol>
 
-      <div class="where-to-put">
-        <h3>What to paste in Adjutant Settings</h3>
-        <div class="field-row"><span class="field-label">Client ID</span> → paste into <strong>Client ID</strong> field</div>
-        <div class="field-row"><span class="field-label">Client Secret</span> → paste into <strong>Client Secret</strong> field</div>
+      <hr class="divider">
+
+      <p class="section-title">What to paste into Adjutant</p>
+      <div class="field-map">
+        <div class="field-row"><span class="field-key">Client ID</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Client ID</strong> field</span></div>
+        <div class="field-row"><span class="field-key">Client Secret</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Client Secret</strong> field</span></div>
       </div>
 
-      <div class="tip"><strong>Tip:</strong> If you don't see OAuth 2.0 credentials, make sure you completed "User authentication settings" — the API Key shown after app creation is for OAuth 1.0a and is different.</div>
+      <div class="tip"><strong>Note:</strong> The API Key shown immediately after app creation is for OAuth 1.0a — it's different from the OAuth 2.0 Client ID. Make sure you complete "User authentication settings" to get the right credentials.</div>
     </div>
 
-    <!-- LinkedIn -->
+    <!-- ── LinkedIn ───────────────────────────────────────────────────────── -->
     <div class="platform">
       <div class="platform-header">
         <span class="platform-icon">🔵</span>
         <span class="platform-name">LinkedIn</span>
       </div>
 
-      <h3>Step 1 — Create a LinkedIn App</h3>
-      <ol class="step-list">
-        <li>Go to <a href="https://www.linkedin.com/developers/apps/new" target="_blank" rel="noreferrer">linkedin.com/developers/apps/new</a> and sign in.</li>
-        <li>Fill in the <strong>App name</strong> (e.g. <em>My Adjutant</em>), select a <strong>LinkedIn Page</strong> to associate (create one if needed — a personal page works), upload any logo, agree to the terms, and click <strong>Create app</strong>.</li>
-        <li>You'll land on the App dashboard. Click the <strong>Auth</strong> tab.</li>
+      <p class="section-title">Step 1 — Create a LinkedIn app</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Go to <a href="https://www.linkedin.com/developers/apps/new" target="_blank" rel="noreferrer">linkedin.com/developers/apps/new</a> and sign in.</p></li>
+        <li><span class="step-num">2</span><p>Fill in the <strong>App name</strong> (e.g. <em>My Adjutant</em>). You need to associate it with a LinkedIn Page — a personal page works fine. Upload any logo, accept the terms, then click <strong>Create app</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Once the app is created, click the <strong>Auth</strong> tab.</p></li>
       </ol>
 
-      <h3>Step 2 — Configure OAuth</h3>
-      <ol class="step-list">
-        <li>Under <strong>OAuth 2.0 settings → Authorized redirect URLs for your app</strong>, click the pencil icon and add: <code>http://localhost:7079/api/oauth/callback/linkedin</code></li>
-        <li>Click <strong>Update</strong>.</li>
-        <li>Your <strong>Client ID</strong> and <strong>Client Secret</strong> are shown at the top of the Auth tab.</li>
+      <p class="section-title">Step 2 — Set the redirect URL</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Under <strong>OAuth 2.0 settings → Authorized redirect URLs</strong>, click the pencil icon and add: <code>http://localhost:8001/api/oauth/callback/linkedin</code></p></li>
+        <li><span class="step-num">2</span><p>Click <strong>Update</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Your <strong>Client ID</strong> and <strong>Client Secret</strong> are shown at the top of the Auth tab.</p></li>
       </ol>
 
-      <h3>Step 3 — Request the right permissions</h3>
-      <ol class="step-list">
-        <li>Click the <strong>Products</strong> tab.</li>
-        <li>Find <strong>Share on LinkedIn</strong> and click <strong>Request access</strong>. This is usually approved instantly.</li>
+      <p class="section-title">Step 3 — Request posting permission</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Click the <strong>Products</strong> tab.</p></li>
+        <li><span class="step-num">2</span><p>Find <strong>Share on LinkedIn</strong> and click <strong>Request access</strong>. This is usually approved instantly.</p></li>
       </ol>
 
-      <div class="where-to-put">
-        <h3>What to paste in Adjutant Settings</h3>
-        <div class="field-row"><span class="field-label">Client ID</span> → paste into <strong>Client ID</strong> field</div>
-        <div class="field-row"><span class="field-label">Client Secret</span> → paste into <strong>Client Secret</strong> field</div>
+      <hr class="divider">
+
+      <p class="section-title">What to paste into Adjutant</p>
+      <div class="field-map">
+        <div class="field-row"><span class="field-key">Client ID</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Client ID</strong> field</span></div>
+        <div class="field-row"><span class="field-key">Client Secret</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Client Secret</strong> field</span></div>
       </div>
 
-      <div class="tip"><strong>Tip:</strong> The Client Secret is only shown once when the app is first created. If you missed it, go to the <strong>Auth</strong> tab → <strong>Application credentials</strong> and click <strong>Regenerate</strong>.</div>
+      <div class="tip"><strong>Note:</strong> The Client Secret is only shown once when the app is first created. If you missed it, go to the <strong>Auth</strong> tab → <strong>Application credentials</strong> and click <strong>Regenerate</strong>.</div>
     </div>
 
-    <!-- Meta -->
+    <!-- ── Meta ──────────────────────────────────────────────────────────── -->
     <div class="platform">
       <div class="platform-header">
         <span class="platform-icon">🌐</span>
         <span class="platform-name">Meta (Facebook &amp; Instagram)</span>
       </div>
 
-      <h3>Step 1 — Create a Meta App</h3>
-      <ol class="step-list">
-        <li>Go to <a href="https://developers.facebook.com/apps/create/" target="_blank" rel="noreferrer">developers.facebook.com/apps/create</a> and sign in with your Facebook account.</li>
-        <li>Select <strong>Other</strong> as the use case, then click <strong>Next</strong>.</li>
-        <li>Select <strong>Business</strong> as the app type, then click <strong>Next</strong>.</li>
-        <li>Enter an <strong>App name</strong> (e.g. <em>My Adjutant</em>). You can leave the Business Account blank. Click <strong>Create app</strong>.</li>
+      <p class="section-title">Step 1 — Create a Meta app</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Go to <a href="https://developers.facebook.com/apps/create/" target="_blank" rel="noreferrer">developers.facebook.com/apps/create</a> and sign in with your Facebook account.</p></li>
+        <li><span class="step-num">2</span><p>When asked for a use case, select <strong>Other</strong>, then click <strong>Next</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Select <strong>Business</strong> as the app type, then click <strong>Next</strong>.</p></li>
+        <li><span class="step-num">4</span><p>Enter an app name (e.g. <em>My Adjutant</em>), leave Business Account blank, and click <strong>Create app</strong>.</p></li>
       </ol>
 
-      <h3>Step 2 — Find your App ID and App Secret</h3>
-      <ol class="step-list">
-        <li>In the left sidebar, click <strong>App settings → Basic</strong>.</li>
-        <li>Your <strong>App ID</strong> is shown at the top.</li>
-        <li>Click <strong>Show</strong> next to <strong>App secret</strong>, verify your password, and copy the secret.</li>
+      <p class="section-title">Step 2 — Find your App ID and App Secret</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, go to <strong>App settings → Basic</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Your <strong>App ID</strong> is shown at the top of that page.</p></li>
+        <li><span class="step-num">3</span><p>Click <strong>Show</strong> next to <strong>App secret</strong>, verify your password, and copy it.</p></li>
       </ol>
 
-      <h3>Step 3 — Add the Facebook Login product</h3>
-      <ol class="step-list">
-        <li>In the left sidebar, click <strong>Add product</strong>.</li>
-        <li>Find <strong>Facebook Login for Business</strong> (or <strong>Facebook Login</strong>) and click <strong>Set up</strong>.</li>
-        <li>Choose <strong>Web</strong>, enter your site URL (<code>http://localhost:7079</code>), and click <strong>Save</strong>.</li>
-        <li>In the Facebook Login settings, add to <strong>Valid OAuth Redirect URIs</strong>: <code>http://localhost:7079/api/oauth/callback/meta</code> and click <strong>Save changes</strong>.</li>
+      <p class="section-title">Step 3 — Add the Facebook Login product</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, click <strong>Add product</strong>, then find <strong>Facebook Login for Business</strong> and click <strong>Set up</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Choose <strong>Web</strong>, enter your site URL (<code>http://localhost:8001</code>), and click <strong>Save</strong>.</p></li>
+        <li><span class="step-num">3</span><p>In the Facebook Login settings, add to <strong>Valid OAuth Redirect URIs</strong>: <code>http://localhost:8001/api/oauth/callback/meta</code> — then click <strong>Save changes</strong>.</p></li>
       </ol>
 
-      <div class="where-to-put">
-        <h3>What to paste in Adjutant Settings</h3>
-        <div class="field-row"><span class="field-label">App ID</span> → paste into <strong>App ID</strong> field</div>
-        <div class="field-row"><span class="field-label">App Secret</span> → paste into <strong>App Secret</strong> field</div>
+      <hr class="divider">
+
+      <p class="section-title">What to paste into Adjutant</p>
+      <div class="field-map">
+        <div class="field-row"><span class="field-key">App ID</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>App ID</strong> field</span></div>
+        <div class="field-row"><span class="field-key">App Secret</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>App Secret</strong> field</span></div>
       </div>
 
-      <div class="tip"><strong>Tip:</strong> While your app is in <em>Development mode</em> you can only post to pages and accounts that are listed as Testers or Developers on the app. To post publicly, you'll need to submit the app for review — but for personal use, development mode is fine.</div>
+      <div class="tip"><strong>Note:</strong> While your app is in <em>Development mode</em>, posts can only go to accounts listed as Testers or Developers on the app. For personal use, development mode is fine. To post publicly without restrictions, you'd need to submit the app for Meta's review process.</div>
     </div>
 
   </div>
