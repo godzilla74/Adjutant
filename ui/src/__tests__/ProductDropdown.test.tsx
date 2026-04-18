@@ -49,6 +49,7 @@ describe('ProductDropdown', () => {
     fireEvent.click(screen.getByText('Acme Corp'))
     fireEvent.click(screen.getByText('Side Project'))
     expect(onSelect).toHaveBeenCalledWith('p2')
+    expect(screen.queryByText('Side Project')).not.toBeInTheDocument()
   })
 
   it('calls onNewProduct when New Product is clicked', () => {
@@ -63,7 +64,7 @@ describe('ProductDropdown', () => {
     )
     fireEvent.click(screen.getByText('Acme Corp'))
     fireEvent.click(screen.getByText('New Product'))
-    expect(onNew).toHaveBeenCalled()
+    expect(onNew).toHaveBeenCalledTimes(1)
   })
 
   it('shows checkmark on active product', () => {
@@ -78,6 +79,21 @@ describe('ProductDropdown', () => {
     fireEvent.click(screen.getByText('Acme Corp'))
     const p1Item = screen.getByTestId('product-item-p1')
     expect(p1Item).toHaveTextContent('✓')
+  })
+
+  it('closes when clicking outside', () => {
+    render(
+      <ProductDropdown
+        products={PRODUCTS}
+        activeProductId="p1"
+        onSelect={vi.fn()}
+        onNewProduct={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('Acme Corp'))
+    expect(screen.getByText('Side Project')).toBeInTheDocument()
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByText('Side Project')).not.toBeInTheDocument()
   })
 
   it('closes on Escape key', () => {

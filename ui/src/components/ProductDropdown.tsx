@@ -32,6 +32,8 @@ export default function ProductDropdown({ products, activeProductId, onSelect, o
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-adj-panel border border-adj-border text-adj-text-primary text-sm font-medium hover:border-adj-accent transition-colors"
       >
         {active && (
@@ -42,13 +44,15 @@ export default function ProductDropdown({ products, activeProductId, onSelect, o
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-52 bg-adj-surface border border-adj-border rounded-lg shadow-xl z-50 overflow-hidden">
-          <div className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
+        <div id="product-listbox" role="listbox" aria-labelledby="products-label" className="absolute top-full left-0 mt-1 w-52 bg-adj-surface border border-adj-border rounded-lg shadow-xl z-50 overflow-hidden">
+          <div id="products-label" className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
             Your Products
           </div>
           {products.map(p => (
             <button
               key={p.id}
+              role="option"
+              aria-selected={p.id === activeProductId}
               data-testid={`product-item-${p.id}`}
               onClick={() => { onSelect(p.id); setOpen(false) }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-adj-elevated transition-colors"
