@@ -1,7 +1,9 @@
 # tests/test_social_oauth.py
+import asyncio
 import importlib
 import os
 import pytest
+from unittest.mock import AsyncMock, patch, MagicMock
 
 os.environ.setdefault("AGENT_PASSWORD", "testpass")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
@@ -27,8 +29,6 @@ def test_social_credential_keys_have_defaults(db):
     assert config["twitter_client_id"] == ""
     assert config["meta_app_id"] == ""
 
-from unittest.mock import AsyncMock, patch, MagicMock
-import asyncio
 
 
 def test_build_twitter_auth_url(db):
@@ -56,7 +56,6 @@ def test_build_meta_auth_url(db):
 
 def test_build_authorization_url_unknown_service():
     from backend.social_oauth import build_authorization_url
-    import pytest
     with pytest.raises(ValueError, match="Unknown service"):
         build_authorization_url("prod-1", "badservice", "cid")
 

@@ -226,6 +226,9 @@ async def get_valid_access_token(product_id: str, service: str) -> str:
             expiry = expiry.replace(tzinfo=timezone.utc)
         if expiry - datetime.now(timezone.utc) > timedelta(seconds=60):
             return conn["access_token"]
+    else:
+        # No expiry recorded — treat token as valid
+        return conn["access_token"]
 
     # LinkedIn: no refresh token — raise to notify user
     if service == "linkedin":
