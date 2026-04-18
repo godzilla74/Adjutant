@@ -372,8 +372,9 @@ class TelegramTokenRequest(BaseModel):
 def _get_telegram_creds() -> tuple[str, str]:
     """Return (token, chat_id) — env vars take precedence over DB."""
     from backend.db import get_agent_config
-    token   = os.environ.get("TELEGRAM_BOT_TOKEN") or get_agent_config("telegram_bot_token") or ""
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")   or get_agent_config("telegram_chat_id")   or ""
+    cfg = get_agent_config()
+    token   = os.environ.get("TELEGRAM_BOT_TOKEN") or cfg.get("telegram_bot_token") or ""
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")   or cfg.get("telegram_chat_id")   or ""
     return token, chat_id
 
 
