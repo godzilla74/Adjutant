@@ -4,6 +4,7 @@ import { api } from '../api'
 type Step = 1 | 2 | 3 | 4
 
 interface WsSuggestion {
+  id: string
   name: string
   mission: string
   schedule: string
@@ -11,6 +12,7 @@ interface WsSuggestion {
   source: 'ai' | 'user'
 }
 interface ObjSuggestion {
+  id: string
   text: string
   progress_target: number | null
   checked: boolean
@@ -33,8 +35,10 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
   const [icon, setIcon]     = useState('🚀')
   const [color, setColor]   = useState(COLORS[0])
   const [loading, setLoading] = useState(false)
+  const [planError, setPlanError] = useState<string | null>(null)
   const [workstreams, setWorkstreams] = useState<WsSuggestion[]>([])
   const [objectives,  setObjectives]  = useState<ObjSuggestion[]>([])
+  const [requiredIntegrations, setRequiredIntegrations] = useState<string[]>([])
   const [addingWs,  setAddingWs]  = useState(false)
   const [addingObj, setAddingObj] = useState(false)
   const [newWsName, setNewWsName] = useState('')
@@ -45,22 +49,23 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
 
   const advanceFromStep2 = async () => {
     setLoading(true)
+    setPlanError(null)
     try {
       const plan = await api.getWizardPlan(password, intent)
-      setWorkstreams(plan.workstreams.map(w => ({ ...w, checked: true, source: 'ai' as const })))
-      setObjectives(plan.objectives.map(o => ({ ...o, checked: true, source: 'ai' as const })))
+      setWorkstreams(plan.workstreams.map(w => ({ ...w, id: crypto.randomUUID(), checked: true, source: 'ai' as const })))
+      setObjectives(plan.objectives.map(o => ({ ...o, id: crypto.randomUUID(), checked: true, source: 'ai' as const })))
+      setRequiredIntegrations(plan.required_integrations)
+      setStep(3)
     } catch {
-      setWorkstreams([])
-      setObjectives([])
+      setPlanError('Could not generate a plan. Check your connection and try again.')
     } finally {
       setLoading(false)
     }
-    setStep(3)
   }
 
   const addUserWs = () => {
     if (!newWsName.trim()) return
-    setWorkstreams(ws => [...ws, { name: newWsName.trim(), mission: '', schedule: newWsSched, checked: true, source: 'user' }])
+    setWorkstreams(ws => [...ws, { id: crypto.randomUUID(), name: newWsName.trim(), mission: '', schedule: newWsSched, checked: true, source: 'user' }])
     setNewWsName('')
     setNewWsSched('daily')
     setAddingWs(false)
@@ -68,7 +73,7 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
 
   const addUserObj = () => {
     if (!newObjText.trim()) return
-    setObjectives(os => [...os, { text: newObjText.trim(), progress_target: null, checked: true, source: 'user' }])
+    setObjectives(os => [...os, { id: crypto.randomUUID(), text: newObjText.trim(), progress_target: null, checked: true, source: 'user' }])
     setNewObjText('')
     setAddingObj(false)
   }
@@ -118,6 +123,16 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
                   value={intent}
                   onChange={e => setIntent(e.target.value)}
                 />
+                <p className="text-xs text-adj-text-faint mt-2">
+                  Not sure what to write?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIntent("I run a marketing agency. I want Adjutant to manage social media posts across Instagram and LinkedIn, send a weekly email newsletter to clients, monitor competitor blogs, and flag anything that needs my approval before it goes out.")}
+                    className="text-adj-accent hover:underline"
+                  >
+                    See examples →
+                  </button>
+                </p>
                 <div className="flex justify-end mt-4">
                   <button
                     onClick={advanceFromStep1}
@@ -147,7 +162,7 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
                   </div>
                   <div className="w-20">
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">Icon</label>
-                    <input className="w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-center text-adj-text-primary focus:outline-none focus:border-adj-accent" value={icon} onChange={e => setIcon(e.target.value)} />
+                    <input maxLength={2} className="w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-center text-adj-text-primary focus:outline-none focus:border-adj-accent" value={icon} onChange={e => setIcon(e.target.value)} />
                   </div>
                 </div>
                 <div className="mb-6">
@@ -168,6 +183,7 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
                     {loading ? 'Building plan…' : 'Continue →'}
                   </button>
                 </div>
+                {planError && <p className="text-xs text-red-400 mt-2 text-right">{planError}</p>}
               </div>
             )}
 
@@ -183,13 +199,13 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
                     <span className="text-[10px] font-bold uppercase tracking-wider text-adj-text-faint">⟳ Workstreams</span>
                     <button onClick={() => setAddingWs(true)} className="text-[10px] text-adj-accent border border-dashed border-adj-accent px-2 py-0.5 rounded hover:bg-adj-elevated transition-colors">+ Add workstream</button>
                   </div>
-                  {workstreams.map((ws, i) => (
-                    <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-md mb-1.5 border ${ws.checked ? 'bg-adj-panel border-adj-accent-dark' : 'bg-adj-panel border-adj-border opacity-50'}`}>
-                      <input type="checkbox" checked={ws.checked} onChange={e => setWorkstreams(wss => wss.map((w, j) => j === i ? { ...w, checked: e.target.checked } : w))} className="accent-adj-accent" />
+                  {workstreams.map((ws) => (
+                    <div key={ws.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md mb-1.5 border ${ws.checked ? 'bg-adj-panel border-adj-accent-dark' : 'bg-adj-panel border-adj-border opacity-50'}`}>
+                      <input type="checkbox" checked={ws.checked} onChange={e => setWorkstreams(wss => wss.map((w) => w.id === ws.id ? { ...w, checked: e.target.checked } : w))} className="accent-adj-accent" />
                       <span className="text-xs text-adj-text-primary flex-1">{ws.name}</span>
                       <span className="text-[9px] text-adj-text-muted">{ws.schedule}</span>
                       <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold ${ws.source === 'ai' ? 'bg-green-900 text-green-400' : 'bg-amber-900 text-amber-400'}`}>{ws.source === 'ai' ? 'AI' : 'YOU'}</span>
-                      {ws.source === 'user' && <button onClick={() => setWorkstreams(wss => wss.filter((_, j) => j !== i))} className="text-adj-text-faint hover:text-red-400 text-sm transition-colors">×</button>}
+                      {ws.source === 'user' && <button onClick={() => setWorkstreams(wss => wss.filter(w => w.id !== ws.id))} className="text-adj-text-faint hover:text-red-400 text-sm transition-colors">×</button>}
                     </div>
                   ))}
                   {addingWs && (
@@ -213,13 +229,13 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
                     <span className="text-[10px] font-bold uppercase tracking-wider text-adj-text-faint">◎ Objectives</span>
                     <button onClick={() => setAddingObj(true)} className="text-[10px] text-adj-accent border border-dashed border-adj-accent px-2 py-0.5 rounded hover:bg-adj-elevated transition-colors">+ Add objective</button>
                   </div>
-                  {objectives.map((obj, i) => (
-                    <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-md mb-1.5 border ${obj.checked ? 'bg-adj-panel border-adj-accent-dark' : 'bg-adj-panel border-adj-border opacity-50'}`}>
-                      <input type="checkbox" checked={obj.checked} onChange={e => setObjectives(os => os.map((o, j) => j === i ? { ...o, checked: e.target.checked } : o))} className="accent-adj-accent" />
+                  {objectives.map((obj) => (
+                    <div key={obj.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md mb-1.5 border ${obj.checked ? 'bg-adj-panel border-adj-accent-dark' : 'bg-adj-panel border-adj-border opacity-50'}`}>
+                      <input type="checkbox" checked={obj.checked} onChange={e => setObjectives(os => os.map((o) => o.id === obj.id ? { ...o, checked: e.target.checked } : o))} className="accent-adj-accent" />
                       <span className="text-xs text-adj-text-primary flex-1">{obj.text}</span>
                       {obj.progress_target != null && <span className="text-[9px] text-adj-text-muted">target: {obj.progress_target}</span>}
                       <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold ${obj.source === 'ai' ? 'bg-green-900 text-green-400' : 'bg-amber-900 text-amber-400'}`}>{obj.source === 'ai' ? 'AI' : 'YOU'}</span>
-                      {obj.source === 'user' && <button onClick={() => setObjectives(os => os.filter((_, j) => j !== i))} className="text-adj-text-faint hover:text-red-400 text-sm transition-colors">×</button>}
+                      {obj.source === 'user' && <button onClick={() => setObjectives(os => os.filter(o => o.id !== obj.id))} className="text-adj-text-faint hover:text-red-400 text-sm transition-colors">×</button>}
                     </div>
                   ))}
                   {addingObj && (
@@ -241,8 +257,21 @@ export default function ProductWizard({ password, onComplete, onClose }: Props) 
             {step === 4 && (
               <div>
                 <h3 className="text-base font-bold text-adj-text-primary mb-2">Connect apps</h3>
-                <p className="text-xs text-adj-text-muted mb-6">You can connect these later in Settings → Connections. Skip to finish and connect whenever you're ready.</p>
-                <p className="text-sm text-adj-text-secondary mb-6">Your workstreams may need integrations to function fully. Connect them in Settings after your product is created.</p>
+                <p className="text-xs text-adj-text-muted mb-4">
+                  {requiredIntegrations.length > 0
+                    ? 'Your selected workstreams work best with these integrations. Connect now or skip — you can always do this later in Settings → Connections.'
+                    : 'No integrations required. Your product is ready to go!'}
+                </p>
+                {requiredIntegrations.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {requiredIntegrations.map(integration => (
+                      <span key={integration} className="px-3 py-1 bg-adj-panel border border-adj-border rounded-full text-xs text-adj-text-secondary capitalize">
+                        {integration.replace('_', ' ')}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-adj-text-muted mb-6">Connect these in <strong className="text-adj-text-secondary">Settings → Connections</strong> after your product is created.</p>
                 <div className="flex justify-between">
                   <button onClick={() => setStep(3)} className="text-sm text-adj-text-muted hover:text-adj-text-secondary transition-colors">← Back</button>
                   <button onClick={finish} className="px-5 py-2 bg-adj-accent text-white rounded-lg text-sm font-semibold hover:bg-adj-accent-dark transition-colors">
