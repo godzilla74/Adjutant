@@ -201,7 +201,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  startOAuthFlow: (pw: string, productId: string, service: 'gmail' | 'google_calendar') =>
+  startOAuthFlow: (pw: string, productId: string, service: 'gmail' | 'google_calendar' | 'twitter' | 'linkedin' | 'meta') =>
     apiFetch<{ auth_url: string }>(
       `/api/products/${productId}/oauth/start/${service}`, pw,
     ),
@@ -231,4 +231,27 @@ export const api = {
     }
     return res.json()
   },
+
+  getSocialSettings: (pw: string) =>
+    apiFetch<{
+      twitter_client_id: string; linkedin_client_id: string; meta_app_id: string;
+    }>('/api/settings/social-accounts', pw),
+
+  updateTwitterSettings: (pw: string, data: { twitter_client_id?: string; twitter_client_secret?: string }) =>
+    apiFetch<{ ok: boolean }>('/api/settings/social-accounts', pw, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  updateLinkedInSettings: (pw: string, data: { linkedin_client_id?: string; linkedin_client_secret?: string }) =>
+    apiFetch<{ ok: boolean }>('/api/settings/social-accounts', pw, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  updateMetaSettings: (pw: string, data: { meta_app_id?: string; meta_app_secret?: string }) =>
+    apiFetch<{ ok: boolean }>('/api/settings/social-accounts', pw, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 }

@@ -159,6 +159,16 @@ export default function SettingsSidebar({
   const [googleClientSecret, setGoogleClientSecret] = useState('')
   const [googleOAuthSaving, setGoogleOAuthSaving] = useState(false)
 
+  // Social Accounts global settings
+  const [socialOpen, setSocialOpen] = useState(false)
+  const [twitterClientId, setTwitterClientId] = useState('')
+  const [twitterClientSecret, setTwitterClientSecret] = useState('')
+  const [linkedinClientId, setLinkedinClientId] = useState('')
+  const [linkedinClientSecret, setLinkedinClientSecret] = useState('')
+  const [metaAppId, setMetaAppId] = useState('')
+  const [metaAppSecret, setMetaAppSecret] = useState('')
+  const [socialSaving, setSocialSaving] = useState<string | null>(null)
+
   // Product OAuth connections
   const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [oauthConnections, setOauthConnections] = useState<
@@ -276,6 +286,15 @@ export default function SettingsSidebar({
   }, [googleOAuthOpen, password])
 
   useEffect(() => {
+    if (!socialOpen) return
+    api.getSocialSettings(password).then((data) => {
+      setTwitterClientId(data.twitter_client_id || '')
+      setLinkedinClientId(data.linkedin_client_id || '')
+      setMetaAppId(data.meta_app_id || '')
+    }).catch(() => {})
+  }, [socialOpen, password])
+
+  useEffect(() => {
     if (!connectionsOpen || !productId) return
     api.getOAuthConnections(password, productId).then(setOauthConnections).catch(() => {})
   }, [connectionsOpen, password, productId])
@@ -307,7 +326,27 @@ export default function SettingsSidebar({
     }
   }
 
-  async function handleConnectOAuth(service: 'gmail' | 'google_calendar') {
+  async function saveSocialPlatform(
+    platform: 'twitter' | 'linkedin' | 'meta',
+    data: Record<string, string>,
+  ) {
+    setSocialSaving(platform)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (platform === 'twitter') await api.updateTwitterSettings(password, data as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      else if (platform === 'linkedin') await api.updateLinkedInSettings(password, data as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      else await api.updateMetaSettings(password, data as any)
+      setTwitterClientSecret('')
+      setLinkedinClientSecret('')
+      setMetaAppSecret('')
+    } finally {
+      setSocialSaving(null)
+    }
+  }
+
+  async function handleConnectOAuth(service: 'gmail' | 'google_calendar' | 'twitter' | 'linkedin' | 'meta') {
     if (!productId) return
     setConnectingService(service)
     try {
@@ -786,6 +825,56 @@ export default function SettingsSidebar({
             </div>
           )}
 
+          {/* ── Social Accounts ──────────────────────────────────────────── */}
+          <SectionHeader
+            title="Social Accounts"
+            open={socialOpen}
+            onToggle={() => setSocialOpen(o => !o)}
+          />
+          {socialOpen && (
+            <div className="px-4 py-4 space-y-4 border-b border-zinc-800/60">
+              {/* Twitter/X */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-zinc-400">Twitter / X</p>
+                <input type="text" value={twitterClientId} onChange={(e) => setTwitterClientId(e.target.value)}
+                  placeholder="Client ID" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600" />
+                <input type="password" value={twitterClientSecret} onChange={(e) => setTwitterClientSecret(e.target.value)}
+                  placeholder="Client Secret (leave blank to keep)" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600" />
+                <button onClick={() => saveSocialPlatform('twitter', { twitter_client_id: twitterClientId, ...(twitterClientSecret ? { twitter_client_secret: twitterClientSecret } : {}) })}
+                  disabled={socialSaving === 'twitter'}
+                  className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded disabled:opacity-50">
+                  {socialSaving === 'twitter' ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+              {/* LinkedIn */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-zinc-400">LinkedIn</p>
+                <input type="text" value={linkedinClientId} onChange={(e) => setLinkedinClientId(e.target.value)}
+                  placeholder="Client ID" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600" />
+                <input type="password" value={linkedinClientSecret} onChange={(e) => setLinkedinClientSecret(e.target.value)}
+                  placeholder="Client Secret (leave blank to keep)" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600" />
+                <button onClick={() => saveSocialPlatform('linkedin', { linkedin_client_id: linkedinClientId, ...(linkedinClientSecret ? { linkedin_client_secret: linkedinClientSecret } : {}) })}
+                  disabled={socialSaving === 'linkedin'}
+                  className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded disabled:opacity-50">
+                  {socialSaving === 'linkedin' ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+              {/* Meta */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-zinc-400">Meta (Facebook + Instagram)</p>
+                <input type="text" value={metaAppId} onChange={(e) => setMetaAppId(e.target.value)}
+                  placeholder="App ID" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600" />
+                <input type="password" value={metaAppSecret} onChange={(e) => setMetaAppSecret(e.target.value)}
+                  placeholder="App Secret (leave blank to keep)" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600" />
+                <button onClick={() => saveSocialPlatform('meta', { meta_app_id: metaAppId, ...(metaAppSecret ? { meta_app_secret: metaAppSecret } : {}) })}
+                  disabled={socialSaving === 'meta'}
+                  className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded disabled:opacity-50">
+                  {socialSaving === 'meta' ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── Connections ───────────────────────────────────────────────── */}
           <SectionHeader
             title="Connections"
@@ -794,10 +883,18 @@ export default function SettingsSidebar({
           />
           {connectionsOpen && (
             <div className="px-4 py-4 border-b border-zinc-800/60 space-y-3">
-              {(['gmail', 'google_calendar'] as const).map((service) => {
+              {(['gmail', 'google_calendar', 'twitter', 'linkedin', 'facebook', 'instagram'] as const).map((service) => {
                 const conn = oauthConnections.find((c) => c.service === service)
-                const label = service === 'gmail' ? 'Gmail' : 'Google Calendar'
-                const isConnecting = connectingService === service
+                const label = {
+                  gmail: 'Gmail',
+                  google_calendar: 'Google Calendar',
+                  twitter: 'Twitter / X',
+                  linkedin: 'LinkedIn',
+                  facebook: 'Facebook',
+                  instagram: 'Instagram',
+                }[service]
+                const connectService = (service === 'facebook' || service === 'instagram') ? 'meta' : service
+                const isConnecting = connectingService === connectService
                 return (
                   <div key={service} className="flex items-center justify-between">
                     <div>
@@ -817,7 +914,7 @@ export default function SettingsSidebar({
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleConnectOAuth(service)}
+                        onClick={() => handleConnectOAuth(connectService)}
                         disabled={isConnecting}
                         className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded disabled:opacity-50"
                       >
