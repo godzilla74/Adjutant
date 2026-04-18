@@ -2,8 +2,6 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 
 def _mock_token():
     return patch("backend.social_oauth.get_valid_access_token", new=AsyncMock(return_value="fake-tok"))
