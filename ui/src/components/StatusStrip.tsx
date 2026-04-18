@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { ActivityEvent, Objective, ReviewItem, Workstream } from '../types'
 
+function elapsedLabel(isoString: string): string {
+  const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
 type PopoverKey = 'workstreams' | 'agents' | 'reviews' | 'objectives' | null
 
 interface Props {
@@ -92,7 +100,7 @@ export default function StatusStrip({
 
       {/* Popovers */}
       {open === 'workstreams' && (
-        <Popover title="Workstreams" onManage={() => { onOpenSettings('workstreams'); setOpen(null) }}>
+        <Popover title="Workstreams" onManage={() => { onOpenSettings('workstreams'); setOpen(null) }} manageLabel="Manage workstreams →">
           {workstreams.map(ws => (
             <div key={ws.id} className="flex items-center gap-2.5 px-3 py-2 bg-adj-base rounded-md">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ws.status === 'running' ? 'bg-green-400' : ws.status === 'warn' ? 'bg-amber-400' : 'bg-adj-text-faint'}`} />
@@ -112,11 +120,27 @@ export default function StatusStrip({
             <div key={ev.id} className="flex items-center gap-2.5 px-3 py-2 bg-adj-base rounded-md">
               <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] text-adj-text-muted capitalize">{ev.agent_type} agent</div>
+                <div className="text-[10px] text-adj-text-muted capitalize">
+                  {ev.agent_type} agent · {elapsedLabel(ev.created_at)}
+                </div>
                 <div className="text-xs text-adj-text-primary truncate">{ev.headline}</div>
               </div>
+              <button
+                onClick={() => onCancelAgent(String(ev.id))}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-adj-border text-adj-text-muted hover:text-red-400 hover:border-red-400 transition-colors flex-shrink-0"
+              >
+                Cancel
+              </button>
             </div>
           ))}
+          {(() => {
+            const queued = events.filter(e => e.status !== 'running').length
+            return queued > 0 ? (
+              <div className="px-3 py-1.5 text-[10px] text-adj-text-muted border-t border-adj-border mt-1">
+                {queued} queued
+              </div>
+            ) : null
+          })()}
         </Popover>
       )}
 
@@ -139,7 +163,7 @@ export default function StatusStrip({
       )}
 
       {open === 'objectives' && (
-        <Popover title="Objectives" onManage={() => { onOpenSettings('objectives'); setOpen(null) }}>
+        <Popover title="Objectives" onManage={() => { onOpenSettings('objectives'); setOpen(null) }} manageLabel="Manage objectives →">
           {objectives.map(obj => (
             <div key={obj.id} className="px-3 py-2 bg-adj-base rounded-md">
               <div className="text-xs text-adj-text-primary mb-1">{obj.text}</div>
@@ -154,13 +178,18 @@ export default function StatusStrip({
   )
 }
 
-function Popover({ title, children, onManage }: { title: string; children: React.ReactNode; onManage?: () => void }) {
+function Popover({ title, children, onManage, manageLabel = 'Manage →' }: {
+  title: string
+  children: React.ReactNode
+  onManage?: () => void
+  manageLabel?: string
+}) {
   return (
     <div className="absolute top-full left-4 mt-1 w-72 bg-adj-surface border border-adj-border rounded-xl shadow-2xl z-50 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-adj-border">
         <span className="text-xs font-semibold text-adj-text-primary">{title}</span>
         {onManage && (
-          <button onClick={onManage} className="text-[10px] text-adj-accent hover:underline">Manage →</button>
+          <button onClick={onManage} className="text-[10px] text-adj-accent hover:underline">{manageLabel}</button>
         )}
       </div>
       <div className="p-2 flex flex-col gap-1.5 max-h-72 overflow-y-auto">{children}</div>

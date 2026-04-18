@@ -85,4 +85,25 @@ describe('StatusStrip', () => {
     expect(screen.queryByText('Social Posts')).not.toBeInTheDocument()
     expect(screen.getByText('Publish blog')).toBeInTheDocument()
   })
+
+  it('shows Cancel button in agents popover and calls onCancelAgent', () => {
+    const onCancel = vi.fn()
+    render(<StatusStrip {...DEFAULT_PROPS} onCancelAgent={onCancel} />)
+    fireEvent.click(screen.getByTestId('pill-agents'))
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(onCancel).toHaveBeenCalledWith('5')
+  })
+
+  it('shows elapsed time in agents popover', () => {
+    render(<StatusStrip {...DEFAULT_PROPS} />)
+    fireEvent.click(screen.getByTestId('pill-agents'))
+    // elapsed time shown (any string ending in s/m/h)
+    expect(screen.getByText(/agent ·/)).toBeInTheDocument()
+  })
+
+  it('shows manage workstreams label', () => {
+    render(<StatusStrip {...DEFAULT_PROPS} />)
+    fireEvent.click(screen.getByTestId('pill-workstreams'))
+    expect(screen.getByText('Manage workstreams →')).toBeInTheDocument()
+  })
 })
