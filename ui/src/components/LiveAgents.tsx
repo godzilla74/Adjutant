@@ -1,6 +1,7 @@
 // ui/src/components/LiveAgents.tsx
 import { useEffect, useState } from 'react'
 import { ActivityEvent, DirectiveItem } from '../types'
+import { elapsedLabel } from '../utils/time'
 
 const AGENT_COLOR: Record<string, string> = {
   research: 'text-violet-400 border-violet-800/50 bg-violet-950/30',
@@ -16,14 +17,6 @@ const AGENT_ICON: Record<string, string> = {
   email:    '📧',
   content:  '✍️',
   social:   '📣',
-}
-
-function elapsed(createdAt: string): string {
-  const ms = Date.now() - new Date(createdAt.replace(' ', 'T')).getTime()
-  const s = Math.floor(ms / 1000)
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60)
-  return `${m}m ${s % 60}s`
 }
 
 function truncate(s: string, max = 60) {
@@ -96,7 +89,7 @@ export default function LiveAgents({ events, currentDirective, onCancelDirective
                 <div className="font-medium leading-snug truncate">{ev.headline}</div>
               </div>
               <span className="flex-shrink-0 font-mono text-zinc-600 text-[10px] mt-0.5">
-                {elapsed(ev.created_at)}
+                {elapsedLabel(ev.created_at)}
               </span>
             </div>
           ))}

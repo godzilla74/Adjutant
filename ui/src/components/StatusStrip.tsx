@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ActivityEvent, Objective, ReviewItem, Workstream } from '../types'
-
-function elapsedLabel(isoString: string): string {
-  const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000)
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-}
+import { elapsedLabel } from '../utils/time'
 
 type PopoverKey = 'workstreams' | 'agents' | 'reviews' | 'objectives' | null
 
@@ -31,6 +24,7 @@ export default function StatusStrip({
   const pendingReviews = reviewItems.filter(r => r.status === 'pending')
   const runningAgents  = events.filter(e => e.status === 'running')
   const warnWs         = workstreams.filter(w => w.status === 'warn').length
+  const runningWs      = workstreams.filter(w => w.status === 'running').length
 
   useEffect(() => {
     if (!open) return
@@ -52,7 +46,9 @@ export default function StatusStrip({
         onClick={() => toggle('workstreams')}
         className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border transition-colors ${open === 'workstreams' ? 'border-adj-accent bg-adj-elevated' : 'border-transparent hover:bg-adj-elevated'}`}
       >
-        <span className={`w-1.5 h-1.5 rounded-full ${warnWs > 0 ? 'bg-amber-400' : 'bg-green-400'}`} />
+        <span className={`w-1.5 h-1.5 rounded-full ${
+          warnWs > 0 ? 'bg-amber-400' : runningWs > 0 ? 'bg-green-400' : 'bg-adj-text-faint'
+        }`} />
         <span className="font-semibold text-adj-text-primary">{workstreams.length}</span>
         <span className="text-adj-text-muted">workstreams</span>
       </button>
@@ -133,14 +129,6 @@ export default function StatusStrip({
               </button>
             </div>
           ))}
-          {(() => {
-            const queued = events.filter(e => e.status !== 'running').length
-            return queued > 0 ? (
-              <div className="px-3 py-1.5 text-[10px] text-adj-text-muted border-t border-adj-border mt-1">
-                {queued} queued
-              </div>
-            ) : null
-          })()}
         </Popover>
       )}
 
