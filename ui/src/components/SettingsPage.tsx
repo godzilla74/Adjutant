@@ -1,0 +1,167 @@
+import { useState } from 'react'
+import { Product, ProductState, Workstream, Objective } from '../types'
+import ProductDropdown from './ProductDropdown'
+import OverviewSettings from './settings/OverviewSettings'
+import WorkstreamsSettings from './settings/WorkstreamsSettings'
+import ObjectivesSettings from './settings/ObjectivesSettings'
+import AutonomySettings from './settings/AutonomySettings'
+import ConnectionsSettings from './settings/ConnectionsSettings'
+import SocialSettings from './settings/SocialSettings'
+import AgentModelSettings from './settings/AgentModelSettings'
+import GoogleOAuthSettings from './settings/GoogleOAuthSettings'
+import RemoteAccessSettings from './settings/RemoteAccessSettings'
+import MCPSettings from './settings/MCPSettings'
+
+type Tab =
+  | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
+  | 'connections' | 'social'
+  | 'agent-model' | 'google-oauth' | 'remote-access' | 'mcp'
+
+interface Props {
+  products: Product[]
+  activeProductId: string
+  productStates: Record<string, ProductState>
+  password: string
+  initialTab?: Tab
+  onClose: () => void
+  onSwitchProduct: (id: string) => void
+  onNewProduct: () => void
+  onRefreshData: (productId: string) => void
+  onWorkstreamUpdated: (wsId: number, patch: Partial<Workstream>) => void
+  onObjectiveUpdated: (objId: number, patch: Partial<Objective>) => void
+}
+
+const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'overview',    label: 'Overview',    icon: '◻' },
+  { key: 'workstreams', label: 'Workstreams', icon: '⟳' },
+  { key: 'objectives',  label: 'Objectives',  icon: '◎' },
+  { key: 'autonomy',    label: 'Autonomy',    icon: '🛡' },
+]
+const INTEGRATION_TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'connections', label: 'Connections', icon: '🔗' },
+  { key: 'social',      label: 'Social',      icon: '📱' },
+]
+const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'agent-model',   label: 'Agent Model',   icon: '🤖' },
+  { key: 'google-oauth',  label: 'Google OAuth',  icon: '🔑' },
+  { key: 'remote-access', label: 'Remote Access', icon: '📡' },
+  { key: 'mcp',           label: 'MCP Servers',   icon: '⚡' },
+]
+
+export default function SettingsPage({
+  products, activeProductId, productStates, password,
+  initialTab = 'overview',
+  onClose, onSwitchProduct, onNewProduct, onRefreshData,
+  onWorkstreamUpdated, onObjectiveUpdated,
+}: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab)
+  const [settingsProductId, setSettingsProductId] = useState(activeProductId)
+
+  const activeProduct = products.find(p => p.id === settingsProductId)
+  const activeState = productStates[settingsProductId]
+
+  const handleSwitchProduct = (id: string) => {
+    setSettingsProductId(id)
+    onSwitchProduct(id)
+  }
+
+  const navItem = (key: Tab, label: string, icon: string) => (
+    <button
+      key={key}
+      data-testid={`settings-tab-${key}`}
+      onClick={() => setTab(key)}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm text-left transition-colors ${
+        tab === key
+          ? 'text-adj-accent bg-adj-elevated border-r-2 border-adj-accent'
+          : 'text-adj-text-muted hover:text-adj-text-secondary hover:bg-adj-elevated'
+      }`}
+    >
+      <span className="w-4 text-center">{icon}</span>
+      {label}
+    </button>
+  )
+
+  const renderContent = () => {
+    const common = { password }
+    const productCommon = { ...common, productId: settingsProductId }
+    switch (tab) {
+      case 'overview':      return <OverviewSettings product={activeProduct} onRefresh={() => onRefreshData(settingsProductId)} {...common} />
+      case 'workstreams':   return <WorkstreamsSettings workstreams={activeState?.workstreams ?? []} onWorkstreamUpdated={onWorkstreamUpdated} {...productCommon} />
+      case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
+      case 'autonomy':      return <AutonomySettings {...productCommon} />
+      case 'connections':   return <ConnectionsSettings {...productCommon} />
+      case 'social':        return <SocialSettings {...common} />
+      case 'agent-model':   return <AgentModelSettings {...common} />
+      case 'google-oauth':  return <GoogleOAuthSettings {...common} />
+      case 'remote-access': return <RemoteAccessSettings {...common} />
+      case 'mcp':           return <MCPSettings {...productCommon} />
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-adj-base text-adj-text-primary overflow-hidden">
+      {/* Header */}
+      <header className="flex items-center gap-3 px-5 h-12 border-b border-adj-border flex-shrink-0 bg-adj-surface">
+        <span className="text-sm font-bold text-adj-text-primary">Settings</span>
+        <span className="w-px h-4 bg-adj-border" />
+        <span className="text-xs text-adj-text-muted">Changes save automatically</span>
+        <div className="ml-auto">
+          <button
+            onClick={onClose}
+            className="text-xs text-adj-text-muted hover:text-adj-text-secondary px-3 py-1.5 rounded hover:bg-adj-elevated transition-colors"
+          >
+            ← Back to workspace
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left nav */}
+        <nav className="w-48 bg-adj-panel border-r border-adj-border flex flex-col flex-shrink-0 py-2">
+          {/* Product switcher */}
+          <div className="px-3 py-2 border-b border-adj-border mb-2">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-adj-text-faint mb-2">Editing settings for</div>
+            <ProductDropdown
+              products={products}
+              activeProductId={settingsProductId}
+              onSelect={handleSwitchProduct}
+              onNewProduct={onNewProduct}
+            />
+          </div>
+
+          {/* Product tabs */}
+          <div className="px-2 mb-1">
+            <div className="flex items-center gap-1.5 px-1 py-1 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
+              Product
+              <span className="px-1 py-0.5 rounded text-[7px] bg-blue-900 text-blue-300 font-bold">this product</span>
+            </div>
+            {PRODUCT_TABS.map(t => navItem(t.key, t.label, t.icon))}
+          </div>
+
+          {/* Integration tabs */}
+          <div className="px-2 mb-1 border-t border-adj-border pt-2">
+            <div className="flex items-center gap-1.5 px-1 py-1 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
+              Integrations
+              <span className="px-1 py-0.5 rounded text-[7px] bg-blue-900 text-blue-300 font-bold">this product</span>
+            </div>
+            {INTEGRATION_TABS.map(t => navItem(t.key, t.label, t.icon))}
+          </div>
+
+          {/* Global tabs */}
+          <div className="px-2 mt-auto border-t border-adj-border pt-2">
+            <div className="flex items-center gap-1.5 px-1 py-1 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
+              Global
+              <span className="px-1 py-0.5 rounded text-[7px] bg-purple-900 text-purple-300 font-bold">all products</span>
+            </div>
+            {GLOBAL_TABS.map(t => navItem(t.key, t.label, t.icon))}
+          </div>
+        </nav>
+
+        {/* Content area */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {renderContent()}
+        </main>
+      </div>
+    </div>
+  )
+}
