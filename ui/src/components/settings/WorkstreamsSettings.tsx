@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Workstream } from '../../types'
 import { api } from '../../api'
 
@@ -7,11 +7,12 @@ interface Props {
   workstreams: Workstream[]
   password: string
   onWorkstreamUpdated: (wsId: number, patch: Partial<Workstream>) => void
+  onRefresh?: () => void
 }
 
 const SCHEDULES = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'] as const
 
-export default function WorkstreamsSettings({ productId, workstreams, password, onWorkstreamUpdated }: Props) {
+export default function WorkstreamsSettings({ productId, workstreams, password, onWorkstreamUpdated, onRefresh }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [editMission, setEditMission] = useState('')
   const [editSchedule, setEditSchedule] = useState('manual')
@@ -20,7 +21,6 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
 
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
-  const newNameRef = useRef<HTMLInputElement>(null)
 
   const toggleExpand = (ws: Workstream) => {
     if (expandedId === ws.id) {
@@ -55,7 +55,7 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
   const del = async (ws: Workstream) => {
     if (!confirm(`Delete "${ws.name}"?`)) return
     await api.deleteWorkstream(password, ws.id)
-    onWorkstreamUpdated(ws.id, { status: 'paused' })
+    onRefresh?.()
   }
 
   const create = async (e: React.FormEvent) => {
@@ -164,7 +164,7 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
                     </div>
                     <button
                       onClick={() => runNow(ws)}
-                      disabled={isRunning || (!hasMission && !editMission.trim())}
+                      disabled={isRunning || !ws.mission?.trim()}
                       className="px-3 py-2 rounded-md bg-adj-elevated hover:bg-adj-panel text-xs text-adj-text-secondary font-medium transition-colors disabled:opacity-40 whitespace-nowrap border border-adj-border"
                       title={hasMission ? 'Run now' : 'Save a mission first'}
                     >
@@ -192,7 +192,6 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
         {adding && (
           <form onSubmit={create} className="px-4 py-2.5 flex items-center gap-2 bg-adj-panel">
             <input
-              ref={newNameRef}
               autoFocus
               type="text"
               value={newName}

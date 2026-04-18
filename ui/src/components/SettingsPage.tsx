@@ -85,7 +85,7 @@ export default function SettingsPage({
     const productCommon = { ...common, productId: settingsProductId }
     switch (tab) {
       case 'overview':      return <OverviewSettings product={activeProduct} onRefresh={() => onRefreshData(settingsProductId)} {...common} />
-      case 'workstreams':   return <WorkstreamsSettings workstreams={activeState?.workstreams ?? []} onWorkstreamUpdated={onWorkstreamUpdated} {...productCommon} />
+      case 'workstreams':   return <WorkstreamsSettings workstreams={activeState?.workstreams ?? []} onWorkstreamUpdated={onWorkstreamUpdated} onRefresh={() => onRefreshData(settingsProductId)} {...productCommon} />
       case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
       case 'autonomy':      return <AutonomySettings {...productCommon} />
       case 'connections':   return <ConnectionsSettings {...productCommon} />

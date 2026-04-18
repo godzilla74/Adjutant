@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Objective } from '../../types'
 import { api } from '../../api'
 
@@ -19,7 +19,6 @@ export default function ObjectivesSettings({ productId, objectives, password, on
   const [newText, setNewText] = useState('')
   const [newCur, setNewCur] = useState('0')
   const [newTgt, setNewTgt] = useState('')
-  const newTextRef = useRef<HTMLInputElement>(null)
 
   const startEdit = (obj: Objective) => {
     setEditingId(obj.id)
@@ -70,7 +69,7 @@ export default function ObjectivesSettings({ productId, objectives, password, on
   }
 
   const pct = (obj: Objective) => {
-    if (!obj.progress_target) return null
+    if (obj.progress_target == null || obj.progress_target <= 0) return null
     return Math.min(100, Math.round((obj.progress_current / obj.progress_target) * 100))
   }
 
@@ -166,7 +165,6 @@ export default function ObjectivesSettings({ productId, objectives, password, on
       {adding ? (
         <form onSubmit={create} className="bg-adj-panel border border-adj-border rounded-lg px-4 py-3 space-y-2">
           <input
-            ref={newTextRef}
             autoFocus
             type="text"
             value={newText}
