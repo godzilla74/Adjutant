@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api'
 
 interface Props {
@@ -23,6 +23,11 @@ export default function ConnectionsSettings({ productId, password }: Props) {
   >([])
   const [connectingService, setConnectingService] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
 
   useEffect(() => {
     if (!productId) return
@@ -39,18 +44,20 @@ export default function ConnectionsSettings({ productId, password }: Props) {
     try {
       const { auth_url } = await api.startOAuthFlow(password, productId, service)
       const popup = window.open(auth_url, '_blank', 'width=500,height=600')
-      const poll = setInterval(async () => {
+      pollRef.current = setInterval(async () => {
         try {
           const conns = await api.getOAuthConnections(password, productId)
           if (conns.some((c) => c.service === service)) {
             setOauthConnections(conns)
-            clearInterval(poll)
+            clearInterval(pollRef.current!)
+            pollRef.current = null
             setConnectingService(null)
             return
           }
         } catch {}
         if (!popup || popup.closed) {
-          clearInterval(poll)
+          clearInterval(pollRef.current!)
+          pollRef.current = null
           setConnectingService(null)
         }
       }, 1500)

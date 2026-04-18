@@ -25,22 +25,36 @@ export default function SocialSettings({ password }: Props) {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [password])
 
-  async function saveSocialPlatform(
-    platform: 'twitter' | 'linkedin' | 'meta',
-    data: Record<string, string>,
-  ) {
-    setSocialSaving(platform)
+  async function saveTwitter(data: { twitter_client_id?: string; twitter_client_secret?: string }) {
+    setSocialSaving('twitter')
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (platform === 'twitter') await api.updateTwitterSettings(password, data as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      else if (platform === 'linkedin') await api.updateLinkedInSettings(password, data as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      else await api.updateMetaSettings(password, data as any)
-      if (platform === 'twitter') setTwitterClientSecret('')
-      else if (platform === 'linkedin') setLinkedinClientSecret('')
-      else setMetaAppSecret('')
-      setSavedPlatform(platform)
+      await api.updateTwitterSettings(password, data)
+      setTwitterClientSecret('')
+      setSavedPlatform('twitter')
+      setTimeout(() => setSavedPlatform(null), 2000)
+    } finally {
+      setSocialSaving(null)
+    }
+  }
+
+  async function saveLinkedIn(data: { linkedin_client_id?: string; linkedin_client_secret?: string }) {
+    setSocialSaving('linkedin')
+    try {
+      await api.updateLinkedInSettings(password, data)
+      setLinkedinClientSecret('')
+      setSavedPlatform('linkedin')
+      setTimeout(() => setSavedPlatform(null), 2000)
+    } finally {
+      setSocialSaving(null)
+    }
+  }
+
+  async function saveMeta(data: { meta_app_id?: string; meta_app_secret?: string }) {
+    setSocialSaving('meta')
+    try {
+      await api.updateMetaSettings(password, data)
+      setMetaAppSecret('')
+      setSavedPlatform('meta')
       setTimeout(() => setSavedPlatform(null), 2000)
     } finally {
       setSocialSaving(null)
@@ -75,7 +89,7 @@ export default function SocialSettings({ password }: Props) {
             className={inputCls}
           />
           <button
-            onClick={() => saveSocialPlatform('twitter', {
+            onClick={() => saveTwitter({
               twitter_client_id: twitterClientId,
               ...(twitterClientSecret ? { twitter_client_secret: twitterClientSecret } : {}),
             })}
@@ -106,7 +120,7 @@ export default function SocialSettings({ password }: Props) {
             className={inputCls}
           />
           <button
-            onClick={() => saveSocialPlatform('linkedin', {
+            onClick={() => saveLinkedIn({
               linkedin_client_id: linkedinClientId,
               ...(linkedinClientSecret ? { linkedin_client_secret: linkedinClientSecret } : {}),
             })}
@@ -137,7 +151,7 @@ export default function SocialSettings({ password }: Props) {
             className={inputCls}
           />
           <button
-            onClick={() => saveSocialPlatform('meta', {
+            onClick={() => saveMeta({
               meta_app_id: metaAppId,
               ...(metaAppSecret ? { meta_app_secret: metaAppSecret } : {}),
             })}
