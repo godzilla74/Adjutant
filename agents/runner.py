@@ -14,7 +14,7 @@ AGENT_TIMEOUT = 900  # seconds — last-resort cap; use the Stop button for manu
 # Model used for sub-agents. Defaults to sonnet to control cost.
 # Override with HANNAH_SUBAGENT_MODEL env var (e.g. "opus", "sonnet", "haiku",
 # or a full model ID like "claude-sonnet-4-6").
-SUBAGENT_MODEL: str = os.environ.get("HANNAH_SUBAGENT_MODEL", "sonnet")
+SUBAGENT_MODEL: str = os.environ.get("AGENT_SUBAGENT_MODEL", "claude-sonnet-4-6")
 
 _SUBAGENT_SYSTEM = (
     "You are a specialized sub-agent. Complete your assigned task thoroughly "

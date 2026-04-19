@@ -1284,22 +1284,35 @@ _INSTRUCTIONS = """{safe_instructions}"""
 
 
 async def execute(inputs: dict) -> str:
+    import os
     from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+    from claude_agent_sdk._errors import ProcessError
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    model = os.environ.get("AGENT_SUBAGENT_MODEL", cfg.get("subagent_model", "claude-sonnet-4-6"))
+
     task = inputs.get("task", "")
     context = inputs.get("context", "")
     full_task = f"{{task}}\\n\\nContext: {{context}}" if context else task
 
+    stderr_lines: list = []
     result = "Agent completed with no output."
-    async for message in query(
-        prompt=full_task,
-        options=ClaudeAgentOptions(
-            max_turns=20,
-            permission_mode="bypassPermissions",
-            system_prompt=_INSTRUCTIONS,
-        ),
-    ):
-        if isinstance(message, ResultMessage):
-            result = message.result
+    try:
+        async for message in query(
+            prompt=full_task,
+            options=ClaudeAgentOptions(
+                model=model,
+                max_turns=20,
+                permission_mode="bypassPermissions",
+                system_prompt=_INSTRUCTIONS,
+                stderr=lambda line: stderr_lines.append(line),
+            ),
+        ):
+            if isinstance(message, ResultMessage):
+                result = message.result
+    except ProcessError as e:
+        detail = "\\n".join(stderr_lines).strip() or str(e)
+        return f"Sub-agent process failed: {{detail}}"
     return result
 '''
     (ext_dir / f"{tool_name}.py").write_text(code)
