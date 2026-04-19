@@ -566,8 +566,8 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
             messages=clean_messages,
         )
         if _remote_mcp:
-            _stream_kwargs["mcp_servers"] = _remote_mcp
             _stream_kwargs["extra_headers"] = {"anthropic-beta": "mcp-client-2025-04-04"}
+            _stream_kwargs["extra_body"] = {"mcp_servers": _remote_mcp}
 
         async with client.messages.stream(**_stream_kwargs) as stream:
             async for event in stream:
