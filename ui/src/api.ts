@@ -187,10 +187,20 @@ export const api = {
       { method: 'POST', body: JSON.stringify(payload) },
     ),
 
-  updateMcpServer: (pw: string, id: number, enabled: boolean) =>
+  getMcpServer: (pw: string, id: number) =>
+    apiFetch<{
+      id: number; name: string; type: string; url: string | null;
+      command: string | null; args: string | null; env: string | null;
+      scope: string; product_id: string | null; enabled: number;
+    }>(`/api/mcp-servers/${id}`, pw),
+
+  updateMcpServer: (pw: string, id: number, patch: {
+    enabled?: boolean; name?: string; url?: string;
+    command?: string; args?: string[]; env?: Record<string, unknown>;
+  }) =>
     apiFetch<{ id: number; name: string; enabled: number }>(
       `/api/mcp-servers/${id}`, pw,
-      { method: 'PATCH', body: JSON.stringify({ enabled }) },
+      { method: 'PATCH', body: JSON.stringify(patch) },
     ),
 
   deleteMcpServer: (pw: string, id: number) =>

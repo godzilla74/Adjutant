@@ -83,7 +83,12 @@ class McpServerCreate(BaseModel):
     product_id: str | None = None
 
 class McpServerUpdate(BaseModel):
-    enabled: bool
+    enabled: bool | None = None
+    name: str | None = None
+    url: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict | None = None
 
 
 # ── Product config ────────────────────────────────────────────────────────────
@@ -489,22 +494,46 @@ async def create_mcp_server_api(body: McpServerCreate, _=Depends(_auth)):
     return {k: v for k, v in config.items() if k != "env"}
 
 
+@router.get("/mcp-servers/{server_id}")
+def get_mcp_server_api(server_id: int, _=Depends(_auth)):
+    from backend.db import get_mcp_server
+    server = get_mcp_server(server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    return server  # includes env for the edit form
+
+
 @router.patch("/mcp-servers/{server_id}")
 async def update_mcp_server_api(server_id: int, body: McpServerUpdate, _=Depends(_auth)):
+    import json as _json
     from backend.db import get_mcp_server, update_mcp_server
     server = get_mcp_server(server_id)
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
-    update_mcp_server(server_id, enabled=body.enabled)
+
+    env_json = _json.dumps(body.env) if body.env is not None else None
+    args_json = _json.dumps(body.args) if body.args is not None else None
+
+    update_mcp_server(
+        server_id,
+        enabled=body.enabled,
+        name=body.name,
+        url=body.url,
+        command=body.command,
+        args=args_json,
+        env=env_json,
+    )
+
+    updated = get_mcp_server(server_id)
+    new_enabled = updated["enabled"]
     if server["type"] == "stdio":
         import backend.main as _main
         if _main._mcp_manager is not None:
-            if body.enabled:
-                config = get_mcp_server(server_id)
-                await _main._mcp_manager.add_server(config)
+            if new_enabled:
+                await _main._mcp_manager.remove_server(server_id)
+                await _main._mcp_manager.add_server(updated)
             else:
                 await _main._mcp_manager.remove_server(server_id)
-    updated = get_mcp_server(server_id)
     return {k: v for k, v in updated.items() if k != "env"}
 
 

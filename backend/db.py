@@ -1538,11 +1538,33 @@ def get_mcp_server(id: int) -> dict | None:
         return dict(row) if row else None
 
 
-def update_mcp_server(id: int, enabled: bool) -> None:
+def update_mcp_server(
+    id: int,
+    enabled: bool | None = None,
+    name: str | None = None,
+    url: str | None = None,
+    command: str | None = None,
+    args: str | None = None,
+    env: str | None = None,
+) -> None:
+    fields, values = [], []
+    if enabled is not None:
+        fields.append("enabled = ?"); values.append(int(enabled))
+    if name is not None:
+        fields.append("name = ?"); values.append(name)
+    if url is not None:
+        fields.append("url = ?"); values.append(url)
+    if command is not None:
+        fields.append("command = ?"); values.append(command)
+    if args is not None:
+        fields.append("args = ?"); values.append(args)
+    if env is not None:
+        fields.append("env = ?"); values.append(env)
+    if not fields:
+        return
+    values.append(id)
     with _conn() as conn:
-        conn.execute(
-            "UPDATE mcp_servers SET enabled = ? WHERE id = ?", (int(enabled), id)
-        )
+        conn.execute(f"UPDATE mcp_servers SET {', '.join(fields)} WHERE id = ?", values)
 
 
 # ── OAuth connections ─────────────────────────────────────────────────────────
