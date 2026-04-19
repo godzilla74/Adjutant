@@ -64,14 +64,15 @@ def init_db() -> None:
 
             CREATE TABLE IF NOT EXISTS activity_events (
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_id     TEXT NOT NULL REFERENCES products(id),
-                agent_type     TEXT NOT NULL,
-                headline       TEXT NOT NULL,
+                product_id     TEXT REFERENCES products(id) ON DELETE CASCADE,
+                agent_type     TEXT NOT NULL DEFAULT 'general',
+                headline       TEXT NOT NULL DEFAULT '',
                 rationale      TEXT NOT NULL DEFAULT '',
                 status         TEXT NOT NULL DEFAULT 'running',
                 output_preview TEXT,
                 summary        TEXT,
-                created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS review_items (
@@ -344,6 +345,37 @@ def init_db() -> None:
                 ALTER TABLE conversation_summaries_new RENAME TO conversation_summaries;
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_summary_product_no_session
                     ON conversation_summaries(product_id) WHERE session_id IS NULL;
+                PRAGMA foreign_keys=ON;
+            """)
+
+        # Migrate: make activity_events.product_id nullable so global (product_id=None) tasks work
+        ae_cols = {r[1]: r[3] for r in conn.execute("PRAGMA table_info(activity_events)").fetchall()}
+        if ae_cols.get("product_id") == 1:  # 1 = NOT NULL
+            conn.executescript("""
+                PRAGMA foreign_keys=OFF;
+                DROP TABLE IF EXISTS activity_events_new;
+                CREATE TABLE activity_events_new (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id     TEXT REFERENCES products(id) ON DELETE CASCADE,
+                    agent_type     TEXT NOT NULL DEFAULT 'general',
+                    headline       TEXT NOT NULL DEFAULT '',
+                    rationale      TEXT NOT NULL DEFAULT '',
+                    status         TEXT NOT NULL DEFAULT 'running',
+                    summary        TEXT,
+                    output_preview TEXT,
+                    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                INSERT INTO activity_events_new
+                    (id, product_id, agent_type, headline, rationale,
+                     status, summary, output_preview, created_at)
+                    SELECT id, product_id, agent_type, headline, rationale,
+                           status, summary, output_preview, created_at
+                    FROM activity_events;
+                DROP TABLE activity_events;
+                ALTER TABLE activity_events_new RENAME TO activity_events;
+                CREATE INDEX IF NOT EXISTS idx_activity_events_product
+                    ON activity_events(product_id, created_at);
                 PRAGMA foreign_keys=ON;
             """)
 
