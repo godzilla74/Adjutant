@@ -2,6 +2,7 @@
 
 import base64
 import json
+import os
 import urllib.parse
 from datetime import datetime, timezone, timedelta
 
@@ -12,7 +13,8 @@ _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 _GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo"
 _GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
-REDIRECT_URI = "http://localhost:8000/api/oauth/callback"
+_PORT = os.environ.get("HANNAH_PORT", "8001")
+REDIRECT_URI = f"http://localhost:{_PORT}/api/oauth/callback"
 
 _SCOPES: dict[str, list[str]] = {
     "gmail": [
