@@ -254,7 +254,7 @@ export default function App() {
       }
 
       if (msg.type === 'review_item_updated') {
-        setProductState(msg.product_id, prev => {
+        setProductState(msg.product_id ?? '__global__', prev => {
           const exists = prev.review_items.some((i: ReviewItem) => i.id === msg.item.id)
           return {
             ...prev,

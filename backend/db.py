@@ -77,7 +77,7 @@ def init_db() -> None:
 
             CREATE TABLE IF NOT EXISTS review_items (
                 id                INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_id        TEXT NOT NULL REFERENCES products(id),
+                product_id        TEXT REFERENCES products(id),
                 activity_event_id INTEGER REFERENCES activity_events(id),
                 title             TEXT NOT NULL,
                 description       TEXT NOT NULL,
@@ -376,6 +376,37 @@ def init_db() -> None:
                 ALTER TABLE activity_events_new RENAME TO activity_events;
                 CREATE INDEX IF NOT EXISTS idx_activity_events_product
                     ON activity_events(product_id, created_at);
+                PRAGMA foreign_keys=ON;
+            """)
+
+        # Migrate: make review_items.product_id nullable so global tasks work
+        ri_cols = {r[1]: r[3] for r in conn.execute("PRAGMA table_info(review_items)").fetchall()}
+        if ri_cols.get("product_id") == 1:  # 1 = NOT NULL
+            conn.executescript("""
+                PRAGMA foreign_keys=OFF;
+                DROP TABLE IF EXISTS review_items_new;
+                CREATE TABLE review_items_new (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id        TEXT REFERENCES products(id),
+                    activity_event_id INTEGER REFERENCES activity_events(id),
+                    title             TEXT NOT NULL,
+                    description       TEXT NOT NULL,
+                    risk_label        TEXT NOT NULL,
+                    status            TEXT NOT NULL DEFAULT 'pending',
+                    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+                    action_type       TEXT,
+                    auto_approve_at   DATETIME
+                );
+                INSERT INTO review_items_new
+                    (id, product_id, activity_event_id, title, description,
+                     risk_label, status, created_at)
+                    SELECT id, product_id, activity_event_id, title, description,
+                           risk_label, status, created_at
+                    FROM review_items;
+                DROP TABLE review_items;
+                ALTER TABLE review_items_new RENAME TO review_items;
+                CREATE INDEX IF NOT EXISTS idx_review_items_product
+                    ON review_items(product_id, status);
                 PRAGMA foreign_keys=ON;
             """)
 
