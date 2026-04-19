@@ -271,9 +271,9 @@ function ExtRow({ ext, onToggle, onDelete, onEdit }: {
   return (
     <div className={rowCls}>
       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ext.enabled ? 'bg-emerald-500' : 'bg-adj-border'}`} />
-      <div className="flex-1 min-w-0">
-        <span className="text-xs text-adj-text-secondary font-mono">{ext.tool_name}</span>
-        <span className="text-xs text-adj-text-faint ml-2 truncate">{ext.description}</span>
+      <div className="flex-1 min-w-0 flex items-baseline gap-2 overflow-hidden">
+        <span className="text-xs text-adj-text-secondary font-mono flex-shrink-0">{ext.tool_name}</span>
+        <span className="text-xs text-adj-text-faint truncate">{ext.description}</span>
       </div>
       {ext.auto_generated && (
         <button onClick={() => onEdit(ext.name)} className="text-xs text-adj-text-faint hover:text-adj-text-primary px-1 transition-colors" title="Edit">✎</button>
