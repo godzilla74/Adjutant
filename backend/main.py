@@ -569,16 +569,32 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
             _stream_kwargs["extra_headers"] = {"anthropic-beta": "mcp-client-2025-04-04"}
             _stream_kwargs["extra_body"] = {"mcp_servers": _remote_mcp}
 
-        async with client.messages.stream(**_stream_kwargs) as stream:
-            async for event in stream:
-                if (
-                    event.type == "content_block_delta"
-                    and event.delta.type == "text_delta"
-                ):
-                    await send_fn({"type": "agent_token", "product_id": product_id, "content": event.delta.text})
-                    accumulated_text += event.delta.text
+        async def _run_stream(kwargs: dict) -> object:
+            nonlocal accumulated_text
+            async with client.messages.stream(**kwargs) as stream:
+                async for event in stream:
+                    if (
+                        event.type == "content_block_delta"
+                        and event.delta.type == "text_delta"
+                    ):
+                        await send_fn({"type": "agent_token", "product_id": product_id, "content": event.delta.text})
+                        accumulated_text += event.delta.text
+                return await stream.get_final_message()
 
-            final = await stream.get_final_message()
+        try:
+            final = await _run_stream(_stream_kwargs)
+        except anthropic.BadRequestError as e:
+            if _remote_mcp and "mcp" in str(e).lower():
+                # One or more remote MCP servers are misconfigured; retry without them
+                await send_fn({
+                    "type": "error",
+                    "message": "⚠ One or more remote MCP servers failed (check credentials in Settings → MCP Servers). Continuing without them.",
+                })
+                fallback = {k: v for k, v in _stream_kwargs.items() if k not in ("extra_body", "extra_headers")}
+                accumulated_text = ""
+                final = await _run_stream(fallback)
+            else:
+                raise
 
         if accumulated_text:
             ts = _ts()
