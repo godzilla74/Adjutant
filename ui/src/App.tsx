@@ -147,31 +147,35 @@ export default function App() {
       }
 
       if (msg.type === 'directive_echo') {
+        const key = msg.product_id ?? '__global__'
         setDirectives(prev => ({
           ...prev,
-          [msg.product_id]: [...(prev[msg.product_id] ?? []), { type: 'directive', content: msg.content, ts: msg.ts }],
+          [key]: [...(prev[key] ?? []), { type: 'directive', content: msg.content, ts: msg.ts }],
         }))
         return
       }
 
       if (msg.type === 'agent_token') {
+        const key = msg.product_id ?? '__global__'
         setAgentDraftByProduct(prev => ({
           ...prev,
-          [msg.product_id]: (prev[msg.product_id] ?? '') + msg.content,
+          [key]: (prev[key] ?? '') + msg.content,
         }))
         return
       }
 
       if (msg.type === 'agent_done') {
-        setAgentDraftByProduct(prev => ({ ...prev, [msg.product_id]: '' }))
+        const key = msg.product_id ?? '__global__'
+        setAgentDraftByProduct(prev => ({ ...prev, [key]: '' }))
         setAgentMessages(prev => ({
           ...prev,
-          [msg.product_id]: [...(prev[msg.product_id] ?? []), { type: 'agent', content: msg.content, ts: msg.ts }],
+          [key]: [...(prev[key] ?? []), { type: 'agent', content: msg.content, ts: msg.ts }],
         }))
         return
       }
 
       if (msg.type === 'activity_started') {
+        const key = msg.product_id ?? '__global__'
         const newEvent: ActivityEvent = {
           id: msg.id,
           agent_type: msg.agent_type,
@@ -182,7 +186,7 @@ export default function App() {
           summary: null,
           created_at: msg.ts,
         }
-        setProductState(msg.product_id, prev => ({
+        setProductState(key, prev => ({
           ...prev,
           events: [...prev.events, newEvent],
         }))
@@ -190,7 +194,8 @@ export default function App() {
       }
 
       if (msg.type === 'activity_done') {
-        setProductState(msg.product_id, prev => ({
+        const key = msg.product_id ?? '__global__'
+        setProductState(key, prev => ({
           ...prev,
           events: prev.events.map(ev =>
             ev.id === msg.id ? { ...ev, status: 'done' as const, summary: msg.summary } : ev
@@ -201,7 +206,8 @@ export default function App() {
       }
 
       if (msg.type === 'review_item_added') {
-        setProductState(msg.product_id, prev => ({
+        const key = msg.product_id ?? '__global__'
+        setProductState(key, prev => ({
           ...prev,
           review_items: [...prev.review_items, msg.item],
         }))
@@ -224,9 +230,10 @@ export default function App() {
       }
 
       if (msg.type === 'queue_update') {
+        const key = msg.product_id ?? '__global__'
         setQueueByProduct(prev => ({
           ...prev,
-          [msg.product_id]: { current: msg.current, queued: msg.queued },
+          [key]: { current: msg.current, queued: msg.queued },
         }))
         return
       }
