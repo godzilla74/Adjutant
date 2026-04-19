@@ -550,6 +550,97 @@ async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
     delete_mcp_server(server_id)
 
 
+# ── Extensions (custom agent tools) ──────────────────────────────────────────
+
+class ExtensionUpdate(BaseModel):
+    enabled: bool | None = None
+    description: str | None = None
+    instructions: str | None = None
+
+
+def _list_extensions_raw() -> list[dict]:
+    """Return metadata for every extension file, including disabled ones."""
+    import pkgutil, importlib
+    from pathlib import Path
+    from core.tools import _EXTENSIONS_DIR, _get_disabled_extensions
+    disabled = _get_disabled_extensions()
+    results = []
+    if not _EXTENSIONS_DIR.exists():
+        return results
+    for finder, name, _ in pkgutil.iter_modules([str(_EXTENSIONS_DIR)]):
+        try:
+            mod = importlib.import_module(f"extensions.{name}")
+            if not (hasattr(mod, "TOOL_DEFINITION") and hasattr(mod, "execute")):
+                continue
+            td = mod.TOOL_DEFINITION
+            instructions = getattr(mod, "_INSTRUCTIONS", None)
+            results.append({
+                "name": name,
+                "tool_name": td.get("name", name),
+                "description": td.get("description", ""),
+                "instructions": instructions,
+                "auto_generated": instructions is not None,
+                "enabled": name not in disabled,
+            })
+        except Exception:
+            pass
+    return results
+
+
+@router.get("/extensions")
+def list_extensions(_=Depends(_auth)):
+    return _list_extensions_raw()
+
+
+@router.patch("/extensions/{name}")
+def update_extension(name: str, body: ExtensionUpdate, _=Depends(_auth)):
+    from pathlib import Path
+    from core.tools import _EXTENSIONS_DIR, _get_disabled_extensions, _set_disabled_extensions
+    ext_file = _EXTENSIONS_DIR / f"{name}.py"
+    if not ext_file.exists():
+        raise HTTPException(status_code=404, detail="Extension not found")
+
+    # Toggle enabled/disabled
+    if body.enabled is not None:
+        disabled = _get_disabled_extensions()
+        if body.enabled:
+            disabled.discard(name)
+        else:
+            disabled.add(name)
+        _set_disabled_extensions(disabled)
+
+    # Update description and/or instructions (only for auto-generated extensions)
+    if body.description is not None or body.instructions is not None:
+        import re
+        from datetime import datetime
+        source = ext_file.read_text()
+        # Only allow editing auto-generated files (they have _INSTRUCTIONS)
+        if "_INSTRUCTIONS" not in source:
+            raise HTTPException(status_code=400, detail="Only auto-generated extensions can be edited")
+        if body.description is not None:
+            safe_desc = body.description.replace('"', '\\"')
+            source = re.sub(r'"description":\s*"[^"]*"', f'"description": "{safe_desc}"', source, count=1)
+        if body.instructions is not None:
+            safe_instr = body.instructions.replace('\\', '\\\\').replace('"""', '\\"\\"\\"')
+            source = re.sub(r'_INSTRUCTIONS = """.*?"""', f'_INSTRUCTIONS = """{safe_instr}"""', source, flags=re.DOTALL, count=1)
+        ext_file.write_text(source)
+
+    return {"ok": True}
+
+
+@router.delete("/extensions/{name}", status_code=204)
+def delete_extension(name: str, _=Depends(_auth)):
+    from core.tools import _EXTENSIONS_DIR, _get_disabled_extensions, _set_disabled_extensions
+    ext_file = _EXTENSIONS_DIR / f"{name}.py"
+    if not ext_file.exists():
+        raise HTTPException(status_code=404, detail="Extension not found")
+    ext_file.unlink()
+    # Remove from disabled list too if present
+    disabled = _get_disabled_extensions()
+    disabled.discard(name)
+    _set_disabled_extensions(disabled)
+
+
 # ── Wizard plan ──────────────────────────────────────────────────────────────
 
 class WizardPlanRequest(BaseModel):

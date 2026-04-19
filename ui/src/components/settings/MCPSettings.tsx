@@ -245,6 +245,83 @@ function AddForm({ scope, productId, form, onChange, onAdd, onCancel }: AddFormP
   )
 }
 
+type Extension = {
+  name: string
+  tool_name: string
+  description: string
+  instructions: string | null
+  auto_generated: boolean
+  enabled: boolean
+}
+
+type ExtEditState = {
+  name: string
+  description: string
+  instructions: string
+  saving: boolean
+  error: string
+}
+
+function ExtRow({ ext, onToggle, onDelete, onEdit }: {
+  ext: Extension
+  onToggle: (name: string, enabled: boolean) => void
+  onDelete: (name: string) => void
+  onEdit: (name: string) => void
+}) {
+  return (
+    <div className={rowCls}>
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ext.enabled ? 'bg-emerald-500' : 'bg-adj-border'}`} />
+      <div className="flex-1 min-w-0">
+        <span className="text-xs text-adj-text-secondary font-mono">{ext.tool_name}</span>
+        <span className="text-xs text-adj-text-faint ml-2 truncate">{ext.description}</span>
+      </div>
+      {ext.auto_generated && (
+        <button onClick={() => onEdit(ext.name)} className="text-xs text-adj-text-faint hover:text-adj-text-primary px-1 transition-colors" title="Edit">✎</button>
+      )}
+      <button onClick={() => onToggle(ext.name, ext.enabled)} className="text-xs text-adj-text-muted hover:text-adj-text-primary px-1 transition-colors" title={ext.enabled ? 'Disable' : 'Enable'}>
+        {ext.enabled ? 'on' : 'off'}
+      </button>
+      <button onClick={() => onDelete(ext.name)} className="text-xs text-adj-text-faint hover:text-red-400 px-1 transition-colors" title="Delete">✕</button>
+    </div>
+  )
+}
+
+function ExtEditForm({ state, onChange, onSave, onCancel }: {
+  state: ExtEditState
+  onChange: (u: (s: ExtEditState) => ExtEditState) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="mt-1 mb-2 space-y-2 border border-adj-accent/40 rounded-md p-3 bg-adj-panel">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-adj-accent mb-2">Editing: {state.name}</p>
+      <input
+        className={inputCls}
+        placeholder="Description (shown in tool list)"
+        value={state.description}
+        onChange={e => onChange(s => ({ ...s, description: e.target.value }))}
+      />
+      <div>
+        <p className="text-[10px] text-adj-text-faint mb-1">Agent instructions — what the sub-agent does and how</p>
+        <textarea
+          className={`${inputCls} font-mono resize-none`}
+          rows={8}
+          value={state.instructions}
+          onChange={e => onChange(s => ({ ...s, instructions: e.target.value }))}
+        />
+      </div>
+      {state.error && <p className="text-xs text-red-400">{state.error}</p>}
+      <p className="text-[10px] text-adj-text-faint">Changes take effect after the server restarts.</p>
+      <div className="flex gap-2">
+        <button onClick={onSave} disabled={state.saving} className="flex-1 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded px-2 py-1.5 transition-colors disabled:opacity-50">
+          {state.saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={onCancel} className="text-xs text-adj-text-muted hover:text-adj-text-primary px-2 transition-colors">Cancel</button>
+      </div>
+    </div>
+  )
+}
+
 export default function MCPSettings({ productId, password }: Props) {
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [mcpProductFilter, setMcpProductFilter] = useState<string>('')
@@ -253,12 +330,17 @@ export default function MCPSettings({ productId, password }: Props) {
   })
   const [mcpAddOpen, setMcpAddOpen] = useState<'global' | 'product' | null>(null)
   const [editState, setEditState] = useState<EditState | null>(null)
+  const [extensions, setExtensions] = useState<Extension[]>([])
+  const [extEditState, setExtEditState] = useState<ExtEditState | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    api.getMcpServers(password)
-      .then(s => setMcpServers(s))
+    Promise.all([
+      api.getMcpServers(password),
+      api.listExtensions(password),
+    ])
+      .then(([servers, exts]) => { setMcpServers(servers); setExtensions(exts) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [password])
@@ -345,6 +427,43 @@ export default function MCPSettings({ productId, password }: Props) {
       setMcpServers(prev => [...prev, created as McpServer])
       setMcpAddOpen(null)
       setMcpAddForm({ scope: 'global', name: '', type: 'remote', url: '', command: '', args: '', env: '', product_id: '' })
+    }
+  }
+
+  const handleExtToggle = async (name: string, enabled: boolean) => {
+    await api.updateExtension(password, name, { enabled: !enabled }).catch(() => null)
+    setExtensions(prev => prev.map(e => e.name === name ? { ...e, enabled: !enabled } : e))
+  }
+
+  const handleExtDelete = async (name: string) => {
+    if (!confirm(`Delete the "${name}" tool? This cannot be undone.`)) return
+    await api.deleteExtension(password, name).catch(() => null)
+    setExtensions(prev => prev.filter(e => e.name !== name))
+    if (extEditState?.name === name) setExtEditState(null)
+  }
+
+  const handleExtEdit = (name: string) => {
+    if (extEditState?.name === name) { setExtEditState(null); return }
+    const ext = extensions.find(e => e.name === name)
+    if (!ext) return
+    setExtEditState({ name, description: ext.description, instructions: ext.instructions ?? '', saving: false, error: '' })
+  }
+
+  const handleExtSave = async () => {
+    if (!extEditState) return
+    setExtEditState(s => s ? { ...s, saving: true, error: '' } : s)
+    const ok = await api.updateExtension(password, extEditState.name, {
+      description: extEditState.description,
+      instructions: extEditState.instructions,
+    }).catch(() => null)
+    if (ok) {
+      setExtensions(prev => prev.map(e => e.name === extEditState.name
+        ? { ...e, description: extEditState.description, instructions: extEditState.instructions }
+        : e
+      ))
+      setExtEditState(null)
+    } else {
+      setExtEditState(s => s ? { ...s, saving: false, error: 'Save failed' } : s)
     }
   }
 
@@ -440,6 +559,34 @@ export default function MCPSettings({ productId, password }: Props) {
             + Add product server
           </button>
         )}
+      </div>
+
+      <div className="border-t border-adj-border mb-6 mt-6" />
+
+      {/* Custom Tools */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1">Custom Tools</p>
+        <p className="text-xs text-adj-text-faint mb-3">Agent-created API integrations and extensions</p>
+        {extensions.length === 0 ? (
+          <p className="text-xs text-adj-text-faint">None yet — ask the agent to integrate an API and it will appear here.</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {extensions.map(ext => (
+              <div key={ext.name}>
+                <ExtRow ext={ext} onToggle={handleExtToggle} onDelete={handleExtDelete} onEdit={handleExtEdit} />
+                {extEditState?.name === ext.name && (
+                  <ExtEditForm
+                    state={extEditState}
+                    onChange={u => setExtEditState(prev => prev ? u(prev) : prev)}
+                    onSave={handleExtSave}
+                    onCancel={() => setExtEditState(null)}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-[10px] text-adj-text-faint mt-3">Enable/disable changes take effect after the server restarts.</p>
       </div>
     </div>
   )

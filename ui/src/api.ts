@@ -206,6 +206,22 @@ export const api = {
   deleteMcpServer: (pw: string, id: number) =>
     apiFetch<void>(`/api/mcp-servers/${id}`, pw, { method: 'DELETE' }),
 
+  listExtensions: (pw: string) =>
+    apiFetch<{
+      name: string; tool_name: string; description: string;
+      instructions: string | null; auto_generated: boolean; enabled: boolean;
+    }[]>('/api/extensions', pw),
+
+  updateExtension: (pw: string, name: string, patch: {
+    enabled?: boolean; description?: string; instructions?: string;
+  }) =>
+    apiFetch<{ ok: boolean }>(`/api/extensions/${name}`, pw, {
+      method: 'PATCH', body: JSON.stringify(patch),
+    }),
+
+  deleteExtension: (pw: string, name: string) =>
+    apiFetch<void>(`/api/extensions/${name}`, pw, { method: 'DELETE' }),
+
   getGoogleOAuthSettings: (pw: string) =>
     apiFetch<{ google_oauth_client_id: string; google_oauth_client_secret: string }>(
       '/api/settings/google-oauth', pw,

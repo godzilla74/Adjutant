@@ -13,13 +13,34 @@ from agents.runner import run_general_agent, run_research_agent
 
 _EXTENSIONS_DIR = Path(__file__).parent.parent / "extensions"
 _EXTENSION_EXECUTORS: dict = {}
+_EXT_CONFIG = _EXTENSIONS_DIR / "_config.json"
+
+
+def _get_disabled_extensions() -> set:
+    if not _EXT_CONFIG.exists():
+        return set()
+    import json
+    try:
+        return set(json.loads(_EXT_CONFIG.read_text()).get("disabled", []))
+    except Exception:
+        return set()
+
+
+def _set_disabled_extensions(disabled: set) -> None:
+    import json
+    _EXTENSIONS_DIR.mkdir(exist_ok=True)
+    _EXT_CONFIG.write_text(json.dumps({"disabled": sorted(disabled)}, indent=2))
+
 
 def _load_extensions() -> list[dict]:
     """Discover and load all tool extensions from the extensions/ directory."""
+    disabled = _get_disabled_extensions()
     definitions = []
     if not _EXTENSIONS_DIR.exists():
         return definitions
     for finder, name, _ in pkgutil.iter_modules([str(_EXTENSIONS_DIR)]):
+        if name in disabled:
+            continue
         try:
             mod = importlib.import_module(f"extensions.{name}")
             if hasattr(mod, "TOOL_DEFINITION") and hasattr(mod, "execute"):
