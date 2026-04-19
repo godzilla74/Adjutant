@@ -9,7 +9,7 @@ from claude_agent_sdk._errors import ProcessError
 
 logger = logging.getLogger(__name__)
 
-AGENT_TIMEOUT = 300  # seconds — raised from 180 to give complex tasks more room
+AGENT_TIMEOUT = 900  # seconds — last-resort cap; use the Stop button for manual cancellation
 
 # Model used for sub-agents. Defaults to sonnet to control cost.
 # Override with HANNAH_SUBAGENT_MODEL env var (e.g. "opus", "sonnet", "haiku",
@@ -61,7 +61,7 @@ async def _run_research_agent_inner(task: str) -> str:
 
 
 async def run_research_agent(task: str) -> str:
-    """Spawn a web-research-focused sub-agent (5-minute hard cap)."""
+    """Spawn a web-research-focused sub-agent (15-minute hard cap)."""
     try:
         return await asyncio.wait_for(_run_research_agent_inner(task), timeout=AGENT_TIMEOUT)
     except asyncio.TimeoutError:
@@ -93,7 +93,7 @@ async def _run_general_agent_inner(task: str) -> str:
 
 
 async def run_general_agent(task: str) -> str:
-    """Spawn a general-purpose sub-agent (5-minute hard cap)."""
+    """Spawn a general-purpose sub-agent (15-minute hard cap)."""
     try:
         return await asyncio.wait_for(_run_general_agent_inner(task), timeout=AGENT_TIMEOUT)
     except asyncio.TimeoutError:
