@@ -624,8 +624,14 @@ export default function App() {
                     </span>
                   </div>
                 )}
+                <LiveAgents
+                  events={productStates['__global__']?.events ?? []}
+                  currentDirective={queueByProduct['__global__']?.current ?? null}
+                  onCancelDirective={cancelDirective}
+                  agentName={agentName}
+                />
                 <ActivityFeed
-                  events={[]}
+                  events={productStates['__global__']?.events ?? []}
                   directives={directives['__global__'] ?? []}
                   agentMessages={agentMessages['__global__'] ?? []}
                   agentDraft={agentDraftByProduct['__global__'] ?? ''}
