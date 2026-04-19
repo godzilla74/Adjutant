@@ -470,19 +470,19 @@ export default function App() {
         </span>
         <span className="w-px h-4 bg-adj-border flex-shrink-0" />
 
-        {/* Product dropdown */}
-        {!showOverview && (
+        {/* Product dropdown — always visible, includes Overview entry */}
+        {!settingsOpen && (
           <ProductDropdown
             products={products}
             activeProductId={activeProductId}
+            showingOverview={showOverview}
             onSelect={switchProduct}
+            onOverview={switchToGlobal}
             onNewProduct={() => setWizardOpen(true)}
           />
         )}
-        {showOverview && (
-          <button onClick={switchToGlobal} className="text-sm font-semibold text-adj-text-secondary hover:text-adj-text-primary transition-colors">
-            Overview
-          </button>
+        {settingsOpen && (
+          <span className="text-sm font-semibold text-adj-text-muted">Settings</span>
         )}
 
         <div className="ml-auto flex items-center gap-2">
