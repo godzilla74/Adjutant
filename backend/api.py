@@ -807,12 +807,29 @@ async def start_oauth_flow(product_id: str, service: str, _=Depends(_auth)):
 
 
 @router.get("/oauth/callback")
-async def oauth_callback(code: str, state: str):
+async def oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
     import base64 as _b64
     import json as _json
     from datetime import datetime, timezone, timedelta
     from fastapi.responses import HTMLResponse
     from backend.db import get_agent_config, save_oauth_connection
+    if error:
+        msg = error_description or error
+        return HTMLResponse(
+            f"<html><body><script>window.close()</script>"
+            f"<p>OAuth error: {msg}</p></body></html>"
+        )
+    if not code or not state:
+        return HTMLResponse(
+            "<html><body><script>window.close()</script>"
+            "<p>OAuth callback missing required parameters.</p></body></html>",
+            status_code=400,
+        )
     try:
         padded = state + "==" * ((4 - len(state) % 4) % 4)
         state_data = _json.loads(_b64.urlsafe_b64decode(padded).decode())
