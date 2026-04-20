@@ -5,44 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.telegram import TelegramBot, _parse_product_id
-
-PRODUCTS = [
-    {"id": "alpha",   "name": "Alpha"},
-    {"id": "beta",    "name": "Beta"},
-]
-
-
-# ── _parse_product_id ────────────────────────────────────────────────────────
-
-def test_parse_product_id_with_prefix():
-    pid, msg = _parse_product_id("for Alpha: what's the status?", PRODUCTS)
-    assert pid == "alpha"
-    assert msg == "what's the status?"
-
-
-def test_parse_product_id_case_insensitive():
-    pid, msg = _parse_product_id("FOR ALPHA: hello", PRODUCTS)
-    assert pid == "alpha"
-    assert msg == "hello"
-
-
-def test_parse_product_id_partial_match():
-    pid, msg = _parse_product_id("for alph: update me", PRODUCTS)
-    assert pid == "alpha"
-    assert msg == "update me"
-
-
-def test_parse_product_id_no_prefix():
-    pid, msg = _parse_product_id("just a plain message", PRODUCTS)
-    assert pid is None
-    assert msg == "just a plain message"
-
-
-def test_parse_product_id_no_match():
-    pid, msg = _parse_product_id("for unknown-product: hello", PRODUCTS)
-    assert pid is None
-    assert msg == "for unknown-product: hello"
+from backend.telegram import TelegramBot
 
 
 # ── TelegramBot helpers ──────────────────────────────────────────────────────
@@ -53,14 +16,12 @@ def _make_bot():
         token="test-token",
         chat_id="123456",
         directive_callback=AsyncMock(),
-        products_fn=lambda: PRODUCTS,
-        last_active_product_fn=lambda: "alpha",
         resolve_review_fn=MagicMock(),
         broadcast_fn=AsyncMock(),
     )
-    bot.send_message  = AsyncMock(return_value=99)
-    bot.send_typing   = AsyncMock()
-    bot.edit_message  = AsyncMock()
+    bot.send_message    = AsyncMock(return_value=99)
+    bot.send_typing     = AsyncMock()
+    bot.edit_message    = AsyncMock()
     bot.answer_callback = AsyncMock()
     return bot
 
@@ -97,6 +58,14 @@ def test_notify_review_item_sends_with_buttons():
     buttons = markup["inline_keyboard"][0]
     assert any("approve:42" in b["callback_data"] for b in buttons)
     assert any("reject:42"  in b["callback_data"] for b in buttons)
+
+
+def test_notify_agent_done_global_agent():
+    bot = _make_bot()
+    bot._pending_products.add(None)
+    asyncio.run(bot.notify({"type": "agent_done", "product_id": None, "content": "Summary across all products."}))
+    bot.send_message.assert_awaited_once_with("Summary across all products.")
+    assert None not in bot._pending_products
 
 
 def test_handle_callback_approve_resolves_item():
@@ -138,15 +107,26 @@ def test_handle_callback_wrong_chat_id_ignored():
     bot.resolve_review_fn.assert_not_called()
 
 
-def test_handle_message_injects_directive():
+def test_handle_message_routes_to_global_agent():
+    bot = _make_bot()
+    message = {
+        "from": {"id": 123456},
+        "text": "Hello, what's going on?",
+    }
+    asyncio.run(bot._handle_message(message))
+    bot._directive_callback.assert_awaited_once_with(None, "Hello, what's going on?")
+    assert None in bot._pending_products
+
+
+def test_handle_message_product_prefix_also_routes_to_global():
+    """Old 'for X:' prefix is no longer parsed — global agent handles routing."""
     bot = _make_bot()
     message = {
         "from": {"id": 123456},
         "text": "for Alpha: update me",
     }
     asyncio.run(bot._handle_message(message))
-    bot._directive_callback.assert_awaited_once_with("alpha", "update me")
-    assert "alpha" in bot._pending_products
+    bot._directive_callback.assert_awaited_once_with(None, "for Alpha: update me")
 
 
 def test_handle_message_wrong_chat_id_ignored():
@@ -176,7 +156,7 @@ def test_handle_message_video_downloads_and_injects(tmp_path):
 
     bot._directive_callback.assert_awaited_once()
     call_args = bot._directive_callback.call_args[0]
-    assert call_args[0] == "alpha"
+    assert call_args[0] is None
     assert "video/mp4" in call_args[1] or "mp4" in call_args[1]
 
 
@@ -199,6 +179,7 @@ def test_handle_message_photo_downloads_and_injects(tmp_path):
     asyncio.run(bot._handle_message(message))
 
     bot._directive_callback.assert_awaited_once()
+    assert bot._directive_callback.call_args[0][0] is None
     text = bot._directive_callback.call_args[0][1]
     assert "look at this" in text
 
