@@ -437,7 +437,7 @@ def _build_user_message(content: str, attachments: list[dict]) -> str | list:
     return blocks
 
 
-async def _maybe_compact(product_id: str) -> None:
+async def _maybe_compact(product_id: str | None) -> None:
     """If DB has > COMPACT_THRESHOLD messages, summarize the oldest batch via Haiku."""
     total = count_messages(product_id)
     if total <= COMPACT_THRESHOLD:
@@ -784,7 +784,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
 
 # ── Per-product directive workers ─────────────────────────────────────────────
 
-def _queue_payload(product_id: str) -> dict:
+def _queue_payload(product_id: str | None) -> dict:
     return {
         "type": "queue_update",
         "product_id": product_id,
@@ -793,7 +793,7 @@ def _queue_payload(product_id: str) -> dict:
     }
 
 
-async def _product_worker(product_id: str) -> None:
+async def _product_worker(product_id: str | None) -> None:
     """Processes directives sequentially for one product, forever."""
     event = _worker_events[product_id]
     while True:
