@@ -127,6 +127,14 @@ def test_handle_message_product_prefix_also_routes_to_global():
     }
     asyncio.run(bot._handle_message(message))
     bot._directive_callback.assert_awaited_once_with(None, "for Alpha: update me")
+    assert None in bot._pending_products
+
+
+def test_handle_message_empty_text_ignored():
+    bot = _make_bot()
+    message = {"from": {"id": 123456}, "text": "   "}
+    asyncio.run(bot._handle_message(message))
+    bot._directive_callback.assert_not_awaited()
 
 
 def test_handle_message_wrong_chat_id_ignored():
