@@ -636,6 +636,24 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
 
         async def _run_one_tool(block) -> dict:
             """Execute one tool call and handle activity events / side-effects."""
+            # Handle dispatch_to_product directly — needs access to main.py queues
+            if block.name == "dispatch_to_product":
+                target_id = block.input.get("product_id", "")
+                msg = block.input.get("message", "")
+                known = {p["id"]: p for p in get_products()}
+                if target_id not in known:
+                    out = f"Unknown product_id '{target_id}'. Valid IDs: {list(known.keys())}"
+                else:
+                    _ensure_worker(target_id)
+                    directive_id = uuid.uuid4().hex[:8]
+                    _directive_queues[target_id].append({"id": directive_id, "content": msg})
+                    _worker_events[target_id].set()
+                    if _telegram_bot:
+                        _telegram_bot._pending_products.add(target_id)
+                    await _broadcast(_queue_payload(target_id))
+                    out = f"Dispatched to {known[target_id]['name']}"
+                return {"type": "tool_result", "tool_use_id": block.id, "content": out}
+
             is_agent_task = block.name == "delegate_task"
             is_review     = block.name == "create_review_item"
             ev_id = None
