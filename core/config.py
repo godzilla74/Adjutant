@@ -140,12 +140,15 @@ def get_global_system_prompt(products: list[dict]) -> str:
     current_dt = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
 
     if products:
+        try:
+            from backend.db import get_workstreams, get_objectives
+        except Exception:
+            get_workstreams = get_objectives = None
         product_lines = []
         for p in products:
             try:
-                from backend.db import get_workstreams, get_objectives
-                ws = get_workstreams(p["id"])
-                obj = get_objectives(p["id"])
+                ws = get_workstreams(p["id"]) if get_workstreams else []
+                obj = get_objectives(p["id"]) if get_objectives else []
                 ws_summary = ", ".join(w["name"] for w in ws[:3]) or "none"
                 obj_summary = ", ".join(o["text"][:50] for o in obj[:2]) or "none"
                 product_lines.append(
