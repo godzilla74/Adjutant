@@ -222,10 +222,11 @@
         <li><span class="step-num">3</span><p>Your <strong>Client ID</strong> and <strong>Client Secret</strong> are shown at the top of the Auth tab.</p></li>
       </ol>
 
-      <p class="section-title">Step 3 — Request posting permission</p>
+      <p class="section-title">Step 3 — Request required products</p>
       <ol class="steps">
         <li><span class="step-num">1</span><p>Click the <strong>Products</strong> tab.</p></li>
-        <li><span class="step-num">2</span><p>Find <strong>Share on LinkedIn</strong> and click <strong>Request access</strong>. This is usually approved instantly.</p></li>
+        <li><span class="step-num">2</span><p>Find <strong>Sign In with LinkedIn using OpenID Connect</strong> and click <strong>Request access</strong>. This grants the <code>openid</code>, <code>profile</code>, and <code>email</code> scopes needed to identify your account.</p></li>
+        <li><span class="step-num">3</span><p>Also find <strong>Share on LinkedIn</strong> and click <strong>Request access</strong>. This grants <code>w_member_social</code> for posting. Both are usually approved instantly.</p></li>
       </ol>
 
       <hr class="divider">
