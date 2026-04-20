@@ -112,10 +112,22 @@ export default function App() {
 
       if (msg.type === 'init') {
         setProducts(msg.products)
-        const defaultId = msg.products[0]?.id
-        if (defaultId) {
-          setActiveProductId(defaultId)
-          ws.send(JSON.stringify({ type: 'switch_product', product_id: defaultId }))
+        // Restore last view from localStorage, fall back to first product
+        let saved: { productId: string; globalViewMode?: string } | null = null
+        try { saved = JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch {}
+        if (saved?.productId === '__global__') {
+          setActiveProductId('__global__')
+          setShowOverview(true)
+          setGlobalViewMode((saved.globalViewMode as 'chat' | 'overview') ?? 'overview')
+          ws.send(JSON.stringify({ type: 'switch_product', product_id: null }))
+        } else {
+          const targetId = (saved?.productId && msg.products.some((p: { id: string }) => p.id === saved!.productId))
+            ? saved!.productId
+            : msg.products[0]?.id
+          if (targetId) {
+            setActiveProductId(targetId)
+            ws.send(JSON.stringify({ type: 'switch_product', product_id: targetId }))
+          }
         }
         return
       }
@@ -372,6 +384,7 @@ export default function App() {
   const switchProduct = useCallback((productId: string) => {
     setActiveProductId(productId)
     setShowOverview(false)
+    localStorage.setItem('adjutant_last_view', JSON.stringify({ productId }))
     if (!(productId in productStates)) {
       wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: productId }))
     }
@@ -380,9 +393,9 @@ export default function App() {
   const switchToGlobal = useCallback(() => {
     setActiveProductId('__global__')
     setShowOverview(true)
-    // Always resend so server updates active_product_id and active_session_id
+    localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: '__global__', globalViewMode }))
     wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: null }))
-  }, [])
+  }, [globalViewMode])
 
   const sendDirective = useCallback((content: string, attachments?: Array<{ path: string; mime_type: string; name: string }>) => {
     const prodId = activeProductId === '__global__' ? null : activeProductId
@@ -593,7 +606,7 @@ export default function App() {
               />
               <div className="flex border-t border-zinc-800/60 flex-shrink-0">
                 <button
-                  onClick={() => setGlobalViewMode('overview')}
+                  onClick={() => { setGlobalViewMode('overview'); localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: '__global__', globalViewMode: 'overview' })) }}
                   className={`flex-1 text-[10px] py-2 transition-colors ${
                     globalViewMode === 'overview'
                       ? 'text-blue-400 bg-blue-600/10'
@@ -601,7 +614,7 @@ export default function App() {
                   }`}
                 >Overview</button>
                 <button
-                  onClick={() => setGlobalViewMode('chat')}
+                  onClick={() => { setGlobalViewMode('chat'); localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: '__global__', globalViewMode: 'chat' })) }}
                   className={`flex-1 text-[10px] py-2 transition-colors ${
                     globalViewMode === 'chat'
                       ? 'text-blue-400 bg-blue-600/10'
