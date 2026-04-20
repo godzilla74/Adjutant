@@ -818,18 +818,18 @@ async def oauth_callback(
     from datetime import datetime, timezone, timedelta
     from fastapi.responses import HTMLResponse
     from backend.db import get_agent_config, save_oauth_connection
+    def _error_page(msg: str) -> HTMLResponse:
+        safe = msg.replace("'", "\\'")
+        return HTMLResponse(
+            f"<html><body style='font-family:sans-serif;padding:24px;background:#0f1117;color:#f87171'>"
+            f"<p><strong>OAuth Error</strong></p><p>{msg}</p>"
+            f"<script>window.opener&&window.opener.postMessage({{type:'oauth_error',message:'{safe}'}},'*');setTimeout(()=>window.close(),4000)</script>"
+            f"</body></html>"
+        )
     if error:
-        msg = error_description or error
-        return HTMLResponse(
-            f"<html><body><script>window.close()</script>"
-            f"<p>OAuth error: {msg}</p></body></html>"
-        )
+        return _error_page(error_description or error)
     if not code or not state:
-        return HTMLResponse(
-            "<html><body><script>window.close()</script>"
-            "<p>OAuth callback missing required parameters.</p></body></html>",
-            status_code=400,
-        )
+        return _error_page("OAuth callback missing required parameters.")
     try:
         padded = state + "==" * ((4 - len(state) % 4) % 4)
         state_data = _json.loads(_b64.urlsafe_b64decode(padded).decode())
@@ -904,8 +904,10 @@ async def oauth_callback(
                 token_expiry=expiry, scopes="pages_manage_posts",
             )
     return HTMLResponse(
-        "<html><body><script>window.close()</script>"
-        "<p>Connected successfully! You can close this tab.</p></body></html>"
+        "<html><body style='font-family:sans-serif;padding:24px;background:#0f1117;color:#86efac'>"
+        "<p>Connected successfully! This window will close.</p>"
+        "<script>window.opener&&window.opener.postMessage({type:'oauth_success'},'*');window.close()</script>"
+        "</body></html>"
     )
 
 

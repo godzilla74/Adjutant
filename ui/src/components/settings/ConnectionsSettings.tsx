@@ -25,13 +25,32 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
     { service: string; email: string; scopes: string; updated_at: string }[]
   >([])
   const [connectingService, setConnectingService] = useState<string | null>(null)
+  const [oauthError, setOauthError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const popupRef = useRef<Window | null>(null)
 
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.source !== popupRef.current) return
+      if (e.data?.type === 'oauth_error') {
+        clearInterval(pollRef.current!)
+        pollRef.current = null
+        setConnectingService(null)
+        setOauthError(e.data.message ?? 'OAuth failed')
+      } else if (e.data?.type === 'oauth_success') {
+        // refresh connections — poll will catch it too, but this is immediate
+        api.getOAuthConnections(password, productId).then(setOauthConnections).catch(() => {})
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [password, productId])
 
   useEffect(() => {
     if (!productId) return
@@ -48,9 +67,11 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
   async function handleConnectOAuth(service: ConnectAsKey) {
     if (!productId) return
     setConnectingService(service)
+    setOauthError(null)
     try {
       const { auth_url } = await api.startOAuthFlow(password, productId, service)
       const popup = window.open(auth_url, '_blank', 'width=500,height=600')
+      popupRef.current = popup
       pollRef.current = setInterval(async () => {
         try {
           const conns = await api.getOAuthConnections(password, productId)
@@ -86,6 +107,16 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
     <div className="w-full">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">Connections</h2>
       <p className="text-xs text-adj-text-muted mb-6">Manage OAuth integrations for this product</p>
+
+      {oauthError && (
+        <div className="mb-4 flex items-start gap-3 p-3 bg-red-950/40 border border-red-800/50 rounded-md">
+          <span className="text-red-400 flex-shrink-0 mt-0.5">✕</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-red-300">{oauthError}</p>
+          </div>
+          <button onClick={() => setOauthError(null)} className="text-red-500 hover:text-red-300 text-xs">✕</button>
+        </div>
+      )}
 
       {!googleOAuthConfigured && (
         <div className="mb-4 flex items-start gap-3 p-3 bg-amber-950/40 border border-amber-800/50 rounded-md">
