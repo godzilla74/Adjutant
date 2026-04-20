@@ -1,11 +1,13 @@
 import base64
 import hashlib
 import json
+import os
 import secrets
 
 import httpx
 
-REDIRECT_URI = "http://localhost:8000/api/oauth/callback"
+_PORT = os.environ.get("HANNAH_PORT", "8001")
+REDIRECT_URI = f"http://localhost:{_PORT}/api/oauth/callback"
 
 _TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize"
 _TWITTER_TOKEN_URL = "https://api.twitter.com/2/oauth2/token"
