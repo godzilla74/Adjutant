@@ -708,7 +708,8 @@ _TWITTER_TOOLS = [
     {
         "name": "twitter_post",
         "description": (
-            "Post a tweet from the product's connected Twitter/X account. "
+            "Post a tweet to Twitter/X. Uses the API if a Twitter connection is configured; "
+            "otherwise automatically falls back to browser automation. "
             "Respects the product's autonomy tier — if set to 'approve', creates a review item instead. "
             "Maximum 280 characters."
         ),
@@ -791,8 +792,9 @@ def get_tools_for_product(product_id: str) -> list[dict]:
         tools.extend(_GMAIL_TOOLS)
     if "google_calendar" in connections:
         tools.extend(_CALENDAR_TOOLS)
-    if "twitter" in connections:
-        tools.extend(_TWITTER_TOOLS)
+    # Social tools are always available — if no API connection is configured
+    # the implementation falls back to browser automation automatically.
+    tools.extend(_TWITTER_TOOLS)
     if "linkedin" in connections:
         tools.extend(_LINKEDIN_TOOLS)
     if "facebook" in connections:
@@ -1096,8 +1098,17 @@ async def _twitter_post(product_id: str, text: str, media_url: str | None = None
         )
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "Tweet queued for approval."})
-    from backend.social_api import twitter_post
-    return await twitter_post(product_id, text, media_url)
+    from backend.db import get_oauth_connection
+    has_api = get_oauth_connection(product_id, "twitter") is not None
+    if has_api:
+        from backend.social_api import twitter_post
+        return await twitter_post(product_id, text, media_url)
+    # No API credentials — post via browser automation
+    task = f"Post the following tweet on X (twitter.com). Log in if needed. Tweet text: {text}"
+    if media_url:
+        task += f"\nAttach this media: {media_url}"
+    task += "\nConfirm the tweet was posted and return the tweet URL if available."
+    return await execute_tool("browser_task", {"task": task})
 
 
 async def _linkedin_post(product_id: str, text: str, media_url: str | None = None) -> str:
