@@ -516,7 +516,7 @@ async def _maybe_compact(product_id: str) -> None:
 
 # ── Agent agentic loop ────────────────────────────────────────────────────────
 
-async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str | None = None) -> tuple[list, list]:
+async def _agent_loop(send_fn, product_id: str | None, messages: list, session_id: str | None = None) -> tuple[list, list]:
     """Run the agent loop. Returns (updated messages, new review items)."""
     if product_id is None:
         system = get_global_system_prompt(get_products())
