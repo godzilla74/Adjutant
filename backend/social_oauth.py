@@ -1,10 +1,13 @@
 import base64
 import hashlib
 import json
+import logging
 import os
 import secrets
 
 import httpx
+
+log = logging.getLogger(__name__)
 
 _PORT = os.environ.get("HANNAH_PORT", "8001")
 REDIRECT_URI = f"http://localhost:{_PORT}/api/oauth/callback"
@@ -167,11 +170,16 @@ async def get_linkedin_urn(access_token: str) -> str:
     return f"urn:li:person:{sub}"
 
 
-async def get_meta_assets(access_token: str) -> list[dict]:
-    """Return list of dicts: [{service, account_id, access_token, name}, ...]"""
+async def get_meta_assets(access_token: str) -> tuple[list[dict], str]:
+    """Return (assets, debug_info). assets: [{service, account_id, access_token, name}, ...]"""
     assets = []
     async with httpx.AsyncClient() as client:
-        # Fetch pages with their linked Instagram Business account in one call
+        perms_resp = await client.get(
+            "https://graph.facebook.com/v19.0/me/permissions",
+            params={"access_token": access_token},
+        )
+        perms = [p["permission"] for p in perms_resp.json().get("data", []) if p.get("status") == "granted"]
+
         resp = await client.get(
             _META_PAGES_URL,
             params={"fields": "id,name,access_token,instagram_business_account", "access_token": access_token},
@@ -179,8 +187,10 @@ async def get_meta_assets(access_token: str) -> list[dict]:
         try:
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(f"Meta pages fetch error: {e.response.status_code}") from e
-        pages = resp.json().get("data", [])
+            raise RuntimeError(f"Meta pages fetch error: {e.response.status_code}: {e.response.text}") from e
+        raw = resp.json()
+        pages = raw.get("data", [])
+        debug_info = f"granted_perms={perms} pages_count={len(pages)} raw={raw}"
         for page in pages:
             page_token = page["access_token"]
             assets.append({
@@ -204,7 +214,7 @@ async def get_meta_assets(access_token: str) -> list[dict]:
                     "access_token": page_token,
                     "name": f"@{ig_username}",
                 })
-    return assets
+    return assets, debug_info
 
 
 async def revoke_social_token(access_token: str, service: str) -> None:

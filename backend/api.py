@@ -890,13 +890,9 @@ async def oauth_callback(
         client_secret = config.get("meta_app_secret", "")
         token_data = await exchange_code_for_tokens(code, "meta", client_id, client_secret)
         access_token = token_data.get("access_token", "")
-        assets = await get_meta_assets(access_token)
+        assets, debug_info = await get_meta_assets(access_token)
         if not assets:
-            return _error_page(
-                "No Facebook Pages or Instagram Business accounts found. "
-                "Make sure you have a Facebook Page and that your Instagram Professional "
-                "account is linked to it (Page settings → Linked accounts → Instagram)."
-            )
+            return _error_page(f"No Facebook Pages found. Debug: {debug_info}")
         expiry = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
         for asset in assets:
             save_oauth_connection(

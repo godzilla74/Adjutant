@@ -278,11 +278,21 @@
         <li><span class="step-num">4</span><p>Fill in the required fields Meta needs before you can submit for review: <strong>Privacy Policy URL</strong> (a simple hosted page is fine), <strong>App Icon</strong> (1024×1024px), and <strong>Category</strong>. Click <strong>Save changes</strong>.</p></li>
       </ol>
 
-      <p class="section-title">Phase 4 — Add Facebook Login for Business &amp; set redirect URI</p>
+      <p class="section-title">Phase 4 — Add Facebook Login for Business, permissions &amp; redirect URI</p>
       <ol class="steps">
         <li><span class="step-num">1</span><p>In the left sidebar, click <strong>Add product</strong>, find <strong>Facebook Login for Business</strong>, and click <strong>Set up</strong>.</p></li>
         <li><span class="step-num">2</span><p>Choose <strong>Web</strong>, enter <code>http://localhost:8001</code> as the site URL, and click <strong>Save</strong>.</p></li>
         <li><span class="step-num">3</span><p>In the Facebook Login for Business settings, under <strong>Valid OAuth Redirect URIs</strong>, add: <code>http://localhost:8001/api/oauth/callback</code> — then click <strong>Save changes</strong>.</p></li>
+        <li><span class="step-num">4</span><p>Still in Facebook Login for Business → Settings, find the <strong>Optional Permissions</strong> field and add all of the following (this is required even in Development mode):</p>
+          <ul style="margin:8px 0 0 16px;font-size:0.875rem;color:#8b949e;list-style:disc">
+            <li><code>pages_show_list</code></li>
+            <li><code>pages_manage_posts</code></li>
+            <li><code>pages_read_engagement</code></li>
+            <li><code>instagram_basic</code></li>
+            <li><code>instagram_content_publish</code></li>
+          </ul>
+          <p style="margin-top:8px">Click <strong>Save changes</strong>. You do <em>not</em> need to go through App Review or Business Verification — these permissions work immediately in Development mode for the app owner.</p>
+        </li>
       </ol>
 
       <hr class="divider">
@@ -293,7 +303,7 @@
         <div class="field-row"><span class="field-key">App Secret</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>App Secret</strong> field</span></div>
       </div>
 
-      <div class="tip"><strong>That's it.</strong> Keep the app in Development mode — no App Review needed for personal use. Go to Settings → Social Accounts in Adjutant, paste your App ID and App Secret, then go to Settings → Connections and click <strong>Connect API</strong> next to Facebook or Instagram.</div>
+      <div class="tip"><strong>That's it.</strong> Keep the app in Development mode — no App Review or Business Verification needed for personal use. Go to Settings → Social Accounts in Adjutant, paste your App ID and App Secret, then go to Settings → Connections and click <strong>Connect API</strong> next to Facebook or Instagram.</div>
     </div>
 
   </div>
