@@ -8,6 +8,7 @@ interface Props {
 }
 
 const GOOGLE_SERVICES = new Set(['gmail', 'google_calendar'])
+const BROWSER_AUTO_SERVICES = new Set(['facebook', 'instagram'])
 
 const SERVICES = [
   { key: 'gmail',            label: 'Gmail',            connectAs: 'gmail' },
@@ -44,7 +45,6 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
         setConnectingService(null)
         setOauthError(e.data.message ?? 'OAuth failed')
       } else if (e.data?.type === 'oauth_success') {
-        // refresh connections — poll will catch it too, but this is immediate
         api.getOAuthConnections(password, productId).then(setOauthConnections).catch(() => {})
       }
     }
@@ -138,6 +138,8 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
           const conn = oauthConnections.find((c) => c.service === key)
           const isConnecting = connectingService === connectAs
           const needsGoogleOAuth = GOOGLE_SERVICES.has(key) && !googleOAuthConfigured
+          const isBrowserAuto = BROWSER_AUTO_SERVICES.has(key)
+
           return (
             <div
               key={key}
@@ -149,10 +151,13 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                   <p className="text-xs text-adj-text-muted">Connected as {conn.email}</p>
                 ) : needsGoogleOAuth ? (
                   <p className="text-xs text-amber-600">Google OAuth required</p>
+                ) : isBrowserAuto ? (
+                  <p className="text-xs text-emerald-600">Works automatically via browser</p>
                 ) : (
                   <p className="text-xs text-adj-text-faint">Not connected</p>
                 )}
               </div>
+
               {conn ? (
                 <button
                   onClick={() => handleDisconnectOAuth(key)}
@@ -167,6 +172,15 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                 >
                   Connect
                 </span>
+              ) : isBrowserAuto ? (
+                <button
+                  onClick={() => handleConnectOAuth(connectAs)}
+                  disabled={isConnecting}
+                  title="Connect via API for faster, more reliable posting (requires Meta developer app setup)"
+                  className="px-3 py-1.5 text-xs border border-adj-border text-adj-text-muted hover:text-adj-text-secondary hover:border-adj-text-muted rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConnecting ? 'Connecting…' : 'Connect API'}
+                </button>
               ) : (
                 <button
                   onClick={() => handleConnectOAuth(connectAs)}
@@ -180,6 +194,20 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
           )
         })}
       </div>
+
+      {SERVICES.some(({ key }) => BROWSER_AUTO_SERVICES.has(key) && !oauthConnections.find(c => c.service === key)) && (
+        <p className="mt-4 text-xs text-adj-text-faint">
+          Facebook and Instagram work out of the box via browser automation. Connecting via API is optional — it enables faster, background posting without opening a browser window, but requires completing{' '}
+          <a
+            href="/social-setup-guide.html"
+            target="_blank"
+            rel="noreferrer"
+            className="text-adj-accent hover:underline"
+          >
+            Meta's developer app review process
+          </a>.
+        </p>
+      )}
     </div>
   )
 }
