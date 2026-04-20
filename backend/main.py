@@ -96,11 +96,11 @@ _connections: set[WebSocket] = set()
 # ── Per-product directive queues ──────────────────────────────────────────────
 # Each product has a queue of pending directives and at most one running task.
 
-_directive_queues: dict[str, list[dict]] = {}   # {product_id: [{id, content}, ...]}
-_current_directive: dict[str, dict | None] = {}  # {product_id: directive | None}
-_running_tasks:    dict[str, asyncio.Task | None] = {}  # inner _agent_loop task
-_worker_events:    dict[str, asyncio.Event] = {}
-_worker_tasks:     dict[str, asyncio.Task] = {}
+_directive_queues: dict[str | None, list[dict]] = {}   # {product_id: [{id, content}, ...]}
+_current_directive: dict[str | None, dict | None] = {}  # {product_id: directive | None}
+_running_tasks:    dict[str | None, asyncio.Task | None] = {}  # inner _agent_loop task
+_worker_events:    dict[str | None, asyncio.Event] = {}
+_worker_tasks:     dict[str | None, asyncio.Task] = {}
 
 _telegram_bot  = None  # set in lifespan; module-level so _broadcast can reach it
 _telegram_task = None  # module-level so hot-reload can cancel it
@@ -840,7 +840,7 @@ async def _product_worker(product_id: str) -> None:
                 await _broadcast(_queue_payload(product_id))
 
 
-def _ensure_worker(product_id: str) -> None:
+def _ensure_worker(product_id: str | None) -> None:
     """Start a worker for product_id if one isn't already running."""
     if product_id not in _worker_events:
         _worker_events[product_id] = asyncio.Event()
