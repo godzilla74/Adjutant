@@ -26,7 +26,7 @@ _META_IG_URL = "https://graph.facebook.com/v19.0/me"
 _SCOPES = {
     "twitter":  "tweet.write tweet.read users.read offline.access",
     "linkedin": "openid profile email w_member_social",
-    "meta":     "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish",
+    "meta":     "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish",
 }
 
 # Twitter PKCE: state → code_verifier (in-memory, single-server)
