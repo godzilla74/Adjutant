@@ -251,8 +251,8 @@
         <strong style="color:#86efac;">You don't need to do any of this to get started.</strong> Adjutant posts to Facebook and Instagram automatically using browser automation — no developer account, no app review, no waiting. This guide is only for users who want to connect via Meta's API for faster background posting without a browser window opening.
       </div>
 
-      <div class="tip" style="margin-bottom:20px;border-left-color:#f97316;">
-        <strong style="color:#fb923c;">This process takes time.</strong> Meta requires three prerequisites before API access is granted: <strong>Business Verification</strong>, <strong>App Review</strong>, and <strong>Advanced Access approval</strong>. Plan for 1–5 business days per step. Complete them in order.
+      <div class="tip" style="margin-bottom:20px;border-left-color:#22c55e;">
+        <strong style="color:#86efac;">No App Review required for personal use.</strong> Meta only requires App Review when your app will be used by people who don't have a role on it. Since you created the app and are the only user, you are exempt — your app can stay in <strong>Development mode</strong> indefinitely and the Connect flow will work immediately. App Review is only needed if you want <em>other people</em> to connect their own accounts.
       </div>
 
       <p class="section-title">Phase 1 — Create your Facebook Page</p>
@@ -285,56 +285,6 @@
         <li><span class="step-num">3</span><p>In the Facebook Login for Business settings, under <strong>Valid OAuth Redirect URIs</strong>, add: <code>http://localhost:8001/api/oauth/callback</code> — then click <strong>Save changes</strong>.</p></li>
       </ol>
 
-      <p class="section-title">Phase 5 — Business Verification (prerequisite for App Review)</p>
-      <ol class="steps">
-        <li><span class="step-num">1</span><p>Go to <a href="https://business.facebook.com/settings" target="_blank" rel="noreferrer">business.facebook.com/settings</a> and create a <strong>Meta Business Account</strong> if you don't already have one.</p></li>
-        <li><span class="step-num">2</span><p>In Business settings, go to <strong>Security Center</strong> and click <strong>Start Verification</strong> under Business Verification.</p></li>
-        <li><span class="step-num">3</span><p>You'll need to provide: your legal business name, address, phone number, and either a business document (utility bill, bank statement, business license) or domain verification via DNS record or meta tag.</p></li>
-        <li><span class="step-num">4</span><p>Once submitted, Meta typically reviews within 1–5 business days. You'll receive an email when approved.</p></li>
-        <li><span class="step-num">5</span><p>After approval, return to your app in the developer portal → <strong>App settings → Basic</strong> and associate it with your verified Business Account.</p></li>
-      </ol>
-
-      <p class="section-title">Phase 6 — App Review (request Advanced Access)</p>
-      <ol class="steps">
-        <li><span class="step-num">1</span><p>In the developer portal left sidebar, go to <strong>App Review → Permissions and Features</strong>.</p></li>
-        <li><span class="step-num">2</span><p>Find and request <strong>Advanced Access</strong> for each of the following permissions. Click <strong>Request Advanced Access</strong> next to each one:</p></li>
-      </ol>
-
-      <div style="margin: 12px 0 16px 36px; display: flex; flex-direction: column; gap: 8px;">
-        <div style="background:#21262d;border:1px solid #30363d;border-radius:6px;padding:10px 14px;">
-          <p style="font-size:0.8rem;font-family:monospace;color:#79c0ff;margin-bottom:2px;">pages_show_list</p>
-          <p style="font-size:0.78rem;color:#8b949e;margin:0;">Discover which Pages you manage. Required for the Connect flow to find your Page.</p>
-        </div>
-        <div style="background:#21262d;border:1px solid #30363d;border-radius:6px;padding:10px 14px;">
-          <p style="font-size:0.8rem;font-family:monospace;color:#79c0ff;margin-bottom:2px;">pages_manage_posts</p>
-          <p style="font-size:0.78rem;color:#8b949e;margin:0;">Create and publish posts to your Facebook Page.</p>
-        </div>
-        <div style="background:#21262d;border:1px solid #30363d;border-radius:6px;padding:10px 14px;">
-          <p style="font-size:0.8rem;font-family:monospace;color:#79c0ff;margin-bottom:2px;">pages_read_engagement</p>
-          <p style="font-size:0.78rem;color:#8b949e;margin:0;">Read basic Page data needed during the connection process.</p>
-        </div>
-        <div style="background:#21262d;border:1px solid #30363d;border-radius:6px;padding:10px 14px;">
-          <p style="font-size:0.8rem;font-family:monospace;color:#79c0ff;margin-bottom:2px;">instagram_basic</p>
-          <p style="font-size:0.78rem;color:#8b949e;margin:0;">Discover the Instagram Business account linked to your Page.</p>
-        </div>
-        <div style="background:#21262d;border:1px solid #30363d;border-radius:6px;padding:10px 14px;">
-          <p style="font-size:0.8rem;font-family:monospace;color:#79c0ff;margin-bottom:2px;">instagram_content_publish</p>
-          <p style="font-size:0.78rem;color:#8b949e;margin:0;">Publish photo and text posts to Instagram.</p>
-        </div>
-      </div>
-
-      <ol class="steps">
-        <li><span class="step-num">3</span><p>For each permission, Meta will ask you to provide a <strong>screencast</strong> demonstrating the permission being used. Record yourself: opening Adjutant → going to Settings → Connections → clicking Connect next to Facebook/Instagram → completing the OAuth flow → having Adjutant post to your Page. A simple screen recording with narration is sufficient.</p></li>
-        <li><span class="step-num">4</span><p>Submit for review. Meta typically responds within 1–5 business days.</p></li>
-      </ol>
-
-      <p class="section-title">Phase 7 — Advanced Access verification</p>
-      <ol class="steps">
-        <li><span class="step-num">1</span><p>After App Review approval, Meta may require a separate <strong>Advanced Access verification</strong> step under <strong>App Review → Advanced Access</strong>. This confirms your use case aligns with Meta's policies.</p></li>
-        <li><span class="step-num">2</span><p>Describe your use case honestly: <em>"Personal AI assistant that posts content to my own Facebook Page and Instagram Business account on my behalf. No third-party users. No data resale."</em></p></li>
-        <li><span class="step-num">3</span><p>Once all permissions show <strong>Advanced Access: Approved</strong>, your app is fully set up. Switch the app from <strong>Development</strong> to <strong>Live</strong> mode in App settings → Basic.</p></li>
-      </ol>
-
       <hr class="divider">
 
       <p class="section-title">What to paste into Adjutant</p>
@@ -343,7 +293,7 @@
         <div class="field-row"><span class="field-key">App Secret</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>App Secret</strong> field</span></div>
       </div>
 
-      <div class="tip"><strong>While waiting for review:</strong> You can still use Adjutant to post to Facebook/Instagram via browser automation — no API credentials needed. Once Advanced Access is approved and you complete the Connect flow, Adjutant will automatically switch to the API for faster, more reliable posting.</div>
+      <div class="tip"><strong>That's it.</strong> Keep the app in Development mode — no App Review needed for personal use. Go to Settings → Social Accounts in Adjutant, paste your App ID and App Secret, then go to Settings → Connections and click <strong>Connect API</strong> next to Facebook or Instagram.</div>
     </div>
 
   </div>
