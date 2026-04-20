@@ -102,7 +102,6 @@ _running_tasks:    dict[str, asyncio.Task | None] = {}  # inner _agent_loop task
 _worker_events:    dict[str, asyncio.Event] = {}
 _worker_tasks:     dict[str, asyncio.Task] = {}
 
-_last_active_product: str = ""
 _telegram_bot  = None  # set in lifespan; module-level so _broadcast can reach it
 _telegram_task = None  # module-level so hot-reload can cancel it
 _mcp_manager = None  # set in lifespan; module-level so manage_mcp_server tool can reach it
@@ -126,8 +125,6 @@ async def _broadcast(event: dict) -> None:
 
 async def _handle_telegram_directive(product_id: str | None, content: str) -> None:
     """Inject a Telegram message into the directive queue, same as the web UI."""
-    global _last_active_product
-    _last_active_product = product_id
     _ensure_worker(product_id)
     directive_id = uuid.uuid4().hex[:8]
     _directive_queues[product_id].append({"id": directive_id, "content": content})
@@ -220,8 +217,6 @@ async def lifespan(app: FastAPI):
         token=tg_token,
         chat_id=tg_chat_id,
         directive_callback=_handle_telegram_directive,
-        products_fn=get_products,
-        last_active_product_fn=lambda: _last_active_product,
         resolve_review_fn=resolve_review_item,
         broadcast_fn=_broadcast,
     )
@@ -239,8 +234,6 @@ async def lifespan(app: FastAPI):
             token=token,
             chat_id=chat_id,
             directive_callback=_handle_telegram_directive,
-            products_fn=get_products,
-            last_active_product_fn=lambda: _last_active_product,
             resolve_review_fn=resolve_review_item,
             broadcast_fn=_broadcast,
         )
@@ -919,9 +912,6 @@ async def websocket_endpoint(ws: WebSocket):
                         await _send(ws, {"type": "error", "message": f"Unknown product: {product_id}"})
                         continue
                 active_product_id = product_id
-                global _last_active_product
-                if product_id is not None:
-                    _last_active_product = product_id
                 content = msg.get("content", "").strip()
                 attachments = msg.get("attachments") or []
                 if not content and not attachments:
