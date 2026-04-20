@@ -126,6 +126,8 @@ export default function App() {
             : msg.products[0]?.id
           if (targetId) {
             setActiveProductId(targetId)
+            setShowOverview(false)
+            localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: targetId }))
             ws.send(JSON.stringify({ type: 'switch_product', product_id: targetId }))
           }
         }

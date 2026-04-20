@@ -99,7 +99,6 @@ export default function OverviewSettings({ product, password, onRefresh, onProdu
       {field('Tone', 'tone', 'e.g. Confident, friendly')}
       {field('Writing Style', 'writing_style', 'e.g. Conversational, data-driven')}
       {field('Target Audience', 'target_audience', 'e.g. Small business owners')}
-      {field('Social Handles', 'social_handles', '@handle')}
       {field('Hashtags', 'hashtags', '#brand #product')}
 
       <div className="mb-4">

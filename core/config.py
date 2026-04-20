@@ -39,8 +39,6 @@ def _product_context(product_id: str) -> str:
         brand_parts.append(f"- **Writing style:** {config['writing_style']}")
     if config.get("target_audience"):
         brand_parts.append(f"- **Target audience:** {config['target_audience']}")
-    if config.get("social_handles"):
-        brand_parts.append(f"- **Social handles:** {config['social_handles']}")
     if config.get("hashtags"):
         brand_parts.append(f"- **Hashtags:** {config['hashtags']}")
     if config.get("brand_notes"):
