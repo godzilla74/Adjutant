@@ -113,7 +113,7 @@ export default function App() {
       if (msg.type === 'init') {
         setProducts(msg.products)
         // Restore last view from localStorage, fall back to first product
-        let saved: { productId: string; globalViewMode?: string } | null = null
+        let saved: { productId: string; globalViewMode?: string; settingsOpen?: boolean; settingsTab?: string } | null = null
         try { saved = JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch {}
         if (saved?.productId === '__global__') {
           setActiveProductId('__global__')
@@ -130,6 +130,10 @@ export default function App() {
             localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: targetId }))
             ws.send(JSON.stringify({ type: 'switch_product', product_id: targetId }))
           }
+        }
+        if (saved?.settingsOpen) {
+          setSettingsOpen(true)
+          setSettingsTab((saved.settingsTab as SettingsTab) ?? 'overview')
         }
         return
       }
@@ -460,6 +464,8 @@ export default function App() {
   const openSettings = useCallback((tab: string = 'overview') => {
     setSettingsTab(tab as SettingsTab)
     setSettingsOpen(true)
+    const current = (() => { try { return JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch { return null } })()
+    localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, settingsOpen: true, settingsTab: tab }))
   }, [])
 
   if (connState === 'auth' || connState === 'connecting') {
@@ -572,7 +578,11 @@ export default function App() {
             productStates={productStates}
             password={pw}
             initialTab={settingsTab}
-            onClose={() => setSettingsOpen(false)}
+            onClose={() => {
+              setSettingsOpen(false)
+              const current = (() => { try { return JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch { return null } })()
+              localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, settingsOpen: false, settingsTab: undefined }))
+            }}
             onSwitchProduct={switchProduct}
             onNewProduct={() => { setSettingsOpen(false); setWizardOpen(true) }}
             onRefreshData={pid => wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: pid }))}
