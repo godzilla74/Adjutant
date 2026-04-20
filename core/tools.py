@@ -614,6 +614,7 @@ def get_global_tools() -> list[dict]:
     base = [t for t in TOOLS_DEFINITIONS if t["name"] in _GLOBAL_BASE_TOOL_NAMES]
     return base + [_DISPATCH_TOOL]
 
+
 # ── Gmail tools (injected per-product when OAuth connected) ───────────────────
 
 _GMAIL_TOOLS = [
