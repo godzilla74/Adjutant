@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Adjutant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #c9d1d9;
+      line-height: 1.8;
+      padding: 48px 24px 96px;
+    }
+    .container { max-width: 700px; margin: 0 auto; }
+    .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 48px; }
+    .logo svg { flex-shrink: 0; }
+    .logo-name { font-size: 1.1rem; font-weight: 700; color: #e6edf3; }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #e6edf3; margin-bottom: 6px; }
+    .meta { font-size: 0.8rem; color: #8b949e; margin-bottom: 40px; }
+    h2 { font-size: 0.95rem; font-weight: 700; color: #e6edf3; margin: 32px 0 10px; }
+    p { font-size: 0.875rem; color: #c9d1d9; margin-bottom: 12px; }
+    ul { padding-left: 20px; margin-bottom: 12px; }
+    li { font-size: 0.875rem; color: #c9d1d9; margin-bottom: 6px; }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .divider { border: none; border-top: 1px solid #21262d; margin: 40px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" width="32" height="32">
+        <rect width="32" height="32" rx="7" fill="#18181b"/>
+        <path d="M16 6L7 26h4l1.8-4.5h6.4L21 26h4L16 6zm0 6.2l2.2 6.3h-4.4L16 12.2z" fill="#f59e0b"/>
+      </svg>
+      <span class="logo-name">Adjutant</span>
+    </div>
+
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective date: April 20, 2026 &nbsp;·&nbsp; Published by JTA Ventures, LLC &nbsp;·&nbsp; <a href="mailto:justin@ignitara.com">justin@ignitara.com</a></p>
+
+    <p>This Privacy Policy describes how Adjutant ("the App", "we", "us") handles information when you use our application and any associated developer integrations (including connections to Facebook, Instagram, Twitter/X, LinkedIn, Google, and other third-party services).</p>
+
+    <h2>1. Who We Are</h2>
+    <p>Adjutant is a personal AI assistant application developed by JTA Ventures, LLC. It is designed for personal and small-business use to help manage communications, social media, and productivity tasks.</p>
+
+    <h2>2. What Data the App Accesses</h2>
+    <p>When you connect third-party accounts (such as Facebook, Instagram, LinkedIn, Twitter/X, Gmail, or Google Calendar), Adjutant may access:</p>
+    <ul>
+      <li>Your account identity (name, username, profile ID) to identify which account to act on</li>
+      <li>Your Facebook Pages and Instagram Business accounts you administer</li>
+      <li>The ability to create and publish posts on your behalf to those accounts</li>
+      <li>Your email and calendar data (if Gmail or Google Calendar is connected) to assist with scheduling and communication tasks</li>
+    </ul>
+
+    <h2>3. How Data Is Stored</h2>
+    <p>All data — including OAuth access tokens, account credentials, and configuration — is stored <strong>locally on your own machine</strong> in a SQLite database at <code>~/.config/Adjutant/adjutant.db</code>. No data is transmitted to or stored on any servers operated by JTA Ventures, LLC.</p>
+    <p>Access tokens are stored securely on your local device and used solely to perform actions you direct the App to take.</p>
+
+    <h2>4. How Data Is Used</h2>
+    <p>Data accessed through third-party integrations is used exclusively to perform the tasks you instruct Adjutant to perform — such as posting content to social media, reading emails, or creating calendar events. We do not:</p>
+    <ul>
+      <li>Sell, rent, or share your data with any third party</li>
+      <li>Use your data for advertising or marketing purposes</li>
+      <li>Transmit your data to any external servers outside of the third-party APIs you have explicitly connected</li>
+      <li>Retain or process data beyond what is necessary to perform your requested actions</li>
+    </ul>
+
+    <h2>5. Third-Party Services</h2>
+    <p>When you connect accounts, Adjutant communicates directly with those platforms' APIs (Meta, Twitter/X, LinkedIn, Google). Your use of those services is subject to their own privacy policies and terms of service. We encourage you to review them:</p>
+    <ul>
+      <li><a href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noreferrer">Meta Privacy Policy</a></li>
+      <li><a href="https://twitter.com/en/privacy" target="_blank" rel="noreferrer">X (Twitter) Privacy Policy</a></li>
+      <li><a href="https://www.linkedin.com/legal/privacy-policy" target="_blank" rel="noreferrer">LinkedIn Privacy Policy</a></li>
+      <li><a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Google Privacy Policy</a></li>
+    </ul>
+
+    <h2>6. Data Retention</h2>
+    <p>Your data remains on your local device for as long as you use the App. You can delete all stored data at any time by removing the file at <code>~/.config/Adjutant/adjutant.db</code>, or by running <code>adjutant uninstall</code>. You can revoke any connected account's access at any time through Settings → Connections within the App, or directly through the respective platform's account settings.</p>
+
+    <h2>7. Children's Privacy</h2>
+    <p>Adjutant is not directed at children under the age of 13. We do not knowingly collect personal information from children.</p>
+
+    <h2>8. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. When we do, we will update the effective date above. Continued use of the App after changes constitutes acceptance of the updated policy.</p>
+
+    <h2>9. Contact</h2>
+    <p>If you have questions about this Privacy Policy, please contact us at <a href="mailto:justin@ignitara.com">justin@ignitara.com</a>.</p>
+
+    <hr class="divider">
+    <p style="font-size:0.78rem;color:#8b949e;">© 2026 JTA Ventures, LLC. All rights reserved. &nbsp;·&nbsp; <a href="/terms-of-service.html">Terms of Service</a></p>
+
+  </div>
+</body>
+</html>
