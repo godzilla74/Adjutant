@@ -124,7 +124,7 @@ async def _broadcast(event: dict) -> None:
             pass
 
 
-async def _handle_telegram_directive(product_id: str, content: str) -> None:
+async def _handle_telegram_directive(product_id: str | None, content: str) -> None:
     """Inject a Telegram message into the directive queue, same as the web UI."""
     global _last_active_product
     _last_active_product = product_id
@@ -648,6 +648,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                     directive_id = uuid.uuid4().hex[:8]
                     _directive_queues[target_id].append({"id": directive_id, "content": msg})
                     _worker_events[target_id].set()
+                    # Must register before _broadcast so notify() sees it when agent_done fires
                     if _telegram_bot:
                         _telegram_bot._pending_products.add(target_id)
                     await _broadcast(_queue_payload(target_id))
