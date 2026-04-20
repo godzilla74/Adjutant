@@ -21,7 +21,6 @@ _LINKEDIN_USER_URL = "https://api.linkedin.com/v2/userinfo"  # OpenID Connect en
 _META_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth"
 _META_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
 _META_PAGES_URL = "https://graph.facebook.com/v19.0/me/accounts"
-_META_IG_URL = "https://graph.facebook.com/v19.0/me"
 
 _SCOPES = {
     "twitter":  "tweet.write tweet.read users.read offline.access",
@@ -172,35 +171,39 @@ async def get_meta_assets(access_token: str) -> list[dict]:
     """Return list of dicts: [{service, account_id, access_token, name}, ...]"""
     assets = []
     async with httpx.AsyncClient() as client:
-        resp = await client.get(_META_PAGES_URL, params={"access_token": access_token})
+        # Fetch pages with their linked Instagram Business account in one call
+        resp = await client.get(
+            _META_PAGES_URL,
+            params={"fields": "id,name,access_token,instagram_business_account", "access_token": access_token},
+        )
         try:
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"Meta pages fetch error: {e.response.status_code}") from e
         pages = resp.json().get("data", [])
         for page in pages:
+            page_token = page["access_token"]
             assets.append({
                 "service": "facebook",
                 "account_id": page["id"],
-                "access_token": page["access_token"],
+                "access_token": page_token,
                 "name": page.get("name", page["id"]),
             })
-        resp2 = await client.get(
-            _META_IG_URL,
-            params={"fields": "instagram_business_account", "access_token": access_token},
-        )
-        try:
-            resp2.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            raise RuntimeError(f"Meta IG fetch error: {e.response.status_code}") from e
-        ig = resp2.json().get("instagram_business_account")
-        if ig:
-            assets.append({
-                "service": "instagram",
-                "account_id": ig["id"],
-                "access_token": access_token,
-                "name": f"ig:{ig['id']}",
-            })
+            # Instagram Business account is linked at the Page level, not the user level
+            ig = page.get("instagram_business_account")
+            if ig:
+                # Fetch the Instagram username for a friendlier display name
+                ig_resp = await client.get(
+                    f"https://graph.facebook.com/v19.0/{ig['id']}",
+                    params={"fields": "username", "access_token": page_token},
+                )
+                ig_username = ig_resp.json().get("username", ig["id"]) if ig_resp.is_success else ig["id"]
+                assets.append({
+                    "service": "instagram",
+                    "account_id": ig["id"],
+                    "access_token": page_token,
+                    "name": f"@{ig_username}",
+                })
     return assets
 
 
