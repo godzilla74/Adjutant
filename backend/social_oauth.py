@@ -28,7 +28,7 @@ _META_PAGES_URL = "https://graph.facebook.com/v19.0/me/accounts"
 _SCOPES = {
     "twitter":  "tweet.write tweet.read users.read offline.access",
     "linkedin": "openid profile email w_member_social",
-    "meta":     "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish",
+    "meta":     "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management",
 }
 
 # Twitter PKCE: state → code_verifier (in-memory, single-server)
@@ -185,7 +185,7 @@ async def get_meta_assets(access_token: str) -> tuple[list[dict], str]:
         # Path 1: personal pages via /me/accounts
         resp = await client.get(
             _META_PAGES_URL,
-            params={"fields": "id,name,access_token,instagram_business_account", "access_token": access_token},
+            params={"fields": "id,name,access_token,instagram_business_account", "limit": 100, "access_token": access_token},
         )
         try:
             resp.raise_for_status()
@@ -194,7 +194,7 @@ async def get_meta_assets(access_token: str) -> tuple[list[dict], str]:
         pages = resp.json().get("data", [])
         debug_parts.append(f"me/accounts={len(pages)} pages")
 
-        # Path 2: business-portfolio-owned pages via /me/businesses (for Business accounts)
+        # Path 2: business-portfolio-owned/client pages via /me/businesses (requires business_management scope)
         if not pages:
             biz_resp = await client.get(
                 "https://graph.facebook.com/v19.0/me/businesses",
@@ -202,14 +202,16 @@ async def get_meta_assets(access_token: str) -> tuple[list[dict], str]:
             )
             businesses = biz_resp.json().get("data", [])
             debug_parts.append(f"me/businesses={[b['name'] for b in businesses]}")
+            page_fields = "id,name,access_token,instagram_business_account"
             for biz in businesses:
-                owned_resp = await client.get(
-                    f"https://graph.facebook.com/v19.0/{biz['id']}/owned_pages",
-                    params={"fields": "id,name,access_token,instagram_business_account", "access_token": access_token},
-                )
-                biz_pages = owned_resp.json().get("data", [])
-                debug_parts.append(f"biz {biz['name']} owned_pages={len(biz_pages)}")
-                pages.extend(biz_pages)
+                for edge in ("owned_pages", "client_pages"):
+                    edge_resp = await client.get(
+                        f"https://graph.facebook.com/v19.0/{biz['id']}/{edge}",
+                        params={"fields": page_fields, "limit": 100, "access_token": access_token},
+                    )
+                    biz_pages = edge_resp.json().get("data", [])
+                    debug_parts.append(f"biz {biz['name']} {edge}={len(biz_pages)}")
+                    pages.extend(biz_pages)
 
         for page in pages:
             page_token = page.get("access_token", access_token)
