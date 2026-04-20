@@ -16,7 +16,7 @@ _TWITTER_REVOKE_URL = "https://api.twitter.com/2/oauth2/revoke"
 
 _LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
 _LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
-_LINKEDIN_USER_URL = "https://api.linkedin.com/v2/me"
+_LINKEDIN_USER_URL = "https://api.linkedin.com/v2/userinfo"  # OpenID Connect endpoint
 
 _META_AUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth"
 _META_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
@@ -25,7 +25,7 @@ _META_IG_URL = "https://graph.facebook.com/v19.0/me"
 
 _SCOPES = {
     "twitter":  "tweet.write tweet.read users.read offline.access",
-    "linkedin": "w_member_social r_liteprofile",
+    "linkedin": "openid profile email w_member_social",
     "meta":     "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish",
 }
 
@@ -163,7 +163,9 @@ async def get_linkedin_urn(access_token: str) -> str:
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"LinkedIn user fetch error: {e.response.status_code}") from e
     data = resp.json()
-    return f"urn:li:person:{data['id']}"
+    # OpenID Connect userinfo returns 'sub' as the person URN
+    sub = data.get("sub") or data.get("id", "")
+    return f"urn:li:person:{sub}"
 
 
 async def get_meta_assets(access_token: str) -> list[dict]:
