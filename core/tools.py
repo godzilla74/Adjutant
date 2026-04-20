@@ -729,7 +729,8 @@ _LINKEDIN_TOOLS = [
     {
         "name": "linkedin_post",
         "description": (
-            "Publish a post to the product's connected LinkedIn profile. "
+            "Publish a post to LinkedIn. Uses the API if a LinkedIn connection is configured; "
+            "otherwise automatically falls back to browser automation. "
             "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
         ),
         "input_schema": {
@@ -748,7 +749,8 @@ _FACEBOOK_TOOLS = [
     {
         "name": "facebook_post",
         "description": (
-            "Publish a post to the product's connected Facebook Page. "
+            "Publish a post to Facebook. Uses the API if a Facebook connection is configured; "
+            "otherwise automatically falls back to browser automation. "
             "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
         ),
         "input_schema": {
@@ -767,7 +769,8 @@ _INSTAGRAM_TOOLS = [
     {
         "name": "instagram_post",
         "description": (
-            "Publish an image post to the product's connected Instagram Business account. "
+            "Publish an image post to Instagram. Uses the API if an Instagram connection is configured; "
+            "otherwise automatically falls back to browser automation. "
             "Requires an image URL — Instagram does not support text-only posts. "
             "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
         ),
@@ -1123,8 +1126,15 @@ async def _linkedin_post(product_id: str, text: str, media_url: str | None = Non
         )
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "LinkedIn post queued for approval."})
-    from backend.social_api import linkedin_post
-    return await linkedin_post(product_id, text, media_url)
+    from backend.db import get_oauth_connection
+    if get_oauth_connection(product_id, "linkedin") is not None:
+        from backend.social_api import linkedin_post
+        return await linkedin_post(product_id, text, media_url)
+    task = f"Post the following to LinkedIn (linkedin.com). Log in if needed.\n\nPost text:\n{text}"
+    if media_url:
+        task += f"\nAttach this image: {media_url}"
+    task += "\nConfirm the post was published and return the post URL if available."
+    return await execute_tool("browser_task", {"task": task})
 
 
 async def _facebook_post(product_id: str, text: str, media_url: str | None = None) -> str:
@@ -1139,8 +1149,15 @@ async def _facebook_post(product_id: str, text: str, media_url: str | None = Non
         )
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "Facebook post queued for approval."})
-    from backend.social_api import facebook_post
-    return await facebook_post(product_id, text, media_url)
+    from backend.db import get_oauth_connection
+    if get_oauth_connection(product_id, "facebook") is not None:
+        from backend.social_api import facebook_post
+        return await facebook_post(product_id, text, media_url)
+    task = f"Post the following to Facebook (facebook.com). Log in if needed.\n\nPost text:\n{text}"
+    if media_url:
+        task += f"\nAttach this image: {media_url}"
+    task += "\nConfirm the post was published and return the post URL if available."
+    return await execute_tool("browser_task", {"task": task})
 
 
 async def _instagram_post(product_id: str, caption: str, image_url: str) -> str:
@@ -1155,8 +1172,17 @@ async def _instagram_post(product_id: str, caption: str, image_url: str) -> str:
         )
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "Instagram post queued for approval."})
-    from backend.social_api import instagram_post
-    return await instagram_post(product_id, caption, image_url)
+    from backend.db import get_oauth_connection
+    if get_oauth_connection(product_id, "instagram") is not None:
+        from backend.social_api import instagram_post
+        return await instagram_post(product_id, caption, image_url)
+    task = (
+        f"Post the following to Instagram (instagram.com). Log in if needed.\n\n"
+        f"Caption:\n{caption}\n\nImage URL: {image_url}\n\n"
+        f"Download or use the image at that URL for the post. "
+        f"Confirm the post was published."
+    )
+    return await execute_tool("browser_task", {"task": task})
 
 
 def _save_note(title: str, content: str) -> str:
