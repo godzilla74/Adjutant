@@ -79,8 +79,8 @@ async def _publish_social_draft(draft: dict) -> dict:
         return {"success": True, "result": result}
     except RuntimeError as e:
         return {"success": False, "error": str(e)}
-from core.config import get_system_prompt
-from core.tools import execute_tool, get_tools_for_product
+from core.config import get_system_prompt, get_global_system_prompt
+from core.tools import execute_tool, get_tools_for_product, get_global_tools
 
 init_db()
 
@@ -102,7 +102,7 @@ _running_tasks:    dict[str, asyncio.Task | None] = {}  # inner _agent_loop task
 _worker_events:    dict[str, asyncio.Event] = {}
 _worker_tasks:     dict[str, asyncio.Task] = {}
 
-_last_active_product: str = "retainerops"
+_last_active_product: str = ""
 _telegram_bot  = None  # set in lifespan; module-level so _broadcast can reach it
 _telegram_task = None  # module-level so hot-reload can cancel it
 _mcp_manager = None  # set in lifespan; module-level so manage_mcp_server tool can reach it
@@ -518,7 +518,10 @@ async def _maybe_compact(product_id: str) -> None:
 
 async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str | None = None) -> tuple[list, list]:
     """Run the agent loop. Returns (updated messages, new review items)."""
-    system = get_system_prompt(product_id)
+    if product_id is None:
+        system = get_global_system_prompt(get_products())
+    else:
+        system = get_system_prompt(product_id)
     new_review_items: list[dict] = []
 
     # Load MCP servers for this product
@@ -537,7 +540,10 @@ async def _agent_loop(send_fn, product_id: str, messages: list, session_id: str 
         for s in _enabled_servers if s["type"] == "remote"
     ]
     _stdio_tools = _mcp_manager.get_tools() if _mcp_manager else []
-    _all_tools = get_tools_for_product(product_id) + _stdio_tools
+    if product_id is None:
+        _all_tools = get_global_tools() + _stdio_tools
+    else:
+        _all_tools = get_tools_for_product(product_id) + _stdio_tools
 
     # Read model config fresh so Settings changes take effect without restart
     _live_cfg = _get_agent_config()
