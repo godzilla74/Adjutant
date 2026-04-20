@@ -173,13 +173,16 @@ async def get_linkedin_urn(access_token: str) -> str:
 async def get_meta_assets(access_token: str) -> tuple[list[dict], str]:
     """Return (assets, debug_info). assets: [{service, account_id, access_token, name}, ...]"""
     assets = []
+    debug_parts: list[str] = []
     async with httpx.AsyncClient() as client:
         perms_resp = await client.get(
             "https://graph.facebook.com/v19.0/me/permissions",
             params={"access_token": access_token},
         )
         perms = [p["permission"] for p in perms_resp.json().get("data", []) if p.get("status") == "granted"]
+        debug_parts.append(f"granted_perms={perms}")
 
+        # Path 1: personal pages via /me/accounts
         resp = await client.get(
             _META_PAGES_URL,
             params={"fields": "id,name,access_token,instagram_business_account", "access_token": access_token},
@@ -188,21 +191,36 @@ async def get_meta_assets(access_token: str) -> tuple[list[dict], str]:
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"Meta pages fetch error: {e.response.status_code}: {e.response.text}") from e
-        raw = resp.json()
-        pages = raw.get("data", [])
-        debug_info = f"granted_perms={perms} pages_count={len(pages)} raw={raw}"
+        pages = resp.json().get("data", [])
+        debug_parts.append(f"me/accounts={len(pages)} pages")
+
+        # Path 2: business-portfolio-owned pages via /me/businesses (for Business accounts)
+        if not pages:
+            biz_resp = await client.get(
+                "https://graph.facebook.com/v19.0/me/businesses",
+                params={"fields": "id,name", "access_token": access_token},
+            )
+            businesses = biz_resp.json().get("data", [])
+            debug_parts.append(f"me/businesses={[b['name'] for b in businesses]}")
+            for biz in businesses:
+                owned_resp = await client.get(
+                    f"https://graph.facebook.com/v19.0/{biz['id']}/owned_pages",
+                    params={"fields": "id,name,access_token,instagram_business_account", "access_token": access_token},
+                )
+                biz_pages = owned_resp.json().get("data", [])
+                debug_parts.append(f"biz {biz['name']} owned_pages={len(biz_pages)}")
+                pages.extend(biz_pages)
+
         for page in pages:
-            page_token = page["access_token"]
+            page_token = page.get("access_token", access_token)
             assets.append({
                 "service": "facebook",
                 "account_id": page["id"],
                 "access_token": page_token,
                 "name": page.get("name", page["id"]),
             })
-            # Instagram Business account is linked at the Page level, not the user level
             ig = page.get("instagram_business_account")
             if ig:
-                # Fetch the Instagram username for a friendlier display name
                 ig_resp = await client.get(
                     f"https://graph.facebook.com/v19.0/{ig['id']}",
                     params={"fields": "username", "access_token": page_token},
@@ -214,7 +232,8 @@ async def get_meta_assets(access_token: str) -> tuple[list[dict], str]:
                     "access_token": page_token,
                     "name": f"@{ig_username}",
                 })
-    return assets, debug_info
+
+    return assets, " | ".join(debug_parts)
 
 
 async def revoke_social_token(access_token: str, service: str) -> None:

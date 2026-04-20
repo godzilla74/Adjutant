@@ -278,12 +278,15 @@
         <li><span class="step-num">4</span><p>Fill in the required fields Meta needs before you can submit for review: <strong>Privacy Policy URL</strong> (a simple hosted page is fine), <strong>App Icon</strong> (1024×1024px), and <strong>Category</strong>. Click <strong>Save changes</strong>.</p></li>
       </ol>
 
-      <p class="section-title">Phase 4 — Add Facebook Login for Business, permissions &amp; redirect URI</p>
+      <p class="section-title">Phase 4 — Add Facebook Login (standard), permissions &amp; redirect URI</p>
+      <div class="tip" style="margin-bottom:16px;border-left-color:#f59e0b;">
+        <strong style="color:#fcd34d;">Use Facebook Login, not Facebook Login for Business.</strong> The "for Business" variant uses a different asset model and <code>/me/accounts</code> returns empty. Use the plain <strong>Facebook Login</strong> product.
+      </div>
       <ol class="steps">
-        <li><span class="step-num">1</span><p>In the left sidebar, click <strong>Add product</strong>, find <strong>Facebook Login for Business</strong>, and click <strong>Set up</strong>.</p></li>
+        <li><span class="step-num">1</span><p>In the left sidebar, click <strong>Add product</strong>, find <strong>Facebook Login</strong> (the standard one — <em>not</em> "for Business"), and click <strong>Set up</strong>.</p></li>
         <li><span class="step-num">2</span><p>Choose <strong>Web</strong>, enter <code>http://localhost:8001</code> as the site URL, and click <strong>Save</strong>.</p></li>
-        <li><span class="step-num">3</span><p>In the Facebook Login for Business settings, under <strong>Valid OAuth Redirect URIs</strong>, add: <code>http://localhost:8001/api/oauth/callback</code> — then click <strong>Save changes</strong>.</p></li>
-        <li><span class="step-num">4</span><p>Still in Facebook Login for Business → Settings, find the <strong>Optional Permissions</strong> field and add all of the following (this is required even in Development mode):</p>
+        <li><span class="step-num">3</span><p>In Facebook Login → Settings, under <strong>Valid OAuth Redirect URIs</strong>, add: <code>http://localhost:8001/api/oauth/callback</code> — then click <strong>Save changes</strong>.</p></li>
+        <li><span class="step-num">4</span><p>Still in Facebook Login → Settings, find the <strong>Optional Permissions</strong> field and add all of the following:</p>
           <ul style="margin:8px 0 0 16px;font-size:0.875rem;color:#8b949e;list-style:disc">
             <li><code>pages_show_list</code></li>
             <li><code>pages_manage_posts</code></li>
@@ -291,7 +294,7 @@
             <li><code>instagram_basic</code></li>
             <li><code>instagram_content_publish</code></li>
           </ul>
-          <p style="margin-top:8px">Click <strong>Save changes</strong>. You do <em>not</em> need to go through App Review or Business Verification — these permissions work immediately in Development mode for the app owner.</p>
+          <p style="margin-top:8px">Click <strong>Save changes</strong>. No App Review or Business Verification needed — these permissions work immediately in Development mode for the app owner.</p>
         </li>
       </ol>
 
