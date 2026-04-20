@@ -62,3 +62,29 @@ def test_global_system_prompt_no_products(monkeypatch):
     importlib.reload(mod)
     prompt = mod.get_global_system_prompt([])
     assert "no products configured" in prompt
+
+
+def test_get_global_tools_includes_dispatch():
+    from core.tools import get_global_tools
+    tools = get_global_tools()
+    names = [t["name"] for t in tools]
+    assert "dispatch_to_product" in names
+
+
+def test_get_global_tools_excludes_social():
+    from core.tools import get_global_tools
+    tools = get_global_tools()
+    names = [t["name"] for t in tools]
+    assert "twitter_post" not in names
+    assert "instagram_post" not in names
+    assert "gmail_send" not in names
+
+
+def test_dispatch_tool_schema():
+    from core.tools import get_global_tools
+    tools = get_global_tools()
+    dispatch = next(t for t in tools if t["name"] == "dispatch_to_product")
+    props = dispatch["input_schema"]["properties"]
+    assert "product_id" in props
+    assert "message" in props
+    assert dispatch["input_schema"]["required"] == ["product_id", "message"]

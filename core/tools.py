@@ -578,6 +578,42 @@ TOOLS_DEFINITIONS = [
 # Load extensions and append their definitions
 TOOLS_DEFINITIONS.extend(_load_extensions())
 
+_DISPATCH_TOOL = {
+    "name": "dispatch_to_product",
+    "description": (
+        "Route a directive to a specific product agent for execution. "
+        "Use when the message clearly targets one product. "
+        "Acknowledge briefly before calling this tool (e.g. 'On it' or 'Forwarding to [Product]')."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "product_id": {
+                "type": "string",
+                "description": "The id of the target product (from the products list in your system prompt)",
+            },
+            "message": {
+                "type": "string",
+                "description": "The full directive to send to the product agent",
+            },
+        },
+        "required": ["product_id", "message"],
+    },
+}
+
+_GLOBAL_BASE_TOOL_NAMES = {
+    "delegate_task", "save_note", "read_notes", "get_datetime",
+    "create_product", "update_product", "delete_product",
+    "create_workstream", "update_workstream_status", "delete_workstream",
+    "create_objective", "update_objective", "delete_objective",
+}
+
+
+def get_global_tools() -> list[dict]:
+    """Tools available to the global (product_id=None) agent."""
+    base = [t for t in TOOLS_DEFINITIONS if t["name"] in _GLOBAL_BASE_TOOL_NAMES]
+    return base + [_DISPATCH_TOOL]
+
 # ── Gmail tools (injected per-product when OAuth connected) ───────────────────
 
 _GMAIL_TOOLS = [
