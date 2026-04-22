@@ -1031,11 +1031,11 @@ async def _generate_image(prompt: str) -> str:
             image_url = resp.json()["data"][0]["url"]
             img_resp = await client.get(image_url)
             img_resp.raise_for_status()
+            path = save_uploaded_file("generated.png", img_resp.content)
+        port = os.environ.get("HANNAH_PORT", "8001")
+        return f"http://localhost:{port}/uploads/{path.name}"
     except Exception as e:
         return f"Image generation failed: {e}"
-    path = save_uploaded_file("generated.png", img_resp.content)
-    port = os.environ.get("HANNAH_PORT", "8001")
-    return f"http://localhost:{port}/uploads/{path.name}"
 
 
 # ── Executor ──────────────────────────────────────────────────────────────────
