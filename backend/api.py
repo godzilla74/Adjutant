@@ -927,3 +927,40 @@ async def delete_oauth_connection_api(product_id: str, service: str, _=Depends(_
             from backend.social_oauth import revoke_social_token
             await revoke_social_token(conn_row["access_token"], service)
     delete_oauth_connection(product_id, service)
+
+
+@router.get("/products/{product_id}/browser-credentials")
+def list_browser_credentials_api(product_id: str, _=Depends(_auth)):
+    from backend.db import list_browser_credentials
+    creds = list_browser_credentials(product_id)
+    # Convert active from int to bool (SQLite stores booleans as 0/1)
+    return [
+        {**cred, "active": bool(cred["active"])}
+        for cred in creds
+    ]
+
+
+class BrowserCredentialBody(BaseModel):
+    username: str
+    password: str
+    active: bool
+
+
+@router.put("/products/{product_id}/browser-credentials/{service}")
+def save_browser_credential_api(
+    product_id: str, service: str, body: BrowserCredentialBody, _=Depends(_auth)
+):
+    from backend.db import save_browser_credential, get_browser_credential
+    password = body.password
+    if not password:
+        existing = get_browser_credential(product_id, service)
+        if existing:
+            password = existing["password"]
+    save_browser_credential(product_id, service, body.username, password, body.active)
+    return {"ok": True}
+
+
+@router.delete("/products/{product_id}/browser-credentials/{service}", status_code=204)
+def delete_browser_credential_api(product_id: str, service: str, _=Depends(_auth)):
+    from backend.db import delete_browser_credential
+    delete_browser_credential(product_id, service)

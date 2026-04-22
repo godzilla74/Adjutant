@@ -191,3 +191,75 @@ def test_start_social_oauth_returns_url(client):
     resp = client.get("/api/products/prod-1/oauth/start/twitter", headers=AUTH)
     assert resp.status_code == 200
     assert "twitter.com" in resp.json()["auth_url"]
+
+
+def test_list_browser_credentials_empty(client):
+    import backend.db as db
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    resp = client.get("/api/products/p1/browser-credentials", headers=AUTH)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_save_and_list_browser_credential(client):
+    import backend.db as db
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    resp = client.put(
+        "/api/products/p1/browser-credentials/twitter",
+        json={"username": "myuser", "password": "mypass", "active": True},
+        headers=AUTH,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+
+    resp = client.get("/api/products/p1/browser-credentials", headers=AUTH)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["service"] == "twitter"
+    assert data[0]["username"] == "myuser"
+    assert data[0]["active"] is True
+    assert "password" not in data[0]
+
+
+def test_save_browser_credential_preserves_password_when_empty(client):
+    import backend.db as db
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    # Save initial credentials
+    client.put(
+        "/api/products/p1/browser-credentials/twitter",
+        json={"username": "myuser", "password": "secret", "active": True},
+        headers=AUTH,
+    )
+    # Toggle active only — send empty password
+    client.put(
+        "/api/products/p1/browser-credentials/twitter",
+        json={"username": "myuser", "password": "", "active": False},
+        headers=AUTH,
+    )
+    # Verify password is still stored
+    cred = db.get_browser_credential("p1", "twitter")
+    assert cred["password"] == "secret"
+    assert cred["active"] == 0
+
+
+def test_delete_browser_credential_endpoint(client):
+    import backend.db as db
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    client.put(
+        "/api/products/p1/browser-credentials/twitter",
+        json={"username": "u", "password": "p", "active": True},
+        headers=AUTH,
+    )
+    resp = client.delete("/api/products/p1/browser-credentials/twitter", headers=AUTH)
+    assert resp.status_code == 204
+    assert db.get_browser_credential("p1", "twitter") is None
+
+
+def test_browser_credentials_require_auth(client):
+    resp = client.get("/api/products/p1/browser-credentials")
+    assert resp.status_code == 401
