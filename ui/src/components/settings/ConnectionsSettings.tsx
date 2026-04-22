@@ -221,20 +221,20 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
               key={key}
               className="bg-adj-panel border border-adj-border rounded-md px-4 py-3 flex flex-col gap-3"
             >
-              {/* Header row: label + toggle */}
-              <div className="flex items-center justify-between">
+              {/* Header row: label + toggle (left-aligned, inline) */}
+              <div className="flex items-center gap-2.5">
                 <p className="text-sm text-adj-text-secondary font-medium">{label}</p>
                 {isBrowserCapable && (
-                  <div className="flex rounded overflow-hidden border border-adj-border text-[11px]">
+                  <div className="flex rounded overflow-hidden border border-adj-border text-xs leading-none">
                     <button
                       onClick={() => handleToggleMode(key, false)}
-                      className={`px-2.5 py-1 transition-colors ${!isBrowserMode ? 'bg-adj-accent text-white' : 'text-adj-text-muted hover:text-adj-text-secondary'}`}
+                      className={`px-1.5 py-0.5 transition-colors ${!isBrowserMode ? 'bg-adj-accent text-white' : 'text-adj-text-muted hover:text-adj-text-secondary'}`}
                     >
                       OAuth
                     </button>
                     <button
                       onClick={() => handleToggleMode(key, true)}
-                      className={`px-2.5 py-1 transition-colors ${isBrowserMode ? 'bg-adj-accent text-white' : 'text-adj-text-muted hover:text-adj-text-secondary'}`}
+                      className={`px-1.5 py-0.5 transition-colors ${isBrowserMode ? 'bg-adj-accent text-white' : 'text-adj-text-muted hover:text-adj-text-secondary'}`}
                     >
                       Browser
                     </button>
