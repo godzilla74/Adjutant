@@ -154,11 +154,18 @@ def _inject_creds(task: str, cred: dict | None) -> str:
     if cred and cred.get("username"):
         task += (
             f"\n\nLogin credentials — username/email: {cred['username']}, "
-            f"password: {cred['password']}. "
+            f"password: {cred.get('password', '')}. "
             f"Use these to fill the login form directly. "
             f"Do NOT use 'Sign in with Google' or other OAuth flows."
         )
     return task
+
+
+async def _browser_post(task_text: str, cred: dict | None) -> dict:
+    """Run a browser task with optional credential injection and parse the result."""
+    task_text = _inject_creds(task_text, cred)
+    task_text += _BROWSER_OUTCOME_SUFFIX
+    return _parse_browser_result(await execute_tool("browser_task", {"task": task_text}))
 
 
 async def _publish_social_draft(draft: dict) -> dict:
@@ -175,53 +182,63 @@ async def _publish_social_draft(draft: dict) -> dict:
 
     try:
         if platform == "twitter":
-            if not browser_active and get_oauth_connection(product_id, "twitter"):
-                result = await twitter_post(product_id, text, image_url)
-                return {"success": True, "result": result}
+            if browser_active:
+                task = f"Post the following tweet on X (twitter.com).\n\nTweet text: {text}"
+                if image_url:
+                    task += f"\n\nAttach this media: {image_url}"
+                return await _browser_post(task, cred)
+            elif get_oauth_connection(product_id, "twitter"):
+                return {"success": True, "result": await twitter_post(product_id, text, image_url)}
             else:
                 task = f"Post the following tweet on X (twitter.com).\n\nTweet text: {text}"
                 if image_url:
                     task += f"\n\nAttach this media: {image_url}"
-                task = _inject_creds(task, cred)
-                task += _BROWSER_OUTCOME_SUFFIX
-                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
+                return await _browser_post(task, None)
         elif platform == "linkedin":
-            if not browser_active and get_oauth_connection(product_id, "linkedin"):
-                result = await linkedin_post(product_id, text, image_url)
-                return {"success": True, "result": result}
+            if browser_active:
+                task = f"Post the following to LinkedIn (linkedin.com).\n\nPost text:\n{text}"
+                if image_url:
+                    task += f"\n\nAttach this image: {image_url}"
+                return await _browser_post(task, cred)
+            elif get_oauth_connection(product_id, "linkedin"):
+                return {"success": True, "result": await linkedin_post(product_id, text, image_url)}
             else:
                 task = f"Post the following to LinkedIn (linkedin.com).\n\nPost text:\n{text}"
                 if image_url:
                     task += f"\n\nAttach this image: {image_url}"
-                task = _inject_creds(task, cred)
-                task += _BROWSER_OUTCOME_SUFFIX
-                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
+                return await _browser_post(task, None)
         elif platform == "facebook":
-            if not browser_active and get_oauth_connection(product_id, "facebook"):
-                result = await facebook_post(product_id, text, image_url)
-                return {"success": True, "result": result}
+            if browser_active:
+                task = f"Post the following to Facebook (facebook.com).\n\nPost text:\n{text}"
+                if image_url:
+                    task += f"\n\nAttach this image: {image_url}"
+                return await _browser_post(task, cred)
+            elif get_oauth_connection(product_id, "facebook"):
+                return {"success": True, "result": await facebook_post(product_id, text, image_url)}
             else:
                 task = f"Post the following to Facebook (facebook.com).\n\nPost text:\n{text}"
                 if image_url:
                     task += f"\n\nAttach this image: {image_url}"
-                task = _inject_creds(task, cred)
-                task += _BROWSER_OUTCOME_SUFFIX
-                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
+                return await _browser_post(task, None)
         elif platform == "instagram":
             if not image_url:
                 return {"success": False, "error": "Instagram requires an image URL"}
-            if not browser_active and get_oauth_connection(product_id, "instagram"):
-                result = await instagram_post(product_id, text, image_url)
-                return {"success": True, "result": result}
+            if browser_active:
+                task = (
+                    f"Post the following to Instagram (instagram.com).\n\n"
+                    f"Caption:\n{text}\n\nImage URL: {image_url}\n\n"
+                    f"Download or use the image at that URL for the post."
+                )
+                return await _browser_post(task, cred)
+            elif get_oauth_connection(product_id, "instagram"):
+                return {"success": True, "result": await instagram_post(product_id, text, image_url)}
             else:
                 task = (
                     f"Post the following to Instagram (instagram.com).\n\n"
                     f"Caption:\n{text}\n\nImage URL: {image_url}\n\n"
                     f"Download or use the image at that URL for the post."
                 )
-                task = _inject_creds(task, cred)
-                task += _BROWSER_OUTCOME_SUFFIX
-                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
+                return await _browser_post(task, None)
         else:
             return {"success": False, "error": f"Unknown platform: {platform}"}
     except RuntimeError as e:
