@@ -300,6 +300,26 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getImageGenerationSettings: (pw: string) =>
+    apiFetch<{ pexels_configured: boolean; openai_connected: boolean }>(
+      '/api/settings/image-generation', pw
+    ),
+
+  updateImageGenerationSettings: (pw: string, body: { pexels_api_key?: string }) =>
+    apiFetch<{ ok: boolean }>('/api/settings/image-generation', pw, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  getOpenAIOAuthStatus: (pw: string) =>
+    apiFetch<{ connected: boolean }>('/api/openai-oauth/status', pw),
+
+  startOpenAIOAuth: (pw: string) =>
+    apiFetch<{ auth_url: string }>('/api/openai-oauth/start', pw),
+
+  disconnectOpenAI: (pw: string) =>
+    apiFetch<{ ok: boolean }>('/api/openai-oauth/disconnect', pw, { method: 'DELETE' }),
+
   getBrowserCredentials: (pw: string, productId: string) =>
     apiFetch<{ service: string; username: string; handle: string; active: boolean }[]>(
       `/api/products/${productId}/browser-credentials`, pw,
