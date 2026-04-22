@@ -299,4 +299,18 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+
+  getBrowserCredentials: (pw: string, productId: string) =>
+    apiFetch<{ service: string; username: string; active: boolean }[]>(
+      `/api/products/${productId}/browser-credentials`, pw,
+    ),
+
+  saveBrowserCredential: (pw: string, productId: string, service: string, body: { username: string; password: string; active: boolean }) =>
+    apiFetch<void>(`/api/products/${productId}/browser-credentials/${service}`, pw, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  deleteBrowserCredential: (pw: string, productId: string, service: string) =>
+    apiFetch<void>(`/api/products/${productId}/browser-credentials/${service}`, pw, { method: 'DELETE' }),
 }
