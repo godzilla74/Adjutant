@@ -943,6 +943,7 @@ def list_browser_credentials_api(product_id: str, _=Depends(_auth)):
 class BrowserCredentialBody(BaseModel):
     username: str
     password: str
+    handle: str = ""
     active: bool
 
 
@@ -961,7 +962,7 @@ def save_browser_credential_api(
         existing = get_browser_credential(product_id, service)
         if existing:
             password = existing["password"]
-    save_browser_credential(product_id, service, body.username, password, body.active)
+    save_browser_credential(product_id, service, body.username, password, body.active, body.handle)
     return {"ok": True}
 
 

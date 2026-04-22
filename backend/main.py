@@ -152,11 +152,18 @@ def _parse_browser_result(raw: str) -> dict:
 def _inject_creds(task: str, cred: dict | None) -> str:
     """Append login credentials to a browser task prompt if available."""
     if cred and cred.get("username"):
+        detail = (
+            f"username/email: {cred['username']}, "
+            f"password: {cred.get('password', '')}"
+        )
+        if cred.get("handle"):
+            detail += f", phone/handle: {cred['handle']}"
         task += (
-            f"\n\nLogin credentials — username/email: {cred['username']}, "
-            f"password: {cred.get('password', '')}. "
+            f"\n\nLogin credentials — {detail}. "
             f"Use these to fill the login form directly. "
-            f"Do NOT use 'Sign in with Google' or other OAuth flows."
+            f"Do NOT use 'Sign in with Google' or other OAuth flows. "
+            f"If prompted for a phone number or username to verify your identity, "
+            f"use the phone/handle value provided above."
         )
     return task
 

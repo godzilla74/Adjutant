@@ -280,11 +280,16 @@ def init_db() -> None:
                 service     TEXT NOT NULL,
                 username    TEXT NOT NULL DEFAULT '',
                 password    TEXT NOT NULL DEFAULT '',
+                handle      TEXT NOT NULL DEFAULT '',
                 active      INTEGER NOT NULL DEFAULT 0,
                 created_at  TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE(product_id, service)
             )
         """)
+        try:
+            conn.execute("ALTER TABLE browser_credentials ADD COLUMN handle TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass  # column already exists
 
         # Migrate: rename hannah_model key → agent_model (idempotent)
         conn.execute(
@@ -1655,16 +1660,18 @@ def save_browser_credential(
     username: str,
     password: str,
     active: bool,
+    handle: str = "",
 ) -> None:
     with _conn() as conn:
         conn.execute(
-            """INSERT INTO browser_credentials (product_id, service, username, password, active)
-               VALUES (?, ?, ?, ?, ?)
+            """INSERT INTO browser_credentials (product_id, service, username, password, handle, active)
+               VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(product_id, service) DO UPDATE SET
                    username=excluded.username,
                    password=excluded.password,
+                   handle=excluded.handle,
                    active=excluded.active""",
-            (product_id, service, username, password, 1 if active else 0),
+            (product_id, service, username, password, handle, 1 if active else 0),
         )
 
 
@@ -1686,10 +1693,10 @@ def delete_browser_credential(product_id: str, service: str) -> None:
 
 
 def list_browser_credentials(product_id: str) -> list[dict]:
-    """Returns service, username, active — never password."""
+    """Returns service, username, handle, active — never password."""
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT service, username, active FROM browser_credentials WHERE product_id = ?",
+            "SELECT service, username, handle, active FROM browser_credentials WHERE product_id = ?",
             (product_id,),
         ).fetchall()
     return [dict(r) for r in rows]

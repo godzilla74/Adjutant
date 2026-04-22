@@ -30,10 +30,10 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
   const [loading, setLoading] = useState(true)
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState(false)
   const [browserCreds, setBrowserCreds] = useState<
-    { service: string; username: string; active: boolean }[]
+    { service: string; username: string; handle: string; active: boolean }[]
   >([])
   const [credFields, setCredFields] = useState<
-    Record<string, { username: string; password: string; saved: boolean }>
+    Record<string, { username: string; password: string; handle: string; saved: boolean }>
   >({})
   const [savingCred, setSavingCred] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -70,9 +70,9 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
       setOauthConnections(conns)
       setGoogleOAuthConfigured(!!googleCfg.google_oauth_client_id)
       setBrowserCreds(bCreds)
-      const fields: Record<string, { username: string; password: string; saved: boolean }> = {}
+      const fields: Record<string, { username: string; password: string; handle: string; saved: boolean }> = {}
       for (const c of bCreds) {
-        fields[c.service] = { username: c.username, password: '', saved: true }
+        fields[c.service] = { username: c.username, password: '', handle: c.handle, saved: true }
       }
       setCredFields(fields)
     }).catch(() => {}).finally(() => setLoading(false))
@@ -124,7 +124,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
       setBrowserCreds((prev) => {
         const exists = prev.find((c) => c.service === service)
         if (exists) return prev.map((c) => c.service === service ? { ...c, active: true } : c)
-        return [...prev, { service, username: '', active: true }]
+        return [...prev, { service, username: '', handle: '', active: true }]
       })
       return
     }
@@ -136,7 +136,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
     setBrowserCreds((prev) => {
       const exists = prev.find((c) => c.service === service)
       if (exists) return prev.map((c) => c.service === service ? { ...c, active: toBrowser } : c)
-      return [...prev, { service, username: existing?.username ?? '', active: toBrowser }]
+      return [...prev, { service, username: existing?.username ?? '', handle: existing?.handle ?? '', active: toBrowser }]
     })
   }
 
@@ -150,14 +150,15 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
       await api.saveBrowserCredential(password, productId, service, {
         username: fields.username,
         password: fields.password,
+        handle: fields.handle,
         active: isCurrentlyActive,
       })
       setBrowserCreds((prev) => {
         const exists = prev.find((c) => c.service === service)
-        if (exists) return prev.map((c) => c.service === service ? { ...c, username: fields.username, active: isCurrentlyActive } : c)
-        return [...prev, { service, username: fields.username, active: isCurrentlyActive }]
+        if (exists) return prev.map((c) => c.service === service ? { ...c, username: fields.username, handle: fields.handle, active: isCurrentlyActive } : c)
+        return [...prev, { service, username: fields.username, handle: fields.handle, active: isCurrentlyActive }]
       })
-      setCredFields((prev) => ({ ...prev, [service]: { username: fields.username, password: '', saved: true } }))
+      setCredFields((prev) => ({ ...prev, [service]: { username: fields.username, password: '', handle: fields.handle, saved: true } }))
     } finally {
       setSavingCred(null)
     }
@@ -284,7 +285,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                     value={fields?.username ?? ''}
                     onChange={(e) => setCredFields((prev) => ({
                       ...prev,
-                      [key]: { username: e.target.value, password: prev[key]?.password ?? '', saved: false },
+                      [key]: { username: e.target.value, password: prev[key]?.password ?? '', handle: prev[key]?.handle ?? '', saved: false },
                     }))}
                     className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
                   />
@@ -294,7 +295,17 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                     value={fields?.saved ? '' : (fields?.password ?? '')}
                     onChange={(e) => setCredFields((prev) => ({
                       ...prev,
-                      [key]: { username: prev[key]?.username ?? '', password: e.target.value, saved: false },
+                      [key]: { username: prev[key]?.username ?? '', password: e.target.value, handle: prev[key]?.handle ?? '', saved: false },
+                    }))}
+                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Phone or @handle (for verification prompts)"
+                    value={fields?.handle ?? ''}
+                    onChange={(e) => setCredFields((prev) => ({
+                      ...prev,
+                      [key]: { username: prev[key]?.username ?? '', password: prev[key]?.password ?? '', handle: e.target.value, saved: false },
                     }))}
                     className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
                   />
