@@ -11,17 +11,18 @@ _SCOPES = "openid profile email offline_access api.connectors.read api.connector
 _PORT = os.environ.get("HANNAH_PORT", "8001")
 REDIRECT_URI = f"http://localhost:{_PORT}/api/openai-oauth/callback"
 
-_pending_verifier: str | None = None
+# Maps state → code_verifier for pending OAuth flows
+_pending: dict[str, str] = {}
 
 
 def build_auth_url() -> str:
-    """Generate PKCE auth URL and store verifier for later exchange."""
-    global _pending_verifier
+    """Generate PKCE auth URL with state parameter and store verifier."""
     raw = secrets.token_bytes(32)
     verifier = base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
     digest = hashlib.sha256(verifier.encode()).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-    _pending_verifier = verifier
+    state = secrets.token_urlsafe(16)
+    _pending[state] = verifier
     params = {
         "response_type": "code",
         "client_id": CLIENT_ID,
@@ -29,13 +30,11 @@ def build_auth_url() -> str:
         "scope": _SCOPES,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
+        "state": state,
     }
     return f"{_AUTH_URL}?{urllib.parse.urlencode(params)}"
 
 
-def pop_verifier() -> str | None:
-    """Return and clear the pending PKCE verifier."""
-    global _pending_verifier
-    v = _pending_verifier
-    _pending_verifier = None
-    return v
+def pop_verifier(state: str) -> str | None:
+    """Return and remove the verifier for the given state, or None if not found."""
+    return _pending.pop(state, None)

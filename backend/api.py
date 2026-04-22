@@ -983,7 +983,11 @@ async def openai_oauth_start(_=Depends(_auth)):
 
 
 @router.get("/openai-oauth/callback")
-async def openai_oauth_callback(code: str | None = None, error: str | None = None):
+async def openai_oauth_callback(
+    code: str | None = None,
+    error: str | None = None,
+    state: str | None = None,
+):
     import httpx
     from fastapi.responses import HTMLResponse
     from backend.openai_oauth import CLIENT_ID, REDIRECT_URI, TOKEN_URL, pop_verifier
@@ -1001,9 +1005,11 @@ async def openai_oauth_callback(code: str | None = None, error: str | None = Non
         return _err(error)
     if not code:
         return _err("Missing authorization code")
-    verifier = pop_verifier()
+    if not state:
+        return _err("Missing state parameter")
+    verifier = pop_verifier(state)
     if not verifier:
-        return _err("OAuth session expired — please try again")
+        return _err("Invalid or expired OAuth session — please try again")
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:

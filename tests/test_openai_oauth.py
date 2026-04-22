@@ -24,9 +24,12 @@ AUTH = {"X-Agent-Password": "testpw"}
 def test_pkce_challenge_is_sha256_of_verifier():
     import backend.openai_oauth as oai
     importlib.reload(oai)
-    import hashlib, base64
+    import hashlib, base64, urllib.parse
     url = oai.build_auth_url()
-    verifier = oai.pop_verifier()
+    parsed = urllib.parse.urlparse(url)
+    params = urllib.parse.parse_qs(parsed.query)
+    state = params["state"][0]
+    verifier = oai.pop_verifier(state)
     assert verifier is not None
     digest = hashlib.sha256(verifier.encode()).digest()
     expected_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
@@ -36,9 +39,12 @@ def test_pkce_challenge_is_sha256_of_verifier():
 def test_pop_verifier_clears_state():
     import backend.openai_oauth as oai
     importlib.reload(oai)
-    oai.build_auth_url()
-    v1 = oai.pop_verifier()
-    v2 = oai.pop_verifier()
+    url = oai.build_auth_url()
+    import urllib.parse
+    params = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    state = params["state"][0]
+    v1 = oai.pop_verifier(state)
+    v2 = oai.pop_verifier(state)
     assert v1 is not None
     assert v2 is None
 
@@ -87,10 +93,16 @@ def test_callback_with_error_param_returns_html_error(client):
 
 def test_callback_without_pending_verifier_returns_error(client):
     import backend.openai_oauth as oai
-    importlib.reload(oai)  # clear any pending verifier
+    importlib.reload(oai)
+    resp = client.get("/api/openai-oauth/callback?code=abc123&state=nonexistent")
+    assert resp.status_code == 200
+    assert "oauth_error" in resp.text
+
+
+def test_callback_missing_state_returns_error(client):
     resp = client.get("/api/openai-oauth/callback?code=abc123")
     assert resp.status_code == 200
-    assert "expired" in resp.text.lower() or "oauth_error" in resp.text
+    assert "oauth_error" in resp.text
 
 
 def test_image_generation_settings_default(client):
