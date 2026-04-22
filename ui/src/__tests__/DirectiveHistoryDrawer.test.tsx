@@ -16,7 +16,7 @@ vi.mock('../api', () => ({
 
 const mockOnSelect = vi.fn()
 const defaultProps = {
-  productId: 'retainerops',
+  productId: 'product-alpha',
   password: 'test',
   onClose: vi.fn(),
   onSelect: mockOnSelect,

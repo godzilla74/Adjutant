@@ -16,6 +16,9 @@ def isolated_db(tmp_path, monkeypatch):
     import backend.db as db_mod
     importlib.reload(db_mod)
     db_mod.init_db()
+    with db_mod._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('product-alpha', 'Product Alpha', 'PA', '#2563eb')")
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('product-beta', 'Product Beta', 'PB', '#7c3aed')")
     import backend.main as main_mod
     importlib.reload(main_mod)
     return main_mod
@@ -52,8 +55,8 @@ def test_ws_init_sends_products():
         init_msg = ws.receive_json()
         assert init_msg["type"] == "init"
         product_ids = [p["id"] for p in init_msg["products"]]
-        assert "retainerops" in product_ids
-        assert "ignitara" in product_ids
+        assert "product-alpha" in product_ids
+        assert "product-beta" in product_ids
 
 
 def test_ws_switch_product_sends_product_data():
@@ -62,10 +65,10 @@ def test_ws_switch_product_sends_product_data():
         ws.send_json({"type": "auth", "password": "testpass"})
         ws.receive_json()  # auth_ok
         ws.receive_json()  # init
-        ws.send_json({"type": "switch_product", "product_id": "ignitara"})
+        ws.send_json({"type": "switch_product", "product_id": "product-alpha"})
         msg = ws.receive_json()
         assert msg["type"] == "product_data"
-        assert msg["product_id"] == "ignitara"
+        assert msg["product_id"] == "product-alpha"
         assert "workstreams" in msg
         assert "objectives" in msg
         assert "events" in msg
@@ -76,7 +79,7 @@ def test_ws_resolve_review_pending_item():
     from fastapi.testclient import TestClient
     import backend.db as db_mod
     item_id = db_mod.save_review_item(
-        "retainerops", "Test post", "Description", "Public-facing"
+        "product-alpha", "Test post", "Description", "Public-facing"
     )
     with TestClient(get_app()).websocket_connect("/ws") as ws:
         ws.send_json({"type": "auth", "password": "testpass"})
@@ -87,7 +90,7 @@ def test_ws_resolve_review_pending_item():
         assert msg["type"] == "review_resolved"
         assert msg["review_item_id"] == item_id
         assert msg["action"] == "approved"
-    pending = db_mod.load_review_items("retainerops", status="pending")
+    pending = db_mod.load_review_items("product-alpha", status="pending")
     assert all(i["id"] != item_id for i in pending)
 
 
@@ -131,7 +134,7 @@ def test_ws_directive_echoes_and_returns_agent_done():
             ws.receive_json()  # auth_ok
             ws.receive_json()  # init
 
-            ws.send_json({"type": "directive", "product_id": "retainerops", "content": "Focus on SEO"})
+            ws.send_json({"type": "directive", "product_id": "product-alpha", "content": "Focus on SEO"})
 
             # The sync TestClient cannot observe async worker messages (agent_token/agent_done),
             # but the directive_echo is sent synchronously before the worker task runs.
@@ -146,7 +149,7 @@ def test_ws_directive_echoes_and_returns_agent_done():
     assert "directive_echo" in types
     echo = next(e for e in events if e["type"] == "directive_echo")
     assert echo["content"] == "Focus on SEO"
-    assert echo["product_id"] == "retainerops"
+    assert echo["product_id"] == "product-alpha"
 
 
 def test_build_user_message_no_attachments(isolated_db):

@@ -12,7 +12,7 @@ vi.mock('../api', () => ({
 }))
 
 const defaultProps = {
-  productId: 'retainerops',
+  productId: 'product-alpha',
   password: 'test',
   onClose: vi.fn(),
 }
@@ -34,7 +34,7 @@ describe('NotesDrawer', () => {
     await waitFor(() => screen.getByDisplayValue('Existing note text'))
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'New content' } })
     fireEvent.click(screen.getByText('Save'))
-    await waitFor(() => expect(api.updateNotes).toHaveBeenCalledWith('test', 'retainerops', 'New content'))
+    await waitFor(() => expect(api.updateNotes).toHaveBeenCalledWith('test', 'product-alpha', 'New content'))
   })
 
   it('closes when backdrop is clicked', async () => {

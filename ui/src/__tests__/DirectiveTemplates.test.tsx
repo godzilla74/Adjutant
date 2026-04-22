@@ -21,7 +21,7 @@ vi.mock('../api', () => ({
 }))
 
 const mockOnSelect = vi.fn()
-const defaultProps = { productId: 'retainerops', password: 'test', onSelect: mockOnSelect }
+const defaultProps = { productId: 'product-alpha', password: 'test', onSelect: mockOnSelect }
 
 beforeEach(() => {
   localStorage.clear()
