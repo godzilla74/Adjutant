@@ -575,6 +575,17 @@ TOOLS_DEFINITIONS = [
             "required": ["product_id", "summary"],
         },
     },
+    {
+        "name": "search_stock_photo",
+        "description": "Search Pexels for a stock photo matching a query. Returns a stable public CDN URL suitable for social posts. Use for topic-based or real-world content (news, lifestyle, people, places).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query describing the photo needed"},
+            },
+            "required": ["query"],
+        },
+    },
 ]
 
 # Load extensions and append their definitions
@@ -963,6 +974,27 @@ async def _manage_mcp_server(
     return f"Unknown action: {action}"
 
 
+async def _search_stock_photo(query: str) -> str:
+    import httpx
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    api_key = cfg.get("pexels_api_key", "")
+    if not api_key:
+        return "Stock photo search not configured — add a Pexels API key in Global settings."
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            "https://api.pexels.com/v1/search",
+            params={"query": query, "per_page": 1},
+            headers={"Authorization": api_key},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    photos = data.get("photos", [])
+    if not photos:
+        return f"No stock photos found for: {query}"
+    return photos[0]["src"]["large2x"]
+
+
 # ── Executor ──────────────────────────────────────────────────────────────────
 
 async def execute_tool(name: str, inputs: dict) -> str:
@@ -1043,6 +1075,8 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return await _facebook_post(**inputs)
     if name == "instagram_post":
         return await _instagram_post(**inputs)
+    if name == "search_stock_photo":
+        return await _search_stock_photo(**inputs)
     if name in _EXTENSION_EXECUTORS:
         return await _EXTENSION_EXECUTORS[name](inputs)
     return f"Unknown tool: {name}"
