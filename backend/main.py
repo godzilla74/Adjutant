@@ -844,6 +844,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                                 "risk_label": f"Social post · {block.input.get('platform', '')} · public-facing",
                                 "action_type": "social_post",
                                 "auto_approve_at": deadline_str,
+                                "scheduled_for": parsed.get("scheduled_for"),
                                 "status": "pending", "created_at": _ts(),
                             }
                             await send_fn({"type": "review_item_added", "product_id": pid, "item": item})

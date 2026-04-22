@@ -909,10 +909,13 @@ def resolve_review_item(item_id: int, action: str) -> None:
 def load_review_items(product_id: str, status: str = "pending") -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            """SELECT id, activity_event_id, title, description, risk_label, status,
-                      created_at, action_type, auto_approve_at
-               FROM review_items WHERE product_id = ? AND status = ?
-               ORDER BY created_at""",
+            """SELECT ri.id, ri.activity_event_id, ri.title, ri.description, ri.risk_label,
+                      ri.status, ri.created_at, ri.action_type, ri.auto_approve_at,
+                      sd.scheduled_for
+               FROM review_items ri
+               LEFT JOIN social_drafts sd ON sd.review_item_id = ri.id
+               WHERE ri.product_id = ? AND ri.status = ?
+               ORDER BY ri.created_at""",
             (product_id, status),
         ).fetchall()
     return [dict(r) for r in rows]
