@@ -120,7 +120,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
     const existing = credFields[service]
     await api.saveBrowserCredential(password, productId, service, {
       username: existing?.username ?? '',
-      password: existing?.saved ? '' : (existing?.password ?? ''),
+      password: '',
       active: toBrowser,
     })
     setBrowserCreds((prev) => {
@@ -279,14 +279,8 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                   />
                   <input
                     type="password"
-                    placeholder="Password"
-                    value={fields?.saved ? '••••••••' : (fields?.password ?? '')}
-                    onFocus={(e) => {
-                      if (fields?.saved) {
-                        setCredFields((prev) => ({ ...prev, [key]: { ...prev[key], password: '', saved: false } }))
-                        e.target.value = ''
-                      }
-                    }}
+                    placeholder={fields?.saved ? '••••••••' : 'Password'}
+                    value={fields?.saved ? '' : (fields?.password ?? '')}
                     onChange={(e) => setCredFields((prev) => ({
                       ...prev,
                       [key]: { username: prev[key]?.username ?? '', password: e.target.value, saved: false },
