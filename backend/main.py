@@ -130,17 +130,23 @@ _BROWSER_OUTCOME_SUFFIX = (
 )
 
 def _parse_browser_result(raw: str) -> dict:
-    """Parse a browser_task result string that ends with SUCCESS:/FAILED: line."""
-    for line in reversed(raw.strip().splitlines()):
+    """Parse a browser_task result. execute_tool wraps output in JSON; unwrap first."""
+    text = raw
+    try:
+        parsed = json.loads(raw)
+        text = parsed.get("result") or parsed.get("error") or raw
+    except (json.JSONDecodeError, TypeError):
+        pass
+    for line in reversed(text.strip().splitlines()):
         line = line.strip()
         if line.startswith("SUCCESS:"):
             url = line[len("SUCCESS:"):].strip()
-            return {"success": True, "post_url": url if url and url != "posted" else None, "result": raw}
+            return {"success": True, "post_url": url if url and url != "posted" else None, "result": text}
         if line.startswith("FAILED:"):
             reason = line[len("FAILED:"):].strip()
             return {"success": False, "error": reason or "Browser task reported failure"}
-    # No structured line found — treat as failure so we don't silently swallow errors
-    return {"success": False, "error": f"Browser task returned unstructured result: {raw[:200]}"}
+    # No structured outcome line — surface the actual text so the user sees what happened
+    return {"success": False, "error": text.strip()[:400] if text else "Browser task returned no output"}
 
 
 async def _publish_social_draft(draft: dict) -> dict:
@@ -157,9 +163,16 @@ async def _publish_social_draft(draft: dict) -> dict:
                 result = await twitter_post(product_id, text, image_url)
                 return {"success": True, "result": result}
             else:
-                task = f"Post the following tweet on X (twitter.com). Log in if needed. Tweet text: {text}"
+                task = (
+                    f"Post the following tweet on X (twitter.com).\n\n"
+                    f"Tweet text: {text}\n\n"
+                    f"If you need to log in: use the username/password fields directly — "
+                    f"do NOT use 'Sign in with Google' or other OAuth flows, as those require "
+                    f"interactive browser popups that won't work here. The credentials are stored "
+                    f"in the system; use them to fill the login form."
+                )
                 if image_url:
-                    task += f"\nAttach this media: {image_url}"
+                    task += f"\n\nAttach this media: {image_url}"
                 task += _BROWSER_OUTCOME_SUFFIX
                 return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
         elif platform == "linkedin":
