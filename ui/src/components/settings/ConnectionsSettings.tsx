@@ -287,7 +287,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                       ...prev,
                       [key]: { username: e.target.value, password: prev[key]?.password ?? '', handle: prev[key]?.handle ?? '', saved: false },
                     }))}
-                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
+                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-primary placeholder:text-adj-text-muted focus:outline-none focus:border-adj-accent"
                   />
                   <input
                     type="password"
@@ -297,7 +297,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                       ...prev,
                       [key]: { username: prev[key]?.username ?? '', password: e.target.value, handle: prev[key]?.handle ?? '', saved: false },
                     }))}
-                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
+                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-primary placeholder:text-adj-text-muted focus:outline-none focus:border-adj-accent"
                   />
                   <input
                     type="text"
@@ -307,7 +307,7 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
                       ...prev,
                       [key]: { username: prev[key]?.username ?? '', password: prev[key]?.password ?? '', handle: e.target.value, saved: false },
                     }))}
-                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
+                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-primary placeholder:text-adj-text-muted focus:outline-none focus:border-adj-accent"
                   />
                   <div className="flex items-center justify-between">
                     <button
