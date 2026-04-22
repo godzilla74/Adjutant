@@ -981,14 +981,19 @@ async def _search_stock_photo(query: str) -> str:
     api_key = cfg.get("pexels_api_key", "")
     if not api_key:
         return "Stock photo search not configured — add a Pexels API key in Global settings."
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(
-            "https://api.pexels.com/v1/search",
-            params={"query": query, "per_page": 1},
-            headers={"Authorization": api_key},
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                "https://api.pexels.com/v1/search",
+                params={"query": query, "per_page": 1},
+                headers={"Authorization": api_key},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as e:
+        return f"Pexels API error: {e.response.status_code}"
+    except Exception as e:
+        return f"Stock photo search failed: {e}"
     photos = data.get("photos", [])
     if not photos:
         return f"No stock photos found for: {query}"
