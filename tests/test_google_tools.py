@@ -263,3 +263,47 @@ def test_twitter_post_auto_tier_posts_immediately(db):
             )
         assert "posted" in result
     asyncio.run(run())
+
+
+def test_draft_social_post_stores_scheduled_for(db):
+    """draft_social_post with scheduled_for stores the value on the draft."""
+    async def run():
+        from core.tools import execute_tool
+        result_str = await execute_tool("draft_social_post", {
+            "product_id": "prod-1",
+            "platform": "twitter",
+            "content": "Hello future!",
+            "scheduled_for": "2099-06-01T09:00:00",
+        })
+        import json
+        result = json.loads(result_str)
+        assert "draft_id" in result
+        import backend.db as db_mod
+        with db_mod._conn() as conn:
+            row = dict(conn.execute(
+                "SELECT scheduled_for FROM social_drafts WHERE id = ?",
+                (result["draft_id"],)
+            ).fetchone())
+        assert row["scheduled_for"] == "2099-06-01T09:00:00"
+    asyncio.run(run())
+
+
+def test_draft_social_post_description_includes_scheduled_time(db):
+    """Review item description mentions the scheduled time."""
+    async def run():
+        from core.tools import execute_tool
+        import json
+        result = json.loads(await execute_tool("draft_social_post", {
+            "product_id": "prod-1",
+            "platform": "twitter",
+            "content": "Scheduled post",
+            "scheduled_for": "2099-06-01T09:00:00",
+        }))
+        import backend.db as db_mod
+        with db_mod._conn() as conn:
+            row = dict(conn.execute(
+                "SELECT description FROM review_items WHERE id = ?",
+                (result["review_item_id"],)
+            ).fetchone())
+        assert "2099-06-01T09:00:00" in row["description"]
+    asyncio.run(run())

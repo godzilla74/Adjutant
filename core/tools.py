@@ -295,7 +295,8 @@ TOOLS_DEFINITIONS = [
         "name": "draft_social_post",
         "description": (
             "Draft a social media post for a product. Saves the draft and automatically adds it to the user's "
-            "approval queue before anything is posted. Use the product's brand voice and tone when writing content."
+            "approval queue before anything is posted. Use the product's brand voice and tone when writing content. "
+            "Optionally schedule the post for a future date/time using scheduled_for (ISO-8601, e.g. '2026-05-01T09:00:00')."
         ),
         "input_schema": {
             "type": "object",
@@ -305,6 +306,7 @@ TOOLS_DEFINITIONS = [
                 "content":            {"type": "string", "description": "The post text, ready to publish"},
                 "image_description":  {"type": "string", "description": "Description of the image/visual to pair with this post (optional)"},
                 "image_url":          {"type": "string", "description": "Public URL of an image to attach (required for Instagram, optional for others)"},
+                "scheduled_for":      {"type": "string", "description": "ISO-8601 datetime to auto-publish (e.g. '2026-05-01T09:00:00'). Omit to post immediately on approval."},
             },
             "required": ["product_id", "platform", "content"],
         },
@@ -1459,11 +1461,19 @@ def _delete_objective(product_id: str, text_fragment: str) -> str:
     from backend.db import delete_objective
     return delete_objective(product_id, text_fragment)
 
-async def _draft_social_post(product_id: str, platform: str, content: str, image_description: str = "", image_url: str = "") -> str:
+async def _draft_social_post(
+    product_id: str,
+    platform: str,
+    content: str,
+    image_description: str = "",
+    image_url: str = "",
+    scheduled_for: str | None = None,
+) -> str:
     from backend.db import save_social_draft, save_review_item
-    # Create review item first
     risk = f"Social post · {platform} · public-facing · irreversible once posted"
     description = f"**Platform:** {platform}\n\n**Content:**\n{content}"
+    if scheduled_for:
+        description += f"\n\n**Scheduled for:** {scheduled_for}"
     if image_description:
         description += f"\n\n**Image:** {image_description}"
     if image_url:
@@ -1475,7 +1485,6 @@ async def _draft_social_post(product_id: str, platform: str, content: str, image
         risk_label=risk,
         action_type="social_post",
     )
-    # Save the draft linked to the review item
     draft_id = save_social_draft(
         product_id=product_id,
         platform=platform,
@@ -1483,12 +1492,14 @@ async def _draft_social_post(product_id: str, platform: str, content: str, image
         image_description=image_description,
         image_url=image_url,
         review_item_id=review_id,
+        scheduled_for=scheduled_for,
     )
     return json.dumps({
         "draft_id": draft_id,
         "review_item_id": review_id,
         "platform": platform,
         "status": "pending_review",
+        "scheduled_for": scheduled_for,
     })
 
 
