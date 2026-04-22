@@ -63,6 +63,7 @@ export interface ReviewItem {
   created_at: string
   action_type?: string | null
   auto_approve_at?: string | null
+  scheduled_for?: string | null
 }
 
 export interface ProductState {

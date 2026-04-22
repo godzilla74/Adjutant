@@ -16,6 +16,17 @@ function formatCountdown(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
+function formatScheduled(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
 export default function ReviewCard({ item, onResolve, onCancelAutoApprove }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
@@ -67,6 +78,12 @@ export default function ReviewCard({ item, onResolve, onCancelAutoApprove }: Pro
             {item.risk_label}
           </div>
         )}
+        {item.scheduled_for && (
+          <div className="flex items-center gap-1 text-xs text-sky-400">
+            <span className="w-1 h-1 rounded-full bg-sky-400 flex-shrink-0" />
+            Scheduled: {formatScheduled(item.scheduled_for)}
+          </div>
+        )}
         {isWindow && (
           <div className="flex items-center justify-between">
             <span className="text-xs text-yellow-500 font-mono">
@@ -114,6 +131,11 @@ export default function ReviewCard({ item, onResolve, onCancelAutoApprove }: Pro
               <div>
                 <div className="text-xs text-amber-500 font-medium mb-1">{item.risk_label}</div>
                 <div className="text-sm font-semibold text-zinc-100 leading-snug">{item.title}</div>
+                {item.scheduled_for && (
+                  <div className="text-xs text-sky-400 mt-1">
+                    Scheduled: {formatScheduled(item.scheduled_for)}
+                  </div>
+                )}
               </div>
               <button
                 type="button"

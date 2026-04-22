@@ -42,4 +42,13 @@ describe('ReviewCard', () => {
     fireEvent.click(screen.getByText('Skip'))
     expect(onResolve).toHaveBeenCalledWith(1, 'skipped')
   })
+
+  it('shows scheduled time badge when scheduled_for is set', () => {
+    const scheduled: ReviewItem = {
+      ...ITEM,
+      scheduled_for: '2099-06-01T09:00:00',
+    }
+    render(<ReviewCard item={scheduled} onResolve={() => {}} />)
+    expect(screen.getByText(/Jun 1, 2099/)).toBeInTheDocument()
+  })
 })
