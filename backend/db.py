@@ -272,6 +272,20 @@ def init_db() -> None:
             )
         """)
 
+        # Add browser_credentials table (idempotent)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS browser_credentials (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                service     TEXT NOT NULL,
+                username    TEXT NOT NULL DEFAULT '',
+                password    TEXT NOT NULL DEFAULT '',
+                active      INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(product_id, service)
+            )
+        """)
+
         # Migrate: rename hannah_model key → agent_model (idempotent)
         conn.execute(
             "UPDATE model_config SET key = 'agent_model' WHERE key = 'hannah_model'"
@@ -1630,6 +1644,52 @@ def list_oauth_connections(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             "SELECT service, email, scopes, updated_at FROM oauth_connections WHERE product_id=?",
+            (product_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def save_browser_credential(
+    product_id: str,
+    service: str,
+    username: str,
+    password: str,
+    active: bool,
+) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO browser_credentials (product_id, service, username, password, active)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(product_id, service) DO UPDATE SET
+                   username=excluded.username,
+                   password=excluded.password,
+                   active=excluded.active""",
+            (product_id, service, username, password, 1 if active else 0),
+        )
+
+
+def get_browser_credential(product_id: str, service: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM browser_credentials WHERE product_id = ? AND service = ?",
+            (product_id, service),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_browser_credential(product_id: str, service: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM browser_credentials WHERE product_id = ? AND service = ?",
+            (product_id, service),
+        )
+
+
+def list_browser_credentials(product_id: str) -> list[dict]:
+    """Returns service, username, active — never password."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT service, username, active FROM browser_credentials WHERE product_id = ?",
             (product_id,),
         ).fetchall()
     return [dict(r) for r in rows]

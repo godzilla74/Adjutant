@@ -682,3 +682,61 @@ def test_get_due_scheduled_drafts_returns_past_only(tmp_path, monkeypatch):
     assert past_id in due_ids
     assert future_id not in due_ids
     assert plain_id not in due_ids
+
+
+def test_save_and_get_browser_credential(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib, backend.db as db
+    importlib.reload(db)
+    db.init_db()
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    db.save_browser_credential("p1", "twitter", "myuser", "mypass", active=True)
+    cred = db.get_browser_credential("p1", "twitter")
+    assert cred is not None
+    assert cred["username"] == "myuser"
+    assert cred["password"] == "mypass"
+    assert cred["active"] == 1
+
+
+def test_save_browser_credential_upserts(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib, backend.db as db
+    importlib.reload(db)
+    db.init_db()
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    db.save_browser_credential("p1", "twitter", "user1", "pass1", active=True)
+    db.save_browser_credential("p1", "twitter", "user2", "pass2", active=False)
+    cred = db.get_browser_credential("p1", "twitter")
+    assert cred["username"] == "user2"
+    assert cred["active"] == 0
+
+
+def test_delete_browser_credential(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib, backend.db as db
+    importlib.reload(db)
+    db.init_db()
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    db.save_browser_credential("p1", "twitter", "u", "p", active=True)
+    db.delete_browser_credential("p1", "twitter")
+    assert db.get_browser_credential("p1", "twitter") is None
+
+
+def test_list_browser_credentials_omits_password(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib, backend.db as db
+    importlib.reload(db)
+    db.init_db()
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    db.save_browser_credential("p1", "twitter", "u1", "secret", active=True)
+    db.save_browser_credential("p1", "linkedin", "u2", "secret2", active=False)
+    results = db.list_browser_credentials("p1")
+    assert len(results) == 2
+    for r in results:
+        assert "password" not in r
+    services = {r["service"] for r in results}
+    assert services == {"twitter", "linkedin"}
