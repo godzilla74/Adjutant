@@ -91,3 +91,23 @@ def test_callback_without_pending_verifier_returns_error(client):
     resp = client.get("/api/openai-oauth/callback?code=abc123")
     assert resp.status_code == 200
     assert "expired" in resp.text.lower() or "oauth_error" in resp.text
+
+
+def test_image_generation_settings_default(client):
+    resp = client.get("/api/settings/image-generation", headers=AUTH)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["pexels_configured"] is False
+    assert data["openai_connected"] is False
+
+
+def test_image_generation_settings_save_pexels_key(client):
+    resp = client.put(
+        "/api/settings/image-generation",
+        json={"pexels_api_key": "mykey123"},
+        headers=AUTH,
+    )
+    assert resp.status_code == 200
+    # Verify it's now configured
+    resp2 = client.get("/api/settings/image-generation", headers=AUTH)
+    assert resp2.json()["pexels_configured"] is True

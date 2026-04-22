@@ -1005,34 +1005,37 @@ async def openai_oauth_callback(code: str | None = None, error: str | None = Non
     if not verifier:
         return _err("OAuth session expired — please try again")
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(TOKEN_URL, data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": REDIRECT_URI,
-            "client_id": CLIENT_ID,
-            "code_verifier": verifier,
-        })
-        if resp.status_code != 200:
-            return _err(f"Token exchange failed ({resp.status_code})")
-        tokens = resp.json()
-        id_token = tokens.get("id_token")
-        refresh_token = tokens.get("refresh_token", "")
-        if not id_token:
-            return _err("No id_token in token response")
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(TOKEN_URL, data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": REDIRECT_URI,
+                "client_id": CLIENT_ID,
+                "code_verifier": verifier,
+            })
+            if resp.status_code != 200:
+                return _err(f"Token exchange failed ({resp.status_code})")
+            tokens = resp.json()
+            id_token = tokens.get("id_token")
+            refresh_token = tokens.get("refresh_token", "")
+            if not id_token:
+                return _err("No id_token in token response")
 
-        resp2 = await client.post(TOKEN_URL, data={
-            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
-            "client_id": CLIENT_ID,
-            "requested_token": "openai-api-key",
-            "subject_token": id_token,
-            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
-        })
-        if resp2.status_code != 200:
-            return _err(f"API key exchange failed ({resp2.status_code})")
-        api_key = resp2.json().get("access_token")
-        if not api_key:
-            return _err("No API key in exchange response")
+            resp2 = await client.post(TOKEN_URL, data={
+                "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                "client_id": CLIENT_ID,
+                "requested_token": "openai-api-key",
+                "subject_token": id_token,
+                "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+            })
+            if resp2.status_code != 200:
+                return _err(f"API key exchange failed ({resp2.status_code})")
+            api_key = resp2.json().get("access_token")
+            if not api_key:
+                return _err("No API key in exchange response")
+    except Exception as exc:
+        return _err(f"Network error: {exc}")
 
     from backend.db import set_agent_config
     set_agent_config("openai_access_token", api_key)
