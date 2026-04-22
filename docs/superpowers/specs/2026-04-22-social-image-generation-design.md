@@ -53,15 +53,51 @@ Both tools are added to the tool schema list and the `execute_tool` dispatcher. 
 
 Stored in the existing `settings` table via `get_setting` / `save_setting` (already used for `agent_model`, Google OAuth keys, etc.).
 
-### Codex OAuth flow — `backend/api.py` + `backend/main.py`
+### Codex OAuth flow — `backend/api.py`
 
-Mirrors the existing Google OAuth pattern:
+Mirrors the existing Google OAuth pattern. The flow is PKCE (`S256`) and produces an OpenAI API key tied to the user's ChatGPT account, which is then used with the standard OpenAI Images API.
 
-1. `GET /openai-oauth/start` — returns `{"auth_url": "https://auth.openai.com/..."}`. Frontend opens this URL in a popup.
-2. OpenAI redirects back to `GET /openai-oauth/callback?code=...`. Backend exchanges the code for an access token and stores it via `save_setting("openai_access_token", token)`.
-3. `GET /openai-oauth/status` — returns `{"connected": bool}` so the UI can show connection state.
+**Constants (from openai/codex source):**
+- Client ID: `app_EMoamEEZ73f0CkXaXp7hrann`
+- Issuer: `https://auth.openai.com`
+- Scopes: `openid profile email offline_access api.connectors.read api.connectors.invoke`
+- Redirect URI: `http://localhost:{ADJUTANT_PORT}/api/openai-oauth/callback`
 
-**Note:** The exact OAuth endpoints, client ID, and callback parameters need to be confirmed against OpenAI's Codex OAuth documentation before implementation. The structure above is modelled on the established pattern in the codebase.
+**Step 1 — `GET /api/openai-oauth/start`**
+
+Backend generates a PKCE pair (`code_verifier`, `code_challenge` via SHA-256), stores `code_verifier` in memory, and returns:
+```json
+{"auth_url": "https://auth.openai.com/oauth/authorize?response_type=code&client_id=app_EMoamEEZ73f0CkXaXp7hrann&redirect_uri=...&scope=...&code_challenge=...&code_challenge_method=S256"}
+```
+Frontend opens the URL in a popup.
+
+**Step 2 — `GET /api/openai-oauth/callback?code=...`**
+
+Backend POSTs to `https://auth.openai.com/oauth/token`:
+```
+grant_type=authorization_code&code={code}&redirect_uri={uri}&client_id={client_id}&code_verifier={verifier}
+```
+Returns `id_token`, `access_token`, `refresh_token`.
+
+Then exchanges `id_token` for an OpenAI API key via a second POST to `https://auth.openai.com/oauth/token`:
+```
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+&client_id={client_id}
+&requested_token=openai-api-key
+&subject_token={id_token}
+&subject_token_type=urn:ietf:params:oauth:token-type:id_token
+```
+Returns `access_token` — this is the actual OpenAI API key. Stored via `save_setting("openai_access_token", token)`. Also store `refresh_token` as `openai_refresh_token` for future token refresh.
+
+Callback responds with an HTML page that posts a message to the opener and closes itself (same pattern as Google OAuth callback).
+
+**Step 3 — `GET /api/openai-oauth/status`**
+
+Returns `{"connected": bool}` based on whether `openai_access_token` is set.
+
+**Step 4 — `DELETE /api/openai-oauth/disconnect`**
+
+Clears both `openai_access_token` and `openai_refresh_token` from settings.
 
 ---
 
