@@ -7,7 +7,7 @@ import json
 import os
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import anthropic
@@ -85,7 +85,6 @@ async def _do_publish_draft(draft: dict) -> None:
 
 async def _on_review_approved(item_id: int) -> None:
     """Publish a linked social draft (if any) and resume blocked objectives after approval."""
-    from datetime import datetime
     draft = get_social_draft_by_review_item(item_id)
     if draft:
         scheduled_for = draft.get("scheduled_for")
@@ -94,7 +93,13 @@ async def _on_review_approved(item_id: int) -> None:
                 fire_at = datetime.fromisoformat(scheduled_for)
             except ValueError:
                 fire_at = None
-            if fire_at and fire_at > datetime.utcnow():
+            if fire_at:
+                now = datetime.now(timezone.utc)
+                fire_at_cmp = fire_at.replace(tzinfo=timezone.utc) if fire_at.tzinfo is None else fire_at
+                is_future = fire_at_cmp > now
+            else:
+                is_future = False
+            if is_future:
                 # Defer — scheduler will publish when the time comes
                 update_social_draft_status(draft["id"], "scheduled")
                 pid = draft.get("product_id")

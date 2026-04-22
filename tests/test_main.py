@@ -308,7 +308,7 @@ def test_on_review_approved_defers_future_scheduled_post(isolated_db):
     with patch("backend.main._publish_social_draft", new=AsyncMock()) as mock_publish:
         with patch("backend.main._broadcast", new=AsyncMock()):
             asyncio.run(m._on_review_approved(review_id))
-        mock_publish.assert_not_awaited()
+            mock_publish.assert_not_awaited()
 
     with db._conn() as conn:
         row = dict(conn.execute("SELECT status FROM social_drafts WHERE id = ?", (draft_id,)).fetchone())
