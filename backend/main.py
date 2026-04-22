@@ -190,16 +190,36 @@ async def _publish_social_draft(draft: dict) -> dict:
     try:
         if platform == "twitter":
             if browser_active:
-                task = f"Post the following tweet on X (twitter.com).\n\nTweet text: {text}"
+                task = (
+                    f"Post the following tweet on X (twitter.com).\n\n"
+                    f"Steps:\n"
+                    f"1. Navigate to https://x.com/compose/tweet\n"
+                    f"2. Click inside the tweet text area to focus it\n"
+                    f"3. Type the following tweet text EXACTLY — do NOT press any keyboard shortcuts "
+                    f"(no Ctrl+B, no formatting keys) while the compose box is focused:\n\n"
+                    f"{text}\n\n"
+                    f"4. Before posting, verify the text in the compose box matches the above exactly\n"
+                    f"5. Click the Post button"
+                )
                 if image_url:
-                    task += f"\n\nAttach this media: {image_url}"
+                    task += f"\n\nAlso attach this media before posting: {image_url}"
                 return await _browser_post(task, cred)
             elif get_oauth_connection(product_id, "twitter"):
                 return {"success": True, "result": await twitter_post(product_id, text, image_url)}
             else:
-                task = f"Post the following tweet on X (twitter.com).\n\nTweet text: {text}"
+                task = (
+                    f"Post the following tweet on X (twitter.com).\n\n"
+                    f"Steps:\n"
+                    f"1. Navigate to https://x.com/compose/tweet\n"
+                    f"2. Click inside the tweet text area to focus it\n"
+                    f"3. Type the following tweet text EXACTLY — do NOT press any keyboard shortcuts "
+                    f"(no Ctrl+B, no formatting keys) while the compose box is focused:\n\n"
+                    f"{text}\n\n"
+                    f"4. Before posting, verify the text in the compose box matches the above exactly\n"
+                    f"5. Click the Post button"
+                )
                 if image_url:
-                    task += f"\n\nAttach this media: {image_url}"
+                    task += f"\n\nAlso attach this media before posting: {image_url}"
                 return await _browser_post(task, None)
         elif platform == "linkedin":
             if browser_active:
