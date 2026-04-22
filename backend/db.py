@@ -118,6 +118,7 @@ def init_db() -> None:
                 status            TEXT NOT NULL DEFAULT 'pending_review',
                 review_item_id    INTEGER REFERENCES review_items(id),
                 post_url          TEXT,
+                scheduled_for     TEXT,
                 created_at        TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_social_drafts_product
@@ -203,6 +204,10 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE social_drafts ADD COLUMN {col_name} {col_type}")
             except Exception:
                 pass  # column already exists
+        # Migrate: add scheduled_for to social_drafts if missing
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(social_drafts)").fetchall()]
+        if "scheduled_for" not in cols:
+            conn.execute("ALTER TABLE social_drafts ADD COLUMN scheduled_for TEXT")
         # Add autonomous workstream columns (idempotent)
         _ws_cols = [
             ("mission",     "TEXT NOT NULL DEFAULT ''"),
@@ -1256,11 +1261,12 @@ def save_social_draft(
     image_description: str = "",
     image_url: str = "",
     review_item_id: int | None = None,
+    scheduled_for: str | None = None,
 ) -> int:
     with _conn() as conn:
         cursor = conn.execute(
-            "INSERT INTO social_drafts (product_id, platform, content, image_description, image_url, review_item_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (product_id, platform, content, image_description, image_url, review_item_id),
+            "INSERT INTO social_drafts (product_id, platform, content, image_description, image_url, review_item_id, scheduled_for) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (product_id, platform, content, image_description, image_url, review_item_id, scheduled_for),
         )
     return cursor.lastrowid
 
@@ -1293,6 +1299,19 @@ def list_social_drafts(product_id: str, status: str = "pending_review") -> list[
         rows = conn.execute(
             "SELECT * FROM social_drafts WHERE product_id = ? AND status = ? ORDER BY created_at DESC",
             (product_id, status),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_due_scheduled_drafts() -> list[dict]:
+    """Return all social drafts with status='scheduled' whose scheduled_for <= now."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT * FROM social_drafts
+               WHERE status = 'scheduled'
+                 AND scheduled_for IS NOT NULL
+                 AND scheduled_for <= datetime('now')
+               ORDER BY scheduled_for""",
         ).fetchall()
     return [dict(r) for r in rows]
 

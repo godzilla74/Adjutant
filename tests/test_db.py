@@ -643,3 +643,42 @@ def test_save_review_item_with_action_type(db):
     items = db.load_review_items("test-product")
     assert items[0]["action_type"] == "social_post"
     assert items[0]["auto_approve_at"] is None
+
+
+def test_save_social_draft_with_scheduled_for(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib, backend.db as db
+    importlib.reload(db)
+    db.init_db()
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    draft_id = db.save_social_draft("p1", "twitter", "Hello world", scheduled_for="2099-01-01T09:00:00")
+    with db._conn() as conn:
+        row = dict(conn.execute("SELECT * FROM social_drafts WHERE id = ?", (draft_id,)).fetchone())
+    assert row["scheduled_for"] == "2099-01-01T09:00:00"
+
+
+def test_get_due_scheduled_drafts_returns_past_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib, backend.db as db
+    importlib.reload(db)
+    db.init_db()
+    with db._conn() as conn:
+        conn.execute("INSERT INTO products (id, name, icon_label, color) VALUES ('p1', 'P', 'P', '#000')")
+    # Past — due
+    past_id = db.save_social_draft("p1", "twitter", "Past post",
+                                    scheduled_for="2000-01-01T09:00:00")
+    db.update_social_draft_status(past_id, "scheduled")
+    # Future — not yet due
+    future_id = db.save_social_draft("p1", "twitter", "Future post",
+                                      scheduled_for="2099-01-01T09:00:00")
+    db.update_social_draft_status(future_id, "scheduled")
+    # No scheduled_for — should not appear
+    plain_id = db.save_social_draft("p1", "twitter", "Plain post")
+    db.update_social_draft_status(plain_id, "scheduled")
+
+    due = db.get_due_scheduled_drafts()
+    due_ids = [d["id"] for d in due]
+    assert past_id in due_ids
+    assert future_id not in due_ids
+    assert plain_id not in due_ids
