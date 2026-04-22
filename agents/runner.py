@@ -5,7 +5,6 @@ import logging
 import os
 
 from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-from claude_agent_sdk._errors import ProcessError
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +51,11 @@ async def _run_research_agent_inner(task: str) -> str:
         ):
             if isinstance(message, ResultMessage):
                 result = message.result
-    except ProcessError as e:
+    except Exception as e:
         real_stderr = "\n".join(stderr_buf).strip()
         detail = real_stderr or str(e)
-        logger.error("Research sub-agent process error: %s", detail)
-        return f"Sub-agent process failed: {detail}"
+        logger.error("Research sub-agent error: %s", detail)
+        return f"Sub-agent failed: {detail}"
     return result
 
 
@@ -84,11 +83,11 @@ async def _run_general_agent_inner(task: str) -> str:
         ):
             if isinstance(message, ResultMessage):
                 result = message.result
-    except ProcessError as e:
+    except Exception as e:
         real_stderr = "\n".join(stderr_buf).strip()
         detail = real_stderr or str(e)
-        logger.error("General sub-agent process error: %s", detail)
-        return f"Sub-agent process failed: {detail}"
+        logger.error("General sub-agent error: %s", detail)
+        return f"Sub-agent failed: {detail}"
     return result
 
 
