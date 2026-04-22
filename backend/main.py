@@ -57,6 +57,40 @@ from backend.db import (
 from backend.api import router as api_router
 
 
+async def _on_review_approved(item_id: int) -> None:
+    """Publish a linked social draft (if any) and resume blocked objectives after approval."""
+    draft = get_social_draft_by_review_item(item_id)
+    if draft:
+        pid = draft.get("product_id")
+        platform = draft.get("platform", "unknown")
+        event_id = save_activity_event(
+            product_id=pid, agent_type="social",
+            headline=f"Publishing to {platform.capitalize()}",
+            rationale="Social post approved — publishing now",
+            status="running",
+        )
+        await _broadcast({"type": "activity_started", "product_id": pid, "id": event_id,
+                          "agent_type": "social", "headline": f"Publishing to {platform.capitalize()}",
+                          "rationale": "Social post approved — publishing now", "ts": _ts()})
+        try:
+            result = await _publish_social_draft(draft)
+        except Exception as exc:
+            result = {"success": False, "error": str(exc)}
+        new_status = "posted" if result["success"] else "failed"
+        update_social_draft_status(draft["id"], new_status, result.get("post_url"))
+        summary = (f"Posted to {platform.capitalize()}. {result.get('post_url', '')}"
+                   if result["success"] else f"Failed to post: {result.get('error', 'Unknown error')}")
+        update_activity_event(event_id, status="done", summary=summary)
+        await _broadcast({"type": "activity_done", "product_id": pid, "id": event_id,
+                          "summary": summary, "ts": _ts()})
+
+    blocked_obj = get_objective_blocked_by_review(item_id)
+    if blocked_obj:
+        clear_objective_block(blocked_obj["id"])
+        from backend.scheduler import _run_objective_loop
+        asyncio.create_task(_run_objective_loop(blocked_obj["product_id"], blocked_obj["id"]))
+
+
 async def _publish_social_draft(draft: dict) -> dict:
     platform = draft.get("platform", "")
     product_id = draft.get("product_id", "")
@@ -219,6 +253,7 @@ async def lifespan(app: FastAPI):
         directive_callback=_handle_telegram_directive,
         resolve_review_fn=resolve_review_item,
         broadcast_fn=_broadcast,
+        on_review_approved_fn=_on_review_approved,
     )
     _telegram_task = asyncio.create_task(_telegram_bot.start())
 
@@ -236,6 +271,7 @@ async def lifespan(app: FastAPI):
             directive_callback=_handle_telegram_directive,
             resolve_review_fn=resolve_review_item,
             broadcast_fn=_broadcast,
+            on_review_approved_fn=_on_review_approved,
         )
         _telegram_task = asyncio.create_task(_telegram_bot.start())
 
@@ -1102,61 +1138,8 @@ async def websocket_endpoint(ws: WebSocket):
                         "action": action,
                     })
 
-                    # If this was a social post approval, publish it
                     if action == "approved":
-                        draft = get_social_draft_by_review_item(item_id)
-                        if draft:
-                            platform = draft.get("platform", "unknown")
-                            pid = draft.get("product_id", active_product_id)
-
-                            # Show posting activity in the feed
-                            event_id = save_activity_event(
-                                product_id=pid,
-                                agent_type="social",
-                                headline=f"Publishing to {platform.capitalize()}",
-                                rationale="Social post approved — publishing now",
-                                status="running",
-                            )
-                            await _send(ws, {
-                                "type": "activity_started",
-                                "product_id": pid,
-                                "id": event_id,
-                                "agent_type": "social",
-                                "headline": f"Publishing to {platform.capitalize()}",
-                                "rationale": "Social post approved — publishing now",
-                                "ts": _ts(),
-                            })
-
-                            try:
-                                result = await _publish_social_draft(draft)
-                            except Exception as exc:
-                                result = {"success": False, "error": str(exc)}
-
-                            new_status = "posted" if result["success"] else "failed"
-                            update_social_draft_status(draft["id"], new_status, result.get("post_url"))
-
-                            if result["success"]:
-                                summary = f"Posted to {platform.capitalize()}. {result.get('post_url', '')}"
-                            else:
-                                summary = f"Failed to post: {result.get('error', 'Unknown error')}"
-
-                            update_activity_event(event_id, status="done", summary=summary)
-                            await _send(ws, {
-                                "type": "activity_done",
-                                "product_id": pid,
-                                "id": event_id,
-                                "summary": summary,
-                                "ts": _ts(),
-                            })
-
-                    # Resume any autonomous objective that was blocked by this review
-                    blocked_obj = get_objective_blocked_by_review(item_id)
-                    if blocked_obj:
-                        clear_objective_block(blocked_obj["id"])
-                        from backend.scheduler import _run_objective_loop
-                        asyncio.create_task(
-                            _run_objective_loop(blocked_obj["product_id"], blocked_obj["id"])
-                        )
+                        await _on_review_approved(item_id)
 
             elif msg_type == "cancel_auto_approve":
                 item_id = msg.get("review_item_id")

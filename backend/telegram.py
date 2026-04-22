@@ -18,12 +18,14 @@ class TelegramBot:
         directive_callback: Callable[[str | None, str], Awaitable[None]],
         resolve_review_fn: Callable[[int, str], None],
         broadcast_fn: Callable[[dict], Awaitable[None]],
+        on_review_approved_fn: Callable[[int], Awaitable[None]] | None = None,
     ):
         self.token = token
         self.chat_id = str(chat_id)
         self._directive_callback = directive_callback
         self.resolve_review_fn = resolve_review_fn
         self.broadcast_fn = broadcast_fn
+        self._on_review_approved_fn = on_review_approved_fn
         self._offset = 0
         self._pending_products: set[str | None] = set()
         self._review_message_ids: dict[int, int] = {}
@@ -273,6 +275,8 @@ class TelegramBot:
             await self.broadcast_fn({"type": "review_resolved", "review_item_id": item_id, "action": "approved"})
             if message_id:
                 await self.edit_message(message_id, "✅ Approved")
+            if self._on_review_approved_fn:
+                await self._on_review_approved_fn(item_id)
         elif action_str == "reject":
             self.resolve_review_fn(item_id, "skipped")
             await self.broadcast_fn({"type": "review_resolved", "review_item_id": item_id, "action": "skipped"})

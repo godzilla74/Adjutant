@@ -1128,7 +1128,7 @@ async def _calendar_find_free_time(product_id: str, date: str, duration_minutes:
 
 async def _twitter_post(product_id: str, text: str, media_url: str | None = None) -> str:
     if _get_effective_tier(product_id, "social_post") == "approve":
-        from backend.db import save_review_item
+        from backend.db import save_review_item, save_social_draft
         item_id = save_review_item(
             product_id=product_id,
             title=f"Tweet: {text[:60]}{'…' if len(text) > 60 else ''}",
@@ -1136,6 +1136,8 @@ async def _twitter_post(product_id: str, text: str, media_url: str | None = None
             risk_label="Posts tweet · public · irreversible",
             action_type="social_post",
         )
+        save_social_draft(product_id=product_id, platform="twitter", content=text,
+                          image_url=media_url or "", review_item_id=item_id)
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "Tweet queued for approval."})
     from backend.db import get_oauth_connection
@@ -1153,7 +1155,7 @@ async def _twitter_post(product_id: str, text: str, media_url: str | None = None
 
 async def _linkedin_post(product_id: str, text: str, media_url: str | None = None) -> str:
     if _get_effective_tier(product_id, "social_post") == "approve":
-        from backend.db import save_review_item
+        from backend.db import save_review_item, save_social_draft
         item_id = save_review_item(
             product_id=product_id,
             title=f"LinkedIn post: {text[:60]}{'…' if len(text) > 60 else ''}",
@@ -1161,6 +1163,8 @@ async def _linkedin_post(product_id: str, text: str, media_url: str | None = Non
             risk_label="Posts to LinkedIn · public",
             action_type="social_post",
         )
+        save_social_draft(product_id=product_id, platform="linkedin", content=text,
+                          image_url=media_url or "", review_item_id=item_id)
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "LinkedIn post queued for approval."})
     from backend.db import get_oauth_connection
@@ -1176,7 +1180,7 @@ async def _linkedin_post(product_id: str, text: str, media_url: str | None = Non
 
 async def _facebook_post(product_id: str, text: str, media_url: str | None = None) -> str:
     if _get_effective_tier(product_id, "social_post") == "approve":
-        from backend.db import save_review_item
+        from backend.db import save_review_item, save_social_draft
         item_id = save_review_item(
             product_id=product_id,
             title=f"Facebook post: {text[:60]}{'…' if len(text) > 60 else ''}",
@@ -1184,6 +1188,8 @@ async def _facebook_post(product_id: str, text: str, media_url: str | None = Non
             risk_label="Posts to Facebook Page · public",
             action_type="social_post",
         )
+        save_social_draft(product_id=product_id, platform="facebook", content=text,
+                          image_url=media_url or "", review_item_id=item_id)
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "Facebook post queued for approval."})
     from backend.db import get_oauth_connection
@@ -1199,7 +1205,7 @@ async def _facebook_post(product_id: str, text: str, media_url: str | None = Non
 
 async def _instagram_post(product_id: str, caption: str, image_url: str) -> str:
     if _get_effective_tier(product_id, "social_post") == "approve":
-        from backend.db import save_review_item
+        from backend.db import save_review_item, save_social_draft
         item_id = save_review_item(
             product_id=product_id,
             title=f"Instagram post: {caption[:60]}{'…' if len(caption) > 60 else ''}",
@@ -1207,6 +1213,8 @@ async def _instagram_post(product_id: str, caption: str, image_url: str) -> str:
             risk_label="Posts to Instagram · public · irreversible",
             action_type="social_post",
         )
+        save_social_draft(product_id=product_id, platform="instagram", content=caption,
+                          image_url=image_url, review_item_id=item_id)
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "Instagram post queued for approval."})
     from backend.db import get_oauth_connection
