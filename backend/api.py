@@ -946,10 +946,15 @@ class BrowserCredentialBody(BaseModel):
     active: bool
 
 
+_BROWSER_CRED_SERVICES = {"twitter", "linkedin", "facebook", "instagram"}
+
+
 @router.put("/products/{product_id}/browser-credentials/{service}")
 def save_browser_credential_api(
     product_id: str, service: str, body: BrowserCredentialBody, _=Depends(_auth)
 ):
+    if service not in _BROWSER_CRED_SERVICES:
+        raise HTTPException(status_code=422, detail=f"Unsupported service: {service}")
     from backend.db import save_browser_credential, get_browser_credential
     password = body.password
     if not password:
@@ -962,5 +967,7 @@ def save_browser_credential_api(
 
 @router.delete("/products/{product_id}/browser-credentials/{service}", status_code=204)
 def delete_browser_credential_api(product_id: str, service: str, _=Depends(_auth)):
+    if service not in _BROWSER_CRED_SERVICES:
+        raise HTTPException(status_code=422, detail=f"Unsupported service: {service}")
     from backend.db import delete_browser_credential
     delete_browser_credential(product_id, service)

@@ -118,6 +118,16 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
   async function handleToggleMode(service: string, toBrowser: boolean) {
     if (!productId) return
     const existing = credFields[service]
+    if (toBrowser && !existing?.username) {
+      // No credentials saved yet — just show the form without persisting to the backend.
+      // The backend record (with active=true) is created when the user clicks Save.
+      setBrowserCreds((prev) => {
+        const exists = prev.find((c) => c.service === service)
+        if (exists) return prev.map((c) => c.service === service ? { ...c, active: true } : c)
+        return [...prev, { service, username: '', active: true }]
+      })
+      return
+    }
     await api.saveBrowserCredential(password, productId, service, {
       username: existing?.username ?? '',
       password: '',
@@ -134,17 +144,18 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
     if (!productId) return
     const fields = credFields[service]
     if (!fields?.username) return
+    const isCurrentlyActive = browserCreds.find((c) => c.service === service)?.active ?? true
     setSavingCred(service)
     try {
       await api.saveBrowserCredential(password, productId, service, {
         username: fields.username,
         password: fields.password,
-        active: true,
+        active: isCurrentlyActive,
       })
       setBrowserCreds((prev) => {
         const exists = prev.find((c) => c.service === service)
-        if (exists) return prev.map((c) => c.service === service ? { ...c, username: fields.username, active: true } : c)
-        return [...prev, { service, username: fields.username, active: true }]
+        if (exists) return prev.map((c) => c.service === service ? { ...c, username: fields.username, active: isCurrentlyActive } : c)
+        return [...prev, { service, username: fields.username, active: isCurrentlyActive }]
       })
       setCredFields((prev) => ({ ...prev, [service]: { username: fields.username, password: '', saved: true } }))
     } finally {
