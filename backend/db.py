@@ -198,16 +198,12 @@ def init_db() -> None:
             except Exception:
                 pass  # column already exists
         # Add new social_drafts columns (idempotent)
-        _social_cols = [("image_url", "TEXT"), ("post_url", "TEXT")]
+        _social_cols = [("image_url", "TEXT"), ("post_url", "TEXT"), ("scheduled_for", "TEXT")]
         for col_name, col_type in _social_cols:
             try:
                 conn.execute(f"ALTER TABLE social_drafts ADD COLUMN {col_name} {col_type}")
             except Exception:
                 pass  # column already exists
-        # Migrate: add scheduled_for to social_drafts if missing
-        cols = [r[1] for r in conn.execute("PRAGMA table_info(social_drafts)").fetchall()]
-        if "scheduled_for" not in cols:
-            conn.execute("ALTER TABLE social_drafts ADD COLUMN scheduled_for TEXT")
         # Add autonomous workstream columns (idempotent)
         _ws_cols = [
             ("mission",     "TEXT NOT NULL DEFAULT ''"),
