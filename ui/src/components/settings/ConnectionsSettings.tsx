@@ -8,7 +8,7 @@ interface Props {
 }
 
 const GOOGLE_SERVICES = new Set(['gmail', 'google_calendar'])
-const BROWSER_AUTO_SERVICES = new Set(['facebook', 'instagram'])
+const BROWSER_CRED_SERVICES = new Set(['twitter', 'linkedin', 'facebook', 'instagram'])
 
 const SERVICES = [
   { key: 'gmail',            label: 'Gmail',            connectAs: 'gmail' },
@@ -29,6 +29,13 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
   const [oauthError, setOauthError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState(false)
+  const [browserCreds, setBrowserCreds] = useState<
+    { service: string; username: string; active: boolean }[]
+  >([])
+  const [credFields, setCredFields] = useState<
+    Record<string, { username: string; password: string; saved: boolean }>
+  >({})
+  const [savingCred, setSavingCred] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const popupRef = useRef<Window | null>(null)
 
@@ -58,9 +65,16 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
     Promise.all([
       api.getOAuthConnections(password, productId),
       api.getGoogleOAuthSettings(password),
-    ]).then(([conns, googleCfg]) => {
+      api.getBrowserCredentials(password, productId),
+    ]).then(([conns, googleCfg, bCreds]) => {
       setOauthConnections(conns)
       setGoogleOAuthConfigured(!!googleCfg.google_oauth_client_id)
+      setBrowserCreds(bCreds)
+      const fields: Record<string, { username: string; password: string; saved: boolean }> = {}
+      for (const c of bCreds) {
+        fields[c.service] = { username: c.username, password: '', saved: true }
+      }
+      setCredFields(fields)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [password, productId])
 
@@ -101,6 +115,54 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
     setOauthConnections((prev) => prev.filter((c) => c.service !== service))
   }
 
+  async function handleToggleMode(service: string, toBrowser: boolean) {
+    if (!productId) return
+    const existing = credFields[service]
+    await api.saveBrowserCredential(password, productId, service, {
+      username: existing?.username ?? '',
+      password: existing?.saved ? '' : (existing?.password ?? ''),
+      active: toBrowser,
+    })
+    setBrowserCreds((prev) => {
+      const exists = prev.find((c) => c.service === service)
+      if (exists) return prev.map((c) => c.service === service ? { ...c, active: toBrowser } : c)
+      return [...prev, { service, username: existing?.username ?? '', active: toBrowser }]
+    })
+  }
+
+  async function handleSaveCred(service: string) {
+    if (!productId) return
+    const fields = credFields[service]
+    if (!fields?.username) return
+    setSavingCred(service)
+    try {
+      await api.saveBrowserCredential(password, productId, service, {
+        username: fields.username,
+        password: fields.password,
+        active: true,
+      })
+      setBrowserCreds((prev) => {
+        const exists = prev.find((c) => c.service === service)
+        if (exists) return prev.map((c) => c.service === service ? { ...c, username: fields.username, active: true } : c)
+        return [...prev, { service, username: fields.username, active: true }]
+      })
+      setCredFields((prev) => ({ ...prev, [service]: { username: fields.username, password: '', saved: true } }))
+    } finally {
+      setSavingCred(null)
+    }
+  }
+
+  async function handleRemoveCred(service: string) {
+    if (!productId) return
+    await api.deleteBrowserCredential(password, productId, service)
+    setBrowserCreds((prev) => prev.filter((c) => c.service !== service))
+    setCredFields((prev) => {
+      const next = { ...prev }
+      delete next[service]
+      return next
+    })
+  }
+
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
 
   return (
@@ -138,76 +200,122 @@ export default function ConnectionsSettings({ productId, password, onOpenSetting
           const conn = oauthConnections.find((c) => c.service === key)
           const isConnecting = connectingService === connectAs
           const needsGoogleOAuth = GOOGLE_SERVICES.has(key) && !googleOAuthConfigured
-          const isBrowserAuto = BROWSER_AUTO_SERVICES.has(key)
+          const isBrowserCapable = BROWSER_CRED_SERVICES.has(key)
+          const browserCred = browserCreds.find((c) => c.service === key)
+          const isBrowserMode = isBrowserCapable && (browserCred?.active ?? false)
+          const fields = credFields[key]
 
           return (
             <div
               key={key}
-              className="flex items-center justify-between bg-adj-panel border border-adj-border rounded-md px-4 py-3"
+              className="bg-adj-panel border border-adj-border rounded-md px-4 py-3 flex flex-col gap-3"
             >
-              <div>
+              {/* Header row: label + toggle */}
+              <div className="flex items-center justify-between">
                 <p className="text-sm text-adj-text-secondary font-medium">{label}</p>
-                {conn ? (
-                  <p className="text-xs text-adj-text-muted">Connected as {conn.email}</p>
-                ) : needsGoogleOAuth ? (
-                  <p className="text-xs text-amber-600">Google OAuth required</p>
-                ) : isBrowserAuto ? (
-                  <p className="text-xs text-emerald-600">Works automatically via browser</p>
-                ) : (
-                  <p className="text-xs text-adj-text-faint">Not connected</p>
+                {isBrowserCapable && (
+                  <div className="flex rounded overflow-hidden border border-adj-border text-[11px]">
+                    <button
+                      onClick={() => handleToggleMode(key, false)}
+                      className={`px-2.5 py-1 transition-colors ${!isBrowserMode ? 'bg-adj-accent text-white' : 'text-adj-text-muted hover:text-adj-text-secondary'}`}
+                    >
+                      OAuth
+                    </button>
+                    <button
+                      onClick={() => handleToggleMode(key, true)}
+                      className={`px-2.5 py-1 transition-colors ${isBrowserMode ? 'bg-adj-accent text-white' : 'text-adj-text-muted hover:text-adj-text-secondary'}`}
+                    >
+                      Browser
+                    </button>
+                  </div>
                 )}
               </div>
 
-              {conn ? (
-                <button
-                  onClick={() => handleDisconnectOAuth(key)}
-                  className="text-xs text-red-400 hover:text-red-300 hover:underline"
-                >
-                  Disconnect
-                </button>
-              ) : needsGoogleOAuth ? (
-                <span
-                  title="Set up Google OAuth credentials first"
-                  className="px-3 py-1.5 text-xs border border-adj-border text-adj-text-faint rounded cursor-not-allowed select-none"
-                >
-                  Connect
-                </span>
-              ) : isBrowserAuto ? (
-                <button
-                  onClick={() => handleConnectOAuth(connectAs)}
-                  disabled={isConnecting}
-                  title="Connect via API for faster, more reliable posting (requires Meta developer app setup)"
-                  className="px-3 py-1.5 text-xs border border-adj-border text-adj-text-muted hover:text-adj-text-secondary hover:border-adj-text-muted rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isConnecting ? 'Connecting…' : 'Connect API'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleConnectOAuth(connectAs)}
-                  disabled={isConnecting}
-                  className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isConnecting ? 'Connecting…' : 'Connect'}
-                </button>
+              {/* OAuth mode content */}
+              {!isBrowserMode && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    {conn ? (
+                      <p className="text-xs text-adj-text-muted">Connected as {conn.email}</p>
+                    ) : needsGoogleOAuth ? (
+                      <p className="text-xs text-amber-600">Google OAuth required</p>
+                    ) : (
+                      <p className="text-xs text-adj-text-faint">Not connected</p>
+                    )}
+                  </div>
+                  {conn ? (
+                    <button
+                      onClick={() => handleDisconnectOAuth(key)}
+                      className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                    >
+                      Disconnect
+                    </button>
+                  ) : needsGoogleOAuth ? (
+                    <span className="text-xs text-adj-text-faint">Configure Google OAuth first</span>
+                  ) : (
+                    <button
+                      onClick={() => handleConnectOAuth(connectAs)}
+                      disabled={isConnecting}
+                      className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isConnecting ? 'Connecting…' : 'Connect'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Browser mode content */}
+              {isBrowserMode && (
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    placeholder="Username or email"
+                    value={fields?.username ?? ''}
+                    onChange={(e) => setCredFields((prev) => ({
+                      ...prev,
+                      [key]: { username: e.target.value, password: prev[key]?.password ?? '', saved: false },
+                    }))}
+                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={fields?.saved ? '••••••••' : (fields?.password ?? '')}
+                    onFocus={(e) => {
+                      if (fields?.saved) {
+                        setCredFields((prev) => ({ ...prev, [key]: { ...prev[key], password: '', saved: false } }))
+                        e.target.value = ''
+                      }
+                    }}
+                    onChange={(e) => setCredFields((prev) => ({
+                      ...prev,
+                      [key]: { username: prev[key]?.username ?? '', password: e.target.value, saved: false },
+                    }))}
+                    className="w-full text-xs bg-adj-bg border border-adj-border rounded px-2.5 py-1.5 text-adj-text-secondary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
+                  />
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => handleSaveCred(key)}
+                      disabled={!fields?.username || savingCred === key}
+                      className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {savingCred === key ? 'Saving…' : fields?.saved ? 'Saved ✓' : 'Save'}
+                    </button>
+                    {browserCred && (
+                      <button
+                        onClick={() => handleRemoveCred(key)}
+                        className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                      >
+                        Remove credentials
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )
         })}
       </div>
-
-      {SERVICES.some(({ key }) => BROWSER_AUTO_SERVICES.has(key) && !oauthConnections.find(c => c.service === key)) && (
-        <p className="mt-4 text-xs text-adj-text-faint">
-          Facebook and Instagram work out of the box via browser automation. Connecting via API is optional — it enables faster, background posting without opening a browser window, but requires completing{' '}
-          <a
-            href="/social-setup-guide.html"
-            target="_blank"
-            rel="noreferrer"
-            className="text-adj-accent hover:underline"
-          >
-            Meta's developer app review process
-          </a>.
-        </p>
-      )}
     </div>
   )
 }
