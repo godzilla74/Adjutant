@@ -972,3 +972,110 @@ def delete_browser_credential_api(product_id: str, service: str, _=Depends(_auth
         raise HTTPException(status_code=422, detail=f"Unsupported service: {service}")
     from backend.db import delete_browser_credential
     delete_browser_credential(product_id, service)
+
+
+# --- OpenAI / Codex OAuth ---
+
+@router.get("/openai-oauth/start")
+async def openai_oauth_start(_=Depends(_auth)):
+    from backend.openai_oauth import build_auth_url
+    return {"auth_url": build_auth_url()}
+
+
+@router.get("/openai-oauth/callback")
+async def openai_oauth_callback(code: str | None = None, error: str | None = None):
+    import httpx
+    from fastapi.responses import HTMLResponse
+    from backend.openai_oauth import CLIENT_ID, REDIRECT_URI, TOKEN_URL, pop_verifier
+
+    def _err(msg: str) -> HTMLResponse:
+        safe = msg.replace("'", "").replace('"', "")[:200]
+        return HTMLResponse(
+            "<html><body><script>"
+            f"window.opener&&window.opener.postMessage({{type:'oauth_error',message:'{safe}'}},'*');"
+            "setTimeout(()=>window.close(),4000)"
+            "</script></body></html>"
+        )
+
+    if error:
+        return _err(error)
+    if not code:
+        return _err("Missing authorization code")
+    verifier = pop_verifier()
+    if not verifier:
+        return _err("OAuth session expired — please try again")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(TOKEN_URL, data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+            "client_id": CLIENT_ID,
+            "code_verifier": verifier,
+        })
+        if resp.status_code != 200:
+            return _err(f"Token exchange failed ({resp.status_code})")
+        tokens = resp.json()
+        id_token = tokens.get("id_token")
+        refresh_token = tokens.get("refresh_token", "")
+        if not id_token:
+            return _err("No id_token in token response")
+
+        resp2 = await client.post(TOKEN_URL, data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+            "client_id": CLIENT_ID,
+            "requested_token": "openai-api-key",
+            "subject_token": id_token,
+            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+        })
+        if resp2.status_code != 200:
+            return _err(f"API key exchange failed ({resp2.status_code})")
+        api_key = resp2.json().get("access_token")
+        if not api_key:
+            return _err("No API key in exchange response")
+
+    from backend.db import set_agent_config
+    set_agent_config("openai_access_token", api_key)
+    if refresh_token:
+        set_agent_config("openai_refresh_token", refresh_token)
+
+    return HTMLResponse(
+        "<html><body><script>"
+        "window.opener&&window.opener.postMessage({type:'oauth_success'},'*');window.close()"
+        "</script></body></html>"
+    )
+
+
+@router.get("/openai-oauth/status")
+async def openai_oauth_status(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    return {"connected": bool(cfg.get("openai_access_token"))}
+
+
+@router.delete("/openai-oauth/disconnect")
+async def openai_oauth_disconnect(_=Depends(_auth)):
+    from backend.db import set_agent_config
+    set_agent_config("openai_access_token", "")
+    set_agent_config("openai_refresh_token", "")
+    return {"ok": True}
+
+
+# --- Image Generation settings ---
+
+@router.get("/settings/image-generation")
+async def get_image_generation_settings(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    return {
+        "pexels_configured": bool(cfg.get("pexels_api_key")),
+        "openai_connected": bool(cfg.get("openai_access_token")),
+    }
+
+
+@router.put("/settings/image-generation")
+async def update_image_generation_settings(body: dict, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    if "pexels_api_key" in body:
+        set_agent_config("pexels_api_key", body["pexels_api_key"])
+    return {"ok": True}
