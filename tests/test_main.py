@@ -287,3 +287,54 @@ def test_ensure_session_creates_general_after_delete(isolated_db):
     sessions = db.get_sessions(pid)
     assert sessions[0]["name"] == "General"
     assert new_sid == sessions[0]["id"]
+
+
+def test_on_review_approved_defers_future_scheduled_post(isolated_db):
+    """Approving a draft with a future scheduled_for sets status to 'scheduled', does not publish."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    import backend.db as db
+    import backend.main as m
+
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('product-alpha', 'Product Alpha', 'PA', '#2563eb')")
+
+    # Create a review item and linked draft with a future scheduled_for
+    review_id = db.save_review_item("product-alpha", "Post to Twitter", "Hello", "social_post · twitter", action_type="social_post")
+    draft_id = db.save_social_draft("product-alpha", "twitter", "Hello world",
+                                     review_item_id=review_id,
+                                     scheduled_for="2099-01-01T09:00:00")
+
+    with patch("backend.main._publish_social_draft", new=AsyncMock()) as mock_publish:
+        with patch("backend.main._broadcast", new=AsyncMock()):
+            asyncio.run(m._on_review_approved(review_id))
+        mock_publish.assert_not_awaited()
+
+    with db._conn() as conn:
+        row = dict(conn.execute("SELECT status FROM social_drafts WHERE id = ?", (draft_id,)).fetchone())
+    assert row["status"] == "scheduled"
+
+
+def test_on_review_approved_publishes_immediately_when_no_schedule(isolated_db):
+    """Approving a draft with no scheduled_for publishes immediately."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    import backend.db as db
+    import backend.main as m
+
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('product-alpha', 'Product Alpha', 'PA', '#2563eb')")
+
+    review_id = db.save_review_item("product-alpha", "Post to Twitter", "Hello", "social_post · twitter", action_type="social_post")
+    draft_id = db.save_social_draft("product-alpha", "twitter", "Hello world",
+                                     review_item_id=review_id)
+
+    with patch("backend.main._publish_social_draft", new=AsyncMock(return_value={"success": True, "result": "ok"})):
+        with patch("backend.main._broadcast", new=AsyncMock()):
+            with patch("backend.main.save_activity_event", return_value=1):
+                with patch("backend.main.update_activity_event"):
+                    asyncio.run(m._on_review_approved(review_id))
+
+    with db._conn() as conn:
+        row = dict(conn.execute("SELECT status FROM social_drafts WHERE id = ?", (draft_id,)).fetchone())
+    assert row["status"] == "posted"

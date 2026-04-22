@@ -57,32 +57,59 @@ from backend.db import (
 from backend.api import router as api_router
 
 
+async def _do_publish_draft(draft: dict) -> None:
+    """Fire a social draft immediately: saves activity events and calls _publish_social_draft."""
+    pid = draft.get("product_id")
+    platform = draft.get("platform", "unknown")
+    event_id = save_activity_event(
+        product_id=pid, agent_type="social",
+        headline=f"Publishing to {platform.capitalize()}",
+        rationale="Social post approved — publishing now",
+        status="running",
+    )
+    await _broadcast({"type": "activity_started", "product_id": pid, "id": event_id,
+                      "agent_type": "social", "headline": f"Publishing to {platform.capitalize()}",
+                      "rationale": "Social post approved — publishing now", "ts": _ts()})
+    try:
+        result = await _publish_social_draft(draft)
+    except Exception as exc:
+        result = {"success": False, "error": str(exc)}
+    new_status = "posted" if result["success"] else "failed"
+    update_social_draft_status(draft["id"], new_status, result.get("post_url"))
+    summary = (f"Posted to {platform.capitalize()}. {result.get('post_url', '')}"
+               if result["success"] else f"Failed to post: {result.get('error', 'Unknown error')}")
+    update_activity_event(event_id, status="done", summary=summary)
+    await _broadcast({"type": "activity_done", "product_id": pid, "id": event_id,
+                      "summary": summary, "ts": _ts()})
+
+
 async def _on_review_approved(item_id: int) -> None:
     """Publish a linked social draft (if any) and resume blocked objectives after approval."""
+    from datetime import datetime
     draft = get_social_draft_by_review_item(item_id)
     if draft:
-        pid = draft.get("product_id")
-        platform = draft.get("platform", "unknown")
-        event_id = save_activity_event(
-            product_id=pid, agent_type="social",
-            headline=f"Publishing to {platform.capitalize()}",
-            rationale="Social post approved — publishing now",
-            status="running",
-        )
-        await _broadcast({"type": "activity_started", "product_id": pid, "id": event_id,
-                          "agent_type": "social", "headline": f"Publishing to {platform.capitalize()}",
-                          "rationale": "Social post approved — publishing now", "ts": _ts()})
-        try:
-            result = await _publish_social_draft(draft)
-        except Exception as exc:
-            result = {"success": False, "error": str(exc)}
-        new_status = "posted" if result["success"] else "failed"
-        update_social_draft_status(draft["id"], new_status, result.get("post_url"))
-        summary = (f"Posted to {platform.capitalize()}. {result.get('post_url', '')}"
-                   if result["success"] else f"Failed to post: {result.get('error', 'Unknown error')}")
-        update_activity_event(event_id, status="done", summary=summary)
-        await _broadcast({"type": "activity_done", "product_id": pid, "id": event_id,
-                          "summary": summary, "ts": _ts()})
+        scheduled_for = draft.get("scheduled_for")
+        if scheduled_for:
+            try:
+                fire_at = datetime.fromisoformat(scheduled_for)
+            except ValueError:
+                fire_at = None
+            if fire_at and fire_at > datetime.utcnow():
+                # Defer — scheduler will publish when the time comes
+                update_social_draft_status(draft["id"], "scheduled")
+                pid = draft.get("product_id")
+                platform = draft.get("platform", "unknown")
+                await _broadcast({
+                    "type": "activity_done",
+                    "product_id": pid,
+                    "id": None,
+                    "summary": f"Scheduled {platform.capitalize()} post for {scheduled_for}",
+                    "ts": _ts(),
+                })
+            else:
+                await _do_publish_draft(draft)
+        else:
+            await _do_publish_draft(draft)
 
     blocked_obj = get_objective_blocked_by_review(item_id)
     if blocked_obj:
