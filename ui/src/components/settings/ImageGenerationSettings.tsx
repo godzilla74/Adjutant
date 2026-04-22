@@ -8,6 +8,7 @@ interface Props {
 export default function ImageGenerationSettings({ password }: Props) {
   const [pexelsKey, setPexelsKey] = useState('')
   const [pexelsConfigured, setPexelsConfigured] = useState(false)
+  const [pexelsError, setPexelsError] = useState<string | null>(null)
   const [openaiConnected, setOpenaiConnected] = useState(false)
   const [savingPexels, setSavingPexels] = useState(false)
   const [pexelsSaved, setPexelsSaved] = useState(false)
@@ -49,12 +50,15 @@ export default function ImageGenerationSettings({ password }: Props) {
   async function savePexels() {
     if (!pexelsKey.trim()) return
     setSavingPexels(true)
+    setPexelsError(null)
     try {
       await api.updateImageGenerationSettings(password, { pexels_api_key: pexelsKey.trim() })
       setPexelsKey('')
       setPexelsConfigured(true)
       setPexelsSaved(true)
       setTimeout(() => setPexelsSaved(false), 2000)
+    } catch (e: unknown) {
+      setPexelsError((e as Error).message || 'Failed to save API key')
     } finally {
       setSavingPexels(false)
     }
@@ -89,8 +93,12 @@ export default function ImageGenerationSettings({ password }: Props) {
   }
 
   async function disconnectOpenAI() {
-    await api.disconnectOpenAI(password)
-    setOpenaiConnected(false)
+    try {
+      await api.disconnectOpenAI(password)
+      setOpenaiConnected(false)
+    } catch {
+      // silent fail is acceptable here — button remains visible
+    }
   }
 
   const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent transition-colors'
@@ -132,6 +140,9 @@ export default function ImageGenerationSettings({ password }: Props) {
               {pexelsSaved ? '✓ Saved' : savingPexels ? 'Saving…' : 'Save'}
             </button>
           </div>
+          {pexelsError && (
+            <p className="text-xs text-red-400">{pexelsError}</p>
+          )}
           <p className="text-[10px] text-adj-text-faint">
             Free API key at{' '}
             <span className="text-adj-text-muted">pexels.com/api</span>
