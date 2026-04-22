@@ -586,6 +586,17 @@ TOOLS_DEFINITIONS = [
             "required": ["query"],
         },
     },
+    {
+        "name": "generate_image",
+        "description": "Generate a custom image from a text prompt using OpenAI DALL-E 3. Returns a localhost URL. Use for abstract visuals, branded graphics, or illustrations. Requires OpenAI connection in Global settings.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string", "description": "Detailed text description of the image to generate"},
+            },
+            "required": ["prompt"],
+        },
+    },
 ]
 
 # Load extensions and append their definitions
@@ -1000,6 +1011,33 @@ async def _search_stock_photo(query: str) -> str:
     return photos[0]["src"]["large2x"]
 
 
+async def _generate_image(prompt: str) -> str:
+    import os
+    import httpx
+    from backend.db import get_agent_config
+    from backend.uploads import save_uploaded_file
+    cfg = get_agent_config()
+    token = cfg.get("openai_access_token", "")
+    if not token:
+        return "Image generation not configured — add an OpenAI access token in Global settings."
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/images/generations",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"prompt": prompt, "model": "dall-e-3", "n": 1, "size": "1024x1024"},
+            )
+            resp.raise_for_status()
+            image_url = resp.json()["data"][0]["url"]
+            img_resp = await client.get(image_url)
+            img_resp.raise_for_status()
+    except Exception as e:
+        return f"Image generation failed: {e}"
+    path = save_uploaded_file("generated.png", img_resp.content)
+    port = os.environ.get("HANNAH_PORT", "8001")
+    return f"http://localhost:{port}/uploads/{path.name}"
+
+
 # ── Executor ──────────────────────────────────────────────────────────────────
 
 async def execute_tool(name: str, inputs: dict) -> str:
@@ -1082,6 +1120,8 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return await _instagram_post(**inputs)
     if name == "search_stock_photo":
         return await _search_stock_photo(**inputs)
+    if name == "generate_image":
+        return await _generate_image(**inputs)
     if name in _EXTENSION_EXECUTORS:
         return await _EXTENSION_EXECUTORS[name](inputs)
     return f"Unknown tool: {name}"

@@ -1320,5 +1320,9 @@ async def websocket_endpoint(ws: WebSocket):
 
 # ── Static UI ──────────────────────────────────────────────────────────────────
 
+# Serve generated/uploaded images
+from backend.uploads import get_uploads_dir as _get_uploads_dir
+app.mount("/uploads", StaticFiles(directory=str(_get_uploads_dir())), name="uploads")
+
 if UI_DIST.exists():
     app.mount("/", StaticFiles(directory=UI_DIST, html=True), name="ui")
