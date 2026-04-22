@@ -365,3 +365,85 @@ def test_scheduler_publishes_due_scheduled_drafts(isolated_db):
     mock.assert_awaited_once()
     called_draft = mock.call_args[0][0]
     assert called_draft["id"] == draft_id
+
+
+def test_publish_uses_browser_when_active_cred(isolated_db):
+    """When browser mode is active with credentials, browser task is used and creds are injected."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    import backend.db as db
+
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('product-alpha', 'PA', 'PA', '#000')")
+    db.save_browser_credential("product-alpha", "twitter", "myuser", "mypass", active=True)
+
+    draft = {
+        "id": 1, "product_id": "product-alpha", "platform": "twitter",
+        "content": "Hello!", "image_url": None,
+    }
+
+    async def run():
+        mock_execute = AsyncMock(return_value='{"status":"success","result":"SUCCESS: https://x.com/tweet/1"}')
+        with patch("backend.main.execute_tool", mock_execute):
+            import backend.main as m
+            result = await m._publish_social_draft(draft)
+        assert result["success"] is True
+        call_args = mock_execute.call_args
+        task_text = call_args[0][1]["task"]
+        assert "myuser" in task_text
+        assert "mypass" in task_text
+
+    asyncio.run(run())
+
+
+def test_publish_uses_oauth_when_no_active_browser_cred(isolated_db):
+    """When no active browser credential, falls through to OAuth path."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    import backend.db as db
+
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('product-alpha', 'PA', 'PA', '#000')")
+    db.save_oauth_connection("product-alpha", "twitter", "@handle", "tok", "ref", "2099-01-01T00:00:00+00:00", "")
+
+    draft = {
+        "id": 1, "product_id": "product-alpha", "platform": "twitter",
+        "content": "Hello!", "image_url": None,
+    }
+
+    async def run():
+        mock_twitter = AsyncMock(return_value="posted")
+        with patch("backend.social_api.twitter_post", mock_twitter):
+            import backend.main as m
+            result = await m._publish_social_draft(draft)
+        assert result["success"] is True
+        mock_twitter.assert_awaited_once()
+
+    asyncio.run(run())
+
+
+def test_publish_browser_cred_inactive_falls_through_to_oauth(isolated_db):
+    """Browser credential exists but active=False → uses OAuth if available."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    import backend.db as db
+
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('product-alpha', 'PA', 'PA', '#000')")
+    db.save_browser_credential("product-alpha", "twitter", "u", "p", active=False)
+    db.save_oauth_connection("product-alpha", "twitter", "@handle", "tok", "ref", "2099-01-01T00:00:00+00:00", "")
+
+    draft = {
+        "id": 1, "product_id": "product-alpha", "platform": "twitter",
+        "content": "Hello!", "image_url": None,
+    }
+
+    async def run():
+        mock_twitter = AsyncMock(return_value="posted")
+        with patch("backend.social_api.twitter_post", mock_twitter):
+            import backend.main as m
+            result = await m._publish_social_draft(draft)
+        assert result["success"] is True
+        mock_twitter.assert_awaited_once()
+
+    asyncio.run(run())
