@@ -92,22 +92,51 @@ async def _on_review_approved(item_id: int) -> None:
 
 
 async def _publish_social_draft(draft: dict) -> dict:
+    """Post an approved social draft. Tries API first; falls back to browser automation if no connection."""
+    from backend.social_api import twitter_post, linkedin_post, facebook_post, instagram_post
+    from backend.db import get_oauth_connection
     platform = draft.get("platform", "")
     product_id = draft.get("product_id", "")
     text = draft.get("content", "")
-    image_url = draft.get("image_url")
-    from backend.social_api import twitter_post, linkedin_post, facebook_post, instagram_post
+    image_url = draft.get("image_url") or None
     try:
         if platform == "twitter":
-            result = await twitter_post(product_id, text, image_url)
+            if get_oauth_connection(product_id, "twitter"):
+                result = await twitter_post(product_id, text, image_url)
+            else:
+                task = f"Post the following tweet on X (twitter.com). Log in if needed. Tweet text: {text}"
+                if image_url:
+                    task += f"\nAttach this media: {image_url}"
+                task += "\nConfirm the tweet was posted and return the tweet URL if available."
+                result = await execute_tool("browser_task", {"task": task})
         elif platform == "linkedin":
-            result = await linkedin_post(product_id, text, image_url)
+            if get_oauth_connection(product_id, "linkedin"):
+                result = await linkedin_post(product_id, text, image_url)
+            else:
+                task = f"Post the following to LinkedIn (linkedin.com). Log in if needed.\n\nPost text:\n{text}"
+                if image_url:
+                    task += f"\nAttach this image: {image_url}"
+                task += "\nConfirm the post was published and return the post URL if available."
+                result = await execute_tool("browser_task", {"task": task})
         elif platform == "facebook":
-            result = await facebook_post(product_id, text, image_url)
+            if get_oauth_connection(product_id, "facebook"):
+                result = await facebook_post(product_id, text, image_url)
+            else:
+                task = f"Post the following to Facebook (facebook.com). Log in if needed.\n\nPost text:\n{text}"
+                if image_url:
+                    task += f"\nAttach this image: {image_url}"
+                task += "\nConfirm the post was published and return the post URL if available."
+                result = await execute_tool("browser_task", {"task": task})
         elif platform == "instagram":
             if not image_url:
                 return {"success": False, "error": "Instagram requires an image URL"}
-            result = await instagram_post(product_id, text, image_url)
+            if get_oauth_connection(product_id, "instagram"):
+                result = await instagram_post(product_id, text, image_url)
+            else:
+                task = (f"Post the following to Instagram (instagram.com). Log in if needed.\n\n"
+                        f"Caption:\n{text}\n\nImage URL: {image_url}\n\n"
+                        f"Download or use the image at that URL for the post. Confirm the post was published.")
+                result = await execute_tool("browser_task", {"task": task})
         else:
             return {"success": False, "error": f"Unknown platform: {platform}"}
         return {"success": True, "result": result}
