@@ -1,6 +1,6 @@
 // ui/src/__tests__/ReviewCard.test.tsx
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import ReviewCard from '../components/ReviewCard'
 import { ReviewItem } from '../types'
@@ -15,10 +15,13 @@ const ITEM: ReviewItem = {
 }
 
 describe('ReviewCard', () => {
-  it('renders title and description', () => {
+  it('renders title and View button; description shown in modal', async () => {
     render(<ReviewCard item={ITEM} onResolve={() => {}} />)
     expect(screen.getByText('LinkedIn post: launch announcement')).toBeInTheDocument()
-    expect(screen.getByText(/Scheduled for 9am Tuesday/)).toBeInTheDocument()
+    // Description not shown on card — only after clicking View
+    expect(screen.queryByText(/Scheduled for 9am Tuesday/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('View'))
+    await waitFor(() => expect(screen.getByText(/Scheduled for 9am Tuesday/)).toBeInTheDocument())
   })
 
   it('renders risk label', () => {
