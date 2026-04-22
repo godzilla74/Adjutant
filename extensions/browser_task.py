@@ -11,6 +11,13 @@ Install once:
 
 import json
 import os
+import sys
+
+# Resolve project root so we can import agents.runner for the configured model
+_ext_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_ext_dir)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 TOOL_DEFINITION = {
     "name": "browser_task",
@@ -143,8 +150,18 @@ async def execute(inputs: dict) -> str:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _get_browser_model() -> str:
+    """Return the configured sub-agent model, falling back to sonnet."""
+    try:
+        from agents.runner import SUBAGENT_MODEL
+        return SUBAGENT_MODEL
+    except Exception:
+        return os.environ.get("AGENT_SUBAGENT_MODEL", "claude-sonnet-4-6")
+
+
 def _make_llm(api_key: str):
     """Try browser-use's built-in Anthropic wrapper first, then langchain."""
+    model = _get_browser_model()
     # Attempt 1: browser-use internal (0.12.x+)
     for path in (
         "browser_use.llm.anthropic.chat.ChatAnthropic",
@@ -155,14 +172,14 @@ def _make_llm(api_key: str):
             import importlib
             mod = importlib.import_module(module_path)
             cls = getattr(mod, cls_name)
-            return cls(model="claude-opus-4-6", api_key=api_key)
+            return cls(model=model, api_key=api_key)
         except Exception:
             pass
 
     # Attempt 2: langchain-anthropic
     try:
         from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model="claude-opus-4-6", api_key=api_key)
+        return ChatAnthropic(model=model, api_key=api_key)
     except ImportError:
         pass
 

@@ -12,7 +12,7 @@ const MODEL_OPTIONS = [
 ]
 
 export default function AgentModelSettings({ password }: Props) {
-  const [agentModel, setAgentModel] = useState('claude-opus-4-6')
+  const [agentModel, setAgentModel] = useState('claude-sonnet-4-6')
   const [subagentModel, setSubagentModel] = useState('claude-sonnet-4-6')
   const [agentName, setAgentName] = useState('Adjutant')
   const [saving, setSaving] = useState(false)
