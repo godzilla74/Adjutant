@@ -569,6 +569,18 @@ async def _run_launch_wizard(
         _running_wizards.pop(product_id, None)
 
 
+async def _publish_scheduled_drafts() -> None:
+    """Fetch all social drafts past their scheduled_for time and publish them."""
+    from backend.db import get_due_scheduled_drafts
+    due = get_due_scheduled_drafts()
+    for draft in due:
+        try:
+            from backend.main import _do_publish_draft
+            await _do_publish_draft(draft)
+        except Exception as exc:
+            log.error("Failed to publish scheduled draft %s: %s", draft.get("id"), exc)
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def trigger_workstream(ws_id: int) -> None:
@@ -613,6 +625,8 @@ async def scheduler_loop(broadcast: BroadcastFn, interval_seconds: int = 60) -> 
                         "review_item_id": r["id"],
                         "action": "auto_approved",
                     })
+            # Publish scheduled social posts that are now due
+            await _publish_scheduled_drafts()
         except Exception as exc:
             log.error("Scheduler poll error: %s", exc)
         await asyncio.sleep(interval_seconds)

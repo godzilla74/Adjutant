@@ -338,3 +338,30 @@ def test_on_review_approved_publishes_immediately_when_no_schedule(isolated_db):
     with db._conn() as conn:
         row = dict(conn.execute("SELECT status FROM social_drafts WHERE id = ?", (draft_id,)).fetchone())
     assert row["status"] == "posted"
+
+
+def test_scheduler_publishes_due_scheduled_drafts(isolated_db):
+    """scheduler_loop publishes drafts whose scheduled_for has passed."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    import backend.db as db
+
+    with db._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('product-alpha', 'Product Alpha', 'PA', '#2563eb')")
+
+    # Create a scheduled draft that is past-due
+    draft_id = db.save_social_draft("product-alpha", "twitter", "Due post",
+                                     scheduled_for="2000-01-01T09:00:00")
+    db.update_social_draft_status(draft_id, "scheduled")
+
+    async def run_one_tick():
+        from backend.scheduler import _publish_scheduled_drafts
+        mock_publish = AsyncMock()
+        with patch("backend.main._do_publish_draft", mock_publish):
+            await _publish_scheduled_drafts()
+        return mock_publish
+
+    mock = asyncio.run(run_one_tick())
+    mock.assert_awaited_once()
+    called_draft = mock.call_args[0][0]
+    assert called_draft["id"] == draft_id
