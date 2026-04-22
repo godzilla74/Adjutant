@@ -222,3 +222,32 @@ def test_send_video_falls_back_to_document_for_large_files(tmp_path):
         bot.send_document = AsyncMock()
         asyncio.run(bot.send_video(str(big_file)))
         bot.send_document.assert_awaited_once_with(str(big_file))
+
+
+def test_send_long_message_splits_at_paragraph_break():
+    """Messages over 4096 chars are split into multiple sends, preferring paragraph breaks."""
+    bot = _make_bot()
+    chunk_a = "A" * 3000
+    chunk_b = "B" * 3000
+    long_text = chunk_a + "\n\n" + chunk_b
+    asyncio.run(bot.send_long_message(long_text))
+    assert bot.send_message.await_count == 2
+    first_call_text = bot.send_message.call_args_list[0][0][0]
+    assert first_call_text == chunk_a
+
+
+def test_send_long_message_hard_splits_when_no_newline():
+    """Hard-splits at 4096 chars when there are no newline opportunities."""
+    bot = _make_bot()
+    long_text = "X" * 9000
+    asyncio.run(bot.send_long_message(long_text))
+    assert bot.send_message.await_count == 3  # 4096 + 4096 + 808
+    for call in bot.send_message.call_args_list:
+        assert len(call[0][0]) <= 4096
+
+
+def test_send_long_message_short_text_single_send():
+    """Short text sends in one message."""
+    bot = _make_bot()
+    asyncio.run(bot.send_long_message("Hello!"))
+    bot.send_message.assert_awaited_once_with("Hello!")

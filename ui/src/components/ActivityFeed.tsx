@@ -90,10 +90,10 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
       {/* Chat tab */}
       {activeTab === 'chat' && (
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
-          {chatEntries.map(entry => {
+          {chatEntries.map((entry, i) => {
             if (entry.type === 'directive') {
               return (
-                <div key={`directive-${entry.ts}`} className="self-end max-w-lg">
+                <div key={`directive-${i}`} className="self-end max-w-lg">
                   <div className="text-xs text-adj-text-faint text-right mb-1">You · directive</div>
                   <div className="rounded-xl rounded-tr-sm bg-blue-600/20 border border-blue-700/40 px-4 py-2.5 text-sm text-blue-200">
                     {entry.content}
@@ -102,7 +102,7 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
               )
             }
             return (
-              <div key={`agent-${entry.ts}`} className="max-w-xl">
+              <div key={`agent-${i}`} className="max-w-xl">
                 <div className="text-xs text-adj-text-faint mb-1">{agentName}</div>
                 <div className="rounded-xl rounded-tl-sm bg-adj-elevated border border-zinc-700/40 px-4 py-2.5 text-sm text-adj-text-secondary leading-relaxed">
                   <MarkdownContent>{entry.content}</MarkdownContent>

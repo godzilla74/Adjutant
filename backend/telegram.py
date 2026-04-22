@@ -31,8 +31,10 @@ class TelegramBot:
     def _url(self, method: str) -> str:
         return f"https://api.telegram.org/bot{self.token}/{method}"
 
+    _MAX_LEN = 4096
+
     async def send_message(self, text: str, reply_markup: dict | None = None) -> int | None:
-        """Send a message to TELEGRAM_CHAT_ID. Returns message_id or None."""
+        """Send a single message (≤4096 chars). Returns message_id or None."""
         payload: dict = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"}
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
@@ -45,6 +47,24 @@ class TelegramBot:
         except Exception as e:
             logger.warning("Telegram sendMessage failed: %s", e)
         return None
+
+    async def send_long_message(self, text: str) -> None:
+        """Send text, splitting into multiple messages if it exceeds Telegram's 4096-char limit."""
+        if len(text) <= self._MAX_LEN:
+            await self.send_message(text)
+            return
+        remaining = text
+        while remaining:
+            if len(remaining) <= self._MAX_LEN:
+                await self.send_message(remaining)
+                break
+            split_at = remaining.rfind('\n\n', 0, self._MAX_LEN)
+            if split_at == -1:
+                split_at = remaining.rfind('\n', 0, self._MAX_LEN)
+            if split_at == -1:
+                split_at = self._MAX_LEN
+            await self.send_message(remaining[:split_at].rstrip())
+            remaining = remaining[split_at:].lstrip()
 
     async def send_typing(self) -> None:
         try:
@@ -155,7 +175,7 @@ class TelegramBot:
                 self._pending_products.discard(product_id)
                 content = event.get("content", "")
                 if content:
-                    await self.send_message(content)
+                    await self.send_long_message(content)
 
         elif event_type == "activity_done":
             summary = event.get("summary", "")
