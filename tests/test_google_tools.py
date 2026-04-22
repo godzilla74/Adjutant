@@ -251,6 +251,7 @@ def test_twitter_post_approve_tier_creates_review_item(db):
 
 def test_twitter_post_auto_tier_posts_immediately(db):
     db.set_action_autonomy("prod-1", "social_post", "auto", None)
+    db.save_oauth_connection("prod-1", "twitter", "@handle", "tok", "ref", "2099-01-01T00:00:00+00:00", "s")
     async def run():
         with patch("backend.social_api.twitter_post", new=AsyncMock(return_value='{"posted": true}')):
             import importlib as il
