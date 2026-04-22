@@ -94,3 +94,10 @@ def test_get_global_tools_has_expected_count():
     from core.tools import get_global_tools, _GLOBAL_BASE_TOOL_NAMES
     tools = get_global_tools()
     assert len(tools) == len(_GLOBAL_BASE_TOOL_NAMES) + 1
+
+
+def test_system_prompt_includes_image_tools():
+    from core.config import get_system_prompt
+    prompt = get_system_prompt("prod-1")
+    assert "generate_image" in prompt
+    assert "search_stock_photo" in prompt
