@@ -123,6 +123,26 @@ async def _on_review_approved(item_id: int) -> None:
         asyncio.create_task(_run_objective_loop(blocked_obj["product_id"], blocked_obj["id"]))
 
 
+_BROWSER_OUTCOME_SUFFIX = (
+    "\n\nWhen finished, respond with exactly one of these two lines as your final line:\n"
+    "SUCCESS: <post URL or 'posted'>\n"
+    "FAILED: <brief reason>"
+)
+
+def _parse_browser_result(raw: str) -> dict:
+    """Parse a browser_task result string that ends with SUCCESS:/FAILED: line."""
+    for line in reversed(raw.strip().splitlines()):
+        line = line.strip()
+        if line.startswith("SUCCESS:"):
+            url = line[len("SUCCESS:"):].strip()
+            return {"success": True, "post_url": url if url and url != "posted" else None, "result": raw}
+        if line.startswith("FAILED:"):
+            reason = line[len("FAILED:"):].strip()
+            return {"success": False, "error": reason or "Browser task reported failure"}
+    # No structured line found — treat as failure so we don't silently swallow errors
+    return {"success": False, "error": f"Browser task returned unstructured result: {raw[:200]}"}
+
+
 async def _publish_social_draft(draft: dict) -> dict:
     """Post an approved social draft. Tries API first; falls back to browser automation if no connection."""
     from backend.social_api import twitter_post, linkedin_post, facebook_post, instagram_post
@@ -135,43 +155,47 @@ async def _publish_social_draft(draft: dict) -> dict:
         if platform == "twitter":
             if get_oauth_connection(product_id, "twitter"):
                 result = await twitter_post(product_id, text, image_url)
+                return {"success": True, "result": result}
             else:
                 task = f"Post the following tweet on X (twitter.com). Log in if needed. Tweet text: {text}"
                 if image_url:
                     task += f"\nAttach this media: {image_url}"
-                task += "\nConfirm the tweet was posted and return the tweet URL if available."
-                result = await execute_tool("browser_task", {"task": task})
+                task += _BROWSER_OUTCOME_SUFFIX
+                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
         elif platform == "linkedin":
             if get_oauth_connection(product_id, "linkedin"):
                 result = await linkedin_post(product_id, text, image_url)
+                return {"success": True, "result": result}
             else:
                 task = f"Post the following to LinkedIn (linkedin.com). Log in if needed.\n\nPost text:\n{text}"
                 if image_url:
                     task += f"\nAttach this image: {image_url}"
-                task += "\nConfirm the post was published and return the post URL if available."
-                result = await execute_tool("browser_task", {"task": task})
+                task += _BROWSER_OUTCOME_SUFFIX
+                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
         elif platform == "facebook":
             if get_oauth_connection(product_id, "facebook"):
                 result = await facebook_post(product_id, text, image_url)
+                return {"success": True, "result": result}
             else:
                 task = f"Post the following to Facebook (facebook.com). Log in if needed.\n\nPost text:\n{text}"
                 if image_url:
                     task += f"\nAttach this image: {image_url}"
-                task += "\nConfirm the post was published and return the post URL if available."
-                result = await execute_tool("browser_task", {"task": task})
+                task += _BROWSER_OUTCOME_SUFFIX
+                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
         elif platform == "instagram":
             if not image_url:
                 return {"success": False, "error": "Instagram requires an image URL"}
             if get_oauth_connection(product_id, "instagram"):
                 result = await instagram_post(product_id, text, image_url)
+                return {"success": True, "result": result}
             else:
                 task = (f"Post the following to Instagram (instagram.com). Log in if needed.\n\n"
                         f"Caption:\n{text}\n\nImage URL: {image_url}\n\n"
-                        f"Download or use the image at that URL for the post. Confirm the post was published.")
-                result = await execute_tool("browser_task", {"task": task})
+                        f"Download or use the image at that URL for the post.")
+                task += _BROWSER_OUTCOME_SUFFIX
+                return _parse_browser_result(await execute_tool("browser_task", {"task": task}))
         else:
             return {"success": False, "error": f"Unknown platform: {platform}"}
-        return {"success": True, "result": result}
     except RuntimeError as e:
         return {"success": False, "error": str(e)}
 from core.config import get_system_prompt, get_global_system_prompt
