@@ -9,6 +9,8 @@ def db(tmp_path, monkeypatch):
     import backend.db as db_mod
     importlib.reload(db_mod)
     db_mod.init_db()
+    db_mod.create_product("prod-1", "Product One", "P1", "#ff0000")
+    db_mod.create_product("prod-2", "Product Two", "P2", "#0000ff")
     return db_mod
 
 

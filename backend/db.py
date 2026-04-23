@@ -184,7 +184,7 @@ def init_db() -> None:
 
             CREATE TABLE IF NOT EXISTS mcp_capability_overrides (
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_id     TEXT NOT NULL,
+                product_id     TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
                 capability_slot TEXT NOT NULL,
                 mcp_server_name TEXT NOT NULL,
                 mcp_tool_name  TEXT NOT NULL,
@@ -1723,7 +1723,7 @@ def list_capability_overrides(product_id: str) -> list[dict]:
             "SELECT capability_slot, mcp_server_name, mcp_tool_name FROM mcp_capability_overrides WHERE product_id = ?",
             (product_id,),
         ).fetchall()
-        return [dict(r) for r in rows]
+    return [dict(r) for r in rows]
 
 
 def set_capability_override(product_id: str, capability_slot: str, mcp_server_name: str, mcp_tool_name: str) -> None:
@@ -1733,8 +1733,7 @@ def set_capability_override(product_id: str, capability_slot: str, mcp_server_na
                VALUES (?, ?, ?, ?)
                ON CONFLICT(product_id, capability_slot) DO UPDATE SET
                  mcp_server_name = excluded.mcp_server_name,
-                 mcp_tool_name   = excluded.mcp_tool_name,
-                 created_at      = datetime('now')""",
+                 mcp_tool_name   = excluded.mcp_tool_name""",
             (product_id, capability_slot, mcp_server_name, mcp_tool_name),
         )
 
