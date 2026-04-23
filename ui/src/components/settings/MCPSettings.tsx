@@ -254,6 +254,19 @@ type Extension = {
   enabled: boolean
 }
 
+type CapabilityOverride = {
+  capability_slot: string
+  mcp_server_name: string
+  mcp_tool_name: string
+}
+
+type CapabilitySlots = Record<string, string[]>
+
+const SLOT_LABELS: Record<string, string> = {
+  social_post: 'Social Posting',
+  email_send: 'Email Sending',
+}
+
 type ExtEditState = {
   name: string
   description: string
@@ -333,14 +346,24 @@ export default function MCPSettings({ productId, password }: Props) {
   const [extensions, setExtensions] = useState<Extension[]>([])
   const [extEditState, setExtEditState] = useState<ExtEditState | null>(null)
   const [loading, setLoading] = useState(true)
+  const [capSlots, setCapSlots] = useState<CapabilitySlots>({})
+  const [capOverrides, setCapOverrides] = useState<CapabilityOverride[]>([])
+  const [capServerTools, setCapServerTools] = useState<Record<string, { name: string; description: string }[]>>({})
 
   useEffect(() => {
     setLoading(true)
     Promise.all([
       api.getMcpServers(password),
       api.listExtensions(password),
+      api.getCapabilitySlots(password),
+      api.getCapabilityOverrides(password, productId),
     ])
-      .then(([servers, exts]) => { setMcpServers(servers); setExtensions(exts) })
+      .then(([servers, exts, slots, overrides]) => {
+        setMcpServers(servers)
+        setExtensions(exts)
+        setCapSlots(slots)
+        setCapOverrides(overrides)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [password])
@@ -467,6 +490,36 @@ export default function MCPSettings({ productId, password }: Props) {
     }
   }
 
+  const handleCapServerChange = async (slot: string, serverName: string) => {
+    if (!serverName) {
+      await api.deleteCapabilityOverride(password, productId, slot).catch(() => null)
+      setCapOverrides(prev => prev.filter(o => o.capability_slot !== slot))
+      return
+    }
+    if (!capServerTools[serverName]) {
+      const tools = await api.getMcpServerTools(password, serverName).catch(() => [] as { name: string; description: string }[])
+      setCapServerTools(prev => ({ ...prev, [serverName]: tools }))
+    }
+    setCapOverrides(prev => {
+      const existing = prev.find(o => o.capability_slot === slot)
+      if (existing) {
+        return prev.map(o => o.capability_slot === slot ? { ...o, mcp_server_name: serverName, mcp_tool_name: '' } : o)
+      }
+      return [...prev, { capability_slot: slot, mcp_server_name: serverName, mcp_tool_name: '' }]
+    })
+  }
+
+  const handleCapToolChange = async (slot: string, toolName: string) => {
+    const override = capOverrides.find(o => o.capability_slot === slot)
+    if (!override) return
+    await api.setCapabilityOverride(password, productId, {
+      capability_slot: slot,
+      mcp_server_name: override.mcp_server_name,
+      mcp_tool_name: toolName,
+    }).catch(() => null)
+    setCapOverrides(prev => prev.map(o => o.capability_slot === slot ? { ...o, mcp_tool_name: toolName } : o))
+  }
+
   const globalServers = mcpServers.filter(s => s.scope === 'global')
   const productServers = mcpServers.filter(
     s => s.scope === 'product' && (!mcpProductFilter || s.product_id === mcpProductFilter),
@@ -587,6 +640,62 @@ export default function MCPSettings({ productId, password }: Props) {
           </div>
         )}
         <p className="text-[10px] text-adj-text-faint mt-3">Enable/disable changes take effect after the server restarts.</p>
+      </div>
+
+      <div className="border-t border-adj-border mb-6 mt-6" />
+
+      {/* Capability Overrides */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1">Capability Overrides</p>
+        <p className="text-xs text-adj-text-faint mb-3">
+          Choose an MCP tool to handle a built-in capability. The built-in is suppressed when the server is connected.
+        </p>
+        {Object.keys(capSlots).length === 0 ? (
+          <p className="text-xs text-adj-text-faint">No capability slots defined.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {Object.keys(capSlots).map(slot => {
+              const override = capOverrides.find(o => o.capability_slot === slot)
+              const selectedServer = override?.mcp_server_name || ''
+              const selectedTool = override?.mcp_tool_name || ''
+              const serverDisconnected = selectedServer !== '' &&
+                !mcpServers.some(s => s.name === selectedServer && s.enabled)
+              const serverToolOptions = capServerTools[selectedServer] || []
+              return (
+                <div key={slot} className="space-y-1">
+                  <p className="text-xs text-adj-text-secondary">{SLOT_LABELS[slot] ?? slot}</p>
+                  <div className="flex gap-2">
+                    <select
+                      className={inputCls}
+                      value={selectedServer}
+                      onChange={e => handleCapServerChange(slot, e.target.value)}
+                    >
+                      <option value="">Built-in</option>
+                      {mcpServers.filter(s => s.enabled).map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                    {selectedServer && (
+                      <select
+                        className={inputCls}
+                        value={selectedTool}
+                        onChange={e => handleCapToolChange(slot, e.target.value)}
+                      >
+                        <option value="">— pick tool —</option>
+                        {serverToolOptions.map(t => (
+                          <option key={t.name} value={t.name} title={t.description}>{t.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  {serverDisconnected && (
+                    <p className="text-[10px] text-amber-400">⚠ Server '{selectedServer}' is currently disabled or disconnected</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
