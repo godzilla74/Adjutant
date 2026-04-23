@@ -520,9 +520,9 @@ export default function MCPSettings({ productId, password }: Props) {
   const handleDeleteCapSlot = async (name: string) => {
     if (!confirm(`Delete the "${name}" capability slot? This cannot be undone.`)) return
     setDeletingSlots(prev => new Set(prev).add(name))
-    const result = await api.deleteCapabilitySlot(password, name).catch(() => null)
+    const ok = await api.deleteCapabilitySlot(password, name).then(() => true).catch(() => false)
     setDeletingSlots(prev => { const s = new Set(prev); s.delete(name); return s })
-    if (result !== null) {
+    if (ok) {
       setCapSlots(prev => prev.filter(s => s.name !== name))
       setCapOverrides(prev => prev.filter(o => o.capability_slot !== name))
     }

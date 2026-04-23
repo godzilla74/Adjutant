@@ -1801,4 +1801,5 @@ def delete_capability_slot_definition(name: str) -> None:
             raise ValueError(f"Capability slot '{name}' not found.")
         if row["is_system"]:
             raise ValueError(f"Cannot delete system slot '{name}'.")
+        conn.execute("DELETE FROM mcp_capability_overrides WHERE capability_slot = ?", (name,))
         conn.execute("DELETE FROM capability_slot_definitions WHERE name = ?", (name,))

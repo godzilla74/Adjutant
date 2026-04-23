@@ -357,3 +357,11 @@ def test_manage_capability_slots_delete_nonexistent_returns_error(db):
         "name": "does_not_exist",
     }))
     assert "error" in result.lower() or "not found" in result.lower()
+
+
+def test_delete_capability_slot_also_removes_overrides(db):
+    db.create_capability_slot_definition("crm_contacts", "Contact Management", [])
+    db.set_capability_override("prod-1", "crm_contacts", "some-server", "mcp__some__tool")
+    db.delete_capability_slot_definition("crm_contacts")
+    overrides = db.list_capability_overrides("prod-1")
+    assert not any(o["capability_slot"] == "crm_contacts" for o in overrides)
