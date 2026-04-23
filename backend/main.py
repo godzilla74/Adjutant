@@ -702,7 +702,7 @@ async def _maybe_compact(product_id: str | None) -> None:
 
 # ── Pre-flight interceptor ────────────────────────────────────────────────────
 
-def _build_preflight_interceptor(product_id: str, disconnected_overrides: dict[str, str]):
+def _build_preflight_interceptor(disconnected_overrides: dict[str, str]):
     """Return an async callable that checks for disconnected MCP overrides before tool dispatch.
 
     Returns None if the tool should proceed normally, or a tool_result dict with a
@@ -758,7 +758,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
         _base_tools = get_tools_for_product(product_id)
         _all_tools = [t for t in _base_tools if t["name"] not in _suppress] + _stdio_tools
 
-    _preflight = _build_preflight_interceptor(product_id or "", _disconnected_overrides)
+    _preflight = _build_preflight_interceptor(_disconnected_overrides)
 
     # Read model config fresh so Settings changes take effect without restart
     _live_cfg = _get_agent_config()
@@ -870,6 +870,11 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                     out = f"Dispatched to {known[target_id]['name']}"
                 return {"type": "tool_result", "tool_use_id": block.id, "content": out}
 
+            # Pre-flight: check for disconnected MCP override BEFORE writing any activity events
+            intercepted = await _preflight(block)
+            if intercepted is not None:
+                return intercepted
+
             is_agent_task = block.name == "delegate_task"
             is_review     = block.name == "create_review_item"
             ev_id = None
@@ -892,9 +897,6 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 if block.name.startswith("mcp__") and _mcp_manager is not None:
                     output = await _mcp_manager.execute_tool(block.name, block.input)
                 else:
-                    intercepted = await _preflight(block)
-                    if intercepted is not None:
-                        return intercepted
                     result = await execute_tool(block.name, block.input)
                     output = result if isinstance(result, str) else json.dumps(result)
             except Exception as exc:

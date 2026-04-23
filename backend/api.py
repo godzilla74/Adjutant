@@ -91,6 +91,12 @@ class McpServerUpdate(BaseModel):
     env: dict | None = None
 
 
+class CapabilityOverrideBody(BaseModel):
+    capability_slot: str
+    mcp_server_name: str
+    mcp_tool_name: str
+
+
 # ── Product config ────────────────────────────────────────────────────────────
 
 @router.get("/products/{product_id}/config")
@@ -565,14 +571,9 @@ async def get_product_capability_overrides(product_id: str, _=Depends(_auth)):
 
 
 @router.post("/products/{product_id}/capability-overrides")
-async def set_product_capability_override(product_id: str, body: dict, _=Depends(_auth)):
+async def set_product_capability_override(product_id: str, body: CapabilityOverrideBody, _=Depends(_auth)):
     from backend.db import set_capability_override
-    slot = body.get("capability_slot", "")
-    server_name = body.get("mcp_server_name", "")
-    tool_name = body.get("mcp_tool_name", "")
-    if not slot or not server_name or not tool_name:
-        raise HTTPException(status_code=400, detail="capability_slot, mcp_server_name, and mcp_tool_name are required")
-    set_capability_override(product_id, slot, server_name, tool_name)
+    set_capability_override(product_id, body.capability_slot, body.mcp_server_name, body.mcp_tool_name)
     return {"ok": True}
 
 

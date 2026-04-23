@@ -130,7 +130,6 @@ def test_preflight_intercept_disconnected_server():
     async def run():
         from backend.main import _build_preflight_interceptor
         interceptor = _build_preflight_interceptor(
-            product_id="prod-1",
             disconnected_overrides={"twitter_post": "ghl"},
         )
         block = MagicMock()
@@ -151,7 +150,6 @@ def test_preflight_intercept_force_builtin_bypasses():
     async def run():
         from backend.main import _build_preflight_interceptor
         interceptor = _build_preflight_interceptor(
-            product_id="prod-1",
             disconnected_overrides={"twitter_post": "ghl"},
         )
         block = MagicMock()
@@ -169,7 +167,6 @@ def test_preflight_intercept_unregistered_tool_passes_through():
     async def run():
         from backend.main import _build_preflight_interceptor
         interceptor = _build_preflight_interceptor(
-            product_id="prod-1",
             disconnected_overrides={"twitter_post": "ghl"},
         )
         block = MagicMock()
