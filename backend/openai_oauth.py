@@ -142,8 +142,9 @@ def start_callback_server() -> None:
 
 def _exchange_tokens(code: str, verifier: str) -> str | None:
     """Exchange authorization code for API key and persist it. Returns error string or None on success."""
+    _headers = {"originator": "codex_cli_rs"}
     try:
-        with httpx.Client(timeout=30) as client:
+        with httpx.Client(timeout=30, headers=_headers) as client:
             resp = client.post(TOKEN_URL, data={
                 "grant_type": "authorization_code",
                 "code": code,
