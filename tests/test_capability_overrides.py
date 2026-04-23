@@ -42,3 +42,45 @@ def test_list_overrides_scoped_to_product(db):
     db.set_capability_override("prod-2", "social_post", "server-b", "mcp__server-b__post")
     assert len(db.list_capability_overrides("prod-1")) == 1
     assert db.list_capability_overrides("prod-1")[0]["mcp_server_name"] == "server-a"
+
+
+def test_mcp_manager_get_connected_server_names():
+    from backend.mcp_manager import MCPManager
+    mgr = MCPManager()
+    mgr._sessions[1] = object()
+    mgr._server_id_to_name[1] = "ghl"
+    assert mgr.get_connected_server_names() == {"ghl"}
+
+
+def test_mcp_manager_get_connected_server_names_excludes_disconnected():
+    from backend.mcp_manager import MCPManager
+    mgr = MCPManager()
+    # Server 1 connected, server 2 registered but not in _sessions
+    mgr._sessions[1] = object()
+    mgr._server_id_to_name[1] = "ghl"
+    mgr._server_id_to_name[2] = "other"
+    result = mgr.get_connected_server_names()
+    assert "ghl" in result
+    assert "other" not in result
+
+
+def test_mcp_manager_get_tools_for_server():
+    from backend.mcp_manager import MCPManager
+    mgr = MCPManager()
+    mgr._sessions[1] = object()
+    mgr._server_id_to_name[1] = "ghl"
+    mgr._tool_to_server["mcp__ghl__post"] = (1, "post")
+    mgr._tool_defs["mcp__ghl__post"] = {"name": "mcp__ghl__post", "description": "Post", "input_schema": {}}
+    mgr._tool_to_server["mcp__ghl__contact"] = (1, "contact")
+    mgr._tool_defs["mcp__ghl__contact"] = {"name": "mcp__ghl__contact", "description": "Contact", "input_schema": {}}
+    tools = mgr.get_tools_for_server("ghl")
+    names = [t["name"] for t in tools]
+    assert "mcp__ghl__post" in names
+    assert "mcp__ghl__contact" in names
+    assert len(tools) == 2
+
+
+def test_mcp_manager_get_tools_for_server_unknown_returns_empty():
+    from backend.mcp_manager import MCPManager
+    mgr = MCPManager()
+    assert mgr.get_tools_for_server("nonexistent") == []

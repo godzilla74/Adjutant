@@ -16,6 +16,8 @@ class MCPManager:
         self._tool_to_server: dict[str, tuple[int, str]] = {}
         # namespaced_tool_name → Anthropic-format tool definition dict
         self._tool_defs: dict[str, dict] = {}
+        # server_id → server_name (for reverse lookup)
+        self._server_id_to_name: dict[int, str] = {}
         # server_id → asyncio.Task
         self._tasks: dict[int, asyncio.Task] = {}
         # server_id → asyncio.Event (set to signal shutdown)
@@ -62,6 +64,26 @@ class MCPManager:
     def get_tools(self) -> list[dict]:
         """Return all discovered stdio tool definitions in Anthropic tool format."""
         return list(self._tool_defs.values())
+
+    def get_connected_server_names(self) -> set[str]:
+        """Return names of currently connected stdio MCP servers."""
+        return {
+            name
+            for sid, name in self._server_id_to_name.items()
+            if sid in self._sessions
+        }
+
+    def get_tools_for_server(self, server_name: str) -> list[dict]:
+        """Return all tool definitions registered for a specific server name."""
+        server_ids = {
+            sid for sid, name in self._server_id_to_name.items()
+            if name == server_name
+        }
+        return [
+            defn
+            for ns_name, defn in self._tool_defs.items()
+            if self._tool_to_server.get(ns_name, (None,))[0] in server_ids
+        ]
 
     async def execute_tool(self, namespaced_name: str, tool_input: dict) -> str:
         """Execute a stdio MCP tool. Called from the agent loop for mcp__ tool names."""
@@ -141,6 +163,7 @@ class MCPManager:
 
     def _register_tools(self, server_id: int, server_name: str, tools: list) -> None:
         prefix = server_name.replace(" ", "_").lower()
+        self._server_id_to_name[server_id] = server_name
         for tool in tools:
             ns_name = f"mcp__{prefix}__{tool.name}"
             self._tool_to_server[ns_name] = (server_id, tool.name)
@@ -159,3 +182,4 @@ class MCPManager:
         for k in to_remove:
             self._tool_to_server.pop(k, None)
             self._tool_defs.pop(k, None)
+        self._server_id_to_name.pop(server_id, None)
