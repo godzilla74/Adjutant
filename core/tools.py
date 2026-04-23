@@ -1139,6 +1139,8 @@ def _manage_capability_slots(
             return f"Capability slot '{name}' deleted."
         except ValueError as e:
             return f"Error: {e}"
+        except Exception as e:
+            return f"Error: {e}"
 
     return f"Error: unknown action '{action}'."
 
