@@ -271,7 +271,7 @@ async def _publish_social_draft(draft: dict) -> dict:
     except RuntimeError as e:
         return {"success": False, "error": str(e)}
 from core.config import get_system_prompt, get_global_system_prompt
-from core.tools import execute_tool, get_tools_for_product, get_global_tools, get_capability_override_context, CAPABILITY_SLOTS
+from core.tools import execute_tool, get_tools_for_product, get_global_tools, get_capability_override_context
 
 init_db()
 

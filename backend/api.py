@@ -560,8 +560,8 @@ async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
 
 @router.get("/capability-slots")
 async def get_capability_slots_route(_=Depends(_auth)):
-    from core.tools import CAPABILITY_SLOTS
-    return {slot: tools for slot, tools in CAPABILITY_SLOTS.items()}
+    from backend.db import list_capability_slot_definitions
+    return list_capability_slot_definitions()
 
 
 @router.get("/products/{product_id}/capability-overrides")

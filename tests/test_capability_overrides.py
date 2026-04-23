@@ -139,14 +139,14 @@ def test_mcp_manager_get_tools_for_server_unknown_returns_empty():
     assert mgr.get_tools_for_server("nonexistent") == []
 
 
-def test_capability_slots_covers_social_tools():
-    from core.tools import CAPABILITY_SLOTS
-    assert "social_post" in CAPABILITY_SLOTS
-    social_tools = CAPABILITY_SLOTS["social_post"]
-    assert "twitter_post" in social_tools
-    assert "linkedin_post" in social_tools
-    assert "facebook_post" in social_tools
-    assert "instagram_post" in social_tools
+def test_capability_slots_covers_social_tools(db):
+    slots = db.list_capability_slot_definitions()
+    social = next((s for s in slots if s["name"] == "social_post"), None)
+    assert social is not None
+    assert "twitter_post" in social["built_in_tools"]
+    assert "linkedin_post" in social["built_in_tools"]
+    assert "facebook_post" in social["built_in_tools"]
+    assert "instagram_post" in social["built_in_tools"]
 
 
 def test_override_context_connected_server_suppresses_tools(db):
