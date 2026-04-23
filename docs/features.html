@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Features — Adjutant</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #09090b;
+      color: #e4e4e7;
+      min-height: 100vh;
+    }
+
+    /* ── Top nav ── */
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #09090b;
+      border-bottom: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.875rem 2rem;
+    }
+    .topnav-brand { font-size: 0.95rem; font-weight: 600; color: #e4e4e7; text-decoration: none; }
+    .topnav-links { display: flex; gap: 1.5rem; }
+    .topnav-links a { font-size: 0.875rem; color: #71717a; text-decoration: none; transition: color 0.15s; }
+    .topnav-links a:hover { color: #e4e4e7; }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: sticky;
+      top: 65px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+    .sidebar-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #52525b;
+      margin-bottom: 1rem;
+    }
+    .toc-group { margin-bottom: 1.25rem; }
+    .toc-group-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #71717a;
+      margin-bottom: 0.35rem;
+      padding-left: 0.5rem;
+    }
+    .toc-link {
+      display: block;
+      font-size: 0.8rem;
+      color: #52525b;
+      text-decoration: none;
+      padding: 0.3rem 0.5rem;
+      border-radius: 0.25rem;
+      border-left: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .toc-link:hover { color: #a1a1aa; }
+    .toc-link.active { color: #60a5fa; border-left-color: #60a5fa; background: rgba(96,165,250,0.06); }
+
+    /* ── Content ── */
+    .content { min-width: 0; }
+
+    .page-header { margin-bottom: 3rem; }
+    .page-header .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #60a5fa;
+      border: 1px solid #1d4ed8;
+      border-radius: 9999px;
+      padding: 0.25rem 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .page-header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+    .page-header p { font-size: 1rem; color: #a1a1aa; line-height: 1.6; max-width: 580px; }
+
+    .category { margin-bottom: 3.5rem; }
+    .category h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #e4e4e7;
+      border-bottom: 1px solid #27272a;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .category-intro { font-size: 0.875rem; color: #71717a; margin-bottom: 1.5rem; line-height: 1.6; }
+
+    .feature { margin-bottom: 1.75rem; }
+    .feature h3 { font-size: 0.95rem; font-weight: 600; color: #e4e4e7; margin-bottom: 0.35rem; }
+    .feature-desc { font-size: 0.875rem; color: #a1a1aa; line-height: 1.6; margin-bottom: 0.75rem; }
+    .feature-how-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #52525b;
+      margin-bottom: 0.4rem;
+    }
+    .feature ul { padding-left: 1.25rem; }
+    .feature li { font-size: 0.875rem; color: #71717a; line-height: 1.7; }
+    .feature code {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.8rem;
+      color: #a3e635;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 0.25rem;
+      padding: 0.1rem 0.35rem;
+    }
+    .feature pre {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 0.5rem;
+      padding: 0.875rem 1rem;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+    .feature pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.8rem;
+      color: #a3e635;
+      white-space: pre;
+    }
+    .tip {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-left: 3px solid #60a5fa;
+      border-radius: 0.375rem;
+      padding: 0.75rem 1rem;
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: #71717a;
+      line-height: 1.6;
+    }
+    .tip strong { color: #60a5fa; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid #27272a;
+      padding: 2rem;
+      text-align: center;
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+    footer a { font-size: 0.875rem; color: #52525b; text-decoration: none; }
+    footer a:hover { color: #a1a1aa; }
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; gap: 0; }
+      .sidebar { position: static; max-height: none; border-bottom: 1px solid #27272a; padding-bottom: 1.5rem; margin-bottom: 2rem; }
+      .topnav { padding: 0.875rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="topnav">
+    <a class="topnav-brand" href="/">Adjutant</a>
+    <div class="topnav-links">
+      <a href="https://github.com/godzilla74/Adjutant">GitHub</a>
+      <a href="https://github.com/godzilla74/Adjutant/blob/main/SETUP.md">Setup</a>
+      <a href="/features" aria-current="page" style="color:#e4e4e7">Features</a>
+    </div>
+  </nav>
+
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-title">On this page</div>
+
+      <div class="toc-group">
+        <div class="toc-group-label">Talking to Your Assistant</div>
+        <a class="toc-link" href="#directive-templates">Directive Templates</a>
+        <a class="toc-link" href="#sessions">Session Management</a>
+        <a class="toc-link" href="#attachments">File &amp; Image Attachments</a>
+        <a class="toc-link" href="#telegram">Telegram Interface</a>
+      </div>
+
+      <div class="toc-group">
+        <div class="toc-group-label">Autonomy &amp; Scheduling</div>
+        <a class="toc-link" href="#autonomy-tiers">Autonomy Tiers</a>
+        <a class="toc-link" href="#workstream-scheduling">Workstream Scheduling</a>
+        <a class="toc-link" href="#objective-loops">Autonomous Objective Loops</a>
+        <a class="toc-link" href="#post-scheduling">Social Post Scheduling</a>
+        <a class="toc-link" href="#auto-approval">Auto-Approval Windows</a>
+      </div>
+
+      <div class="toc-group">
+        <div class="toc-group-label">MCP &amp; Capability Overrides</div>
+        <a class="toc-link" href="#mcp-install">Installing MCP Servers</a>
+        <a class="toc-link" href="#capability-slots">Capability Slots</a>
+        <a class="toc-link" href="#tool-overrides">Overriding Built-in Tools</a>
+      </div>
+
+      <div class="toc-group">
+        <div class="toc-group-label">Agent Tools &amp; Skills</div>
+        <a class="toc-link" href="#skills">Installing Skills</a>
+        <a class="toc-link" href="#custom-tools">Scaffolding Custom Tools</a>
+        <a class="toc-link" href="#subagents">Sub-Agent Types</a>
+      </div>
+
+      <div class="toc-group">
+        <div class="toc-group-label">Background Automation</div>
+        <a class="toc-link" href="#compaction">Conversation Compaction</a>
+        <a class="toc-link" href="#digest">Email Digest</a>
+        <a class="toc-link" href="#review-queue">Review Queue Behavior</a>
+        <a class="toc-link" href="#bootstrap">Product Bootstrap</a>
+      </div>
+
+      <div class="toc-group">
+        <div class="toc-group-label">Configuration</div>
+        <a class="toc-link" href="#brand-voice">Brand Voice in Prompts</a>
+        <a class="toc-link" href="#model-selection">Model Selection</a>
+        <a class="toc-link" href="#image-generation">Image Generation</a>
+        <a class="toc-link" href="#browser-credentials">Browser Credentials</a>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="content">
+      <div class="page-header">
+        <div class="badge">Power user guide</div>
+        <h1>Features &amp; Capabilities</h1>
+        <p>Adjutant has a lot of functionality that isn't immediately obvious from the UI. This page documents the features worth knowing about — the ones that make the difference between a capable assistant and one that can truly run on autopilot.</p>
+      </div>
+
+      <!-- ── CATEGORY 1 ── -->
+      <section class="category" id="cat-talking">
+        <h2>Talking to Your Assistant</h2>
+        <p class="category-intro">Ways to send work to your assistant beyond typing in the directive bar.</p>
+
+        <div class="feature" id="directive-templates">
+          <h3>Directive Templates</h3>
+          <p class="feature-desc">Save frequently-used directives as one-click chips that appear below the input bar. Useful for recurring workflows you'd otherwise retype every time.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Click the <code>+</code> icon below the directive input bar to create a template.</li>
+            <li>Give it a short label (e.g. <code>Weekly summary</code>) and paste the full directive text.</li>
+            <li>Click the chip to populate the input bar — edit before sending if needed.</li>
+            <li>Templates are stored per-product in the database, not just your browser.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="sessions">
+          <h3>Session Management</h3>
+          <p class="feature-desc">Each product can have multiple named chat sessions with completely isolated message histories. Useful for keeping a "General" session separate from a "Campaign Planning" one.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Sessions appear in the left sidebar under the product name.</li>
+            <li>Click <code>+ New session</code> to create one with a custom name.</li>
+            <li>Switching sessions shows a different message history — context is fully separate.</li>
+            <li>New products start with a single "General" session automatically.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="attachments">
+          <h3>File &amp; Image Attachments</h3>
+          <p class="feature-desc">Attach files directly to a directive. Your assistant processes them inline — no need to describe the contents manually.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Click the paperclip icon in the directive bar and select a file.</li>
+            <li><strong>Images</strong> (PNG, JPG, etc.) — analyzed visually by the agent.</li>
+            <li><strong>PDFs</strong> — read and reasoned over inline.</li>
+            <li><strong>Text files</strong> — content prepended to your directive as context.</li>
+            <li><strong>Videos</strong> — referenced by filename; describe what you need from it.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="telegram">
+          <h3>Telegram as a Second Interface</h3>
+          <p class="feature-desc">Connect a Telegram bot to send directives and approve review items from your phone — without opening the web UI.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Create a Telegram bot via <code>@BotFather</code> and copy the token.</li>
+            <li>Get your Telegram chat ID (send a message to the bot, then call the Telegram API to retrieve it).</li>
+            <li>Set <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code> in Settings → Remote Access.</li>
+            <li>Messages you send to the bot are queued as directives to the global agent.</li>
+            <li>Review items can be approved or skipped by replying to the bot's callback buttons.</li>
+            <li>Your assistant can send files back to you via Telegram using the <code>send_telegram_file</code> tool.</li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> Messages to the Telegram bot route to the global agent by default. The global agent can dispatch work to any product using the <code>dispatch_to_product</code> tool.</div>
+        </div>
+      </section>
+
+      <!-- ── CATEGORY 2 ── -->
+      <section class="category" id="cat-autonomy">
+        <h2>Autonomy &amp; Scheduling</h2>
+        <p class="category-intro">Controls for how much your assistant acts on its own, and when.</p>
+
+        <div class="feature" id="autonomy-tiers">
+          <h3>Autonomy Tiers</h3>
+          <p class="feature-desc">Each product has a configurable autonomy level that controls whether actions are held for your approval before executing.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Go to <strong>Settings → Autonomy</strong> for the product.</li>
+            <li><strong>Approve</strong> — every reviewable action pauses and waits for your explicit approval. Safest.</li>
+            <li><strong>Window</strong> — actions are queued with a countdown (e.g. 10 minutes). If you don't block them, they execute automatically when the window expires.</li>
+            <li><strong>Auto</strong> — actions execute immediately, no review. Fastest.</li>
+            <li>You can set a master override that applies to all action types, or configure each action type individually.</li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> Start with <strong>Approve</strong> for a new product until you trust how it behaves, then graduate to Window or Auto for action types you're comfortable with.</div>
+        </div>
+
+        <div class="feature" id="workstream-scheduling">
+          <h3>Workstream Scheduling</h3>
+          <p class="feature-desc">Workstreams with a mission and a schedule run their own agent loops automatically, without any directive from you.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Give a workstream a <strong>mission</strong> (what it should do each run) and a <strong>schedule</strong> (when to run).</li>
+            <li>Supported schedule formats (natural language):</li>
+          </ul>
+          <pre><code>hourly
+daily
+daily at 9am
+weekdays
+weekdays at 2pm
+every Monday at 9am
+every 30 minutes
+twice daily
+manual</code></pre>
+          <ul>
+            <li>Use <code>manual</code> to disable automatic runs while keeping the mission intact.</li>
+            <li>The scheduler checks every 60 seconds; concurrent runs of the same workstream are prevented automatically.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="objective-loops">
+          <h3>Autonomous Objective Loops</h3>
+          <p class="feature-desc">Objectives can be set to run themselves on a recurring basis — your assistant picks up where it left off automatically.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Tell your assistant: <em>"Set the [objective name] objective to autonomous mode."</em></li>
+            <li>The assistant calls <code>set_objective_autonomous</code> and schedules the first run.</li>
+            <li>After each run, the assistant schedules the next one via <code>schedule_next_run</code>.</li>
+            <li>To disable: <em>"Turn off autonomous mode for [objective name]."</em></li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> Autonomous objectives work best when paired with a Window or Auto autonomy tier — otherwise every action in the loop will wait for your approval.</div>
+        </div>
+
+        <div class="feature" id="post-scheduling">
+          <h3>Social Post Scheduling</h3>
+          <p class="feature-desc">Social posts can be queued for future publication rather than posted immediately.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Tell your assistant to schedule a post: <em>"Draft a LinkedIn post about X and schedule it for tomorrow at 10am."</em></li>
+            <li>The assistant passes a <code>scheduled_for</code> timestamp (ISO 8601) to <code>draft_social_post</code>.</li>
+            <li>The post sits in "scheduled" status and publishes automatically when the time arrives.</li>
+            <li>The scheduler checks every 60 seconds.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="auto-approval">
+          <h3>Auto-Approval Windows</h3>
+          <p class="feature-desc">In Window autonomy mode, review items have a countdown. Items not manually actioned before the deadline approve themselves.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Set a product's autonomy tier to <strong>Window</strong> in Settings → Autonomy.</li>
+            <li>Configure the window duration in minutes (e.g. 10 minutes, 60 minutes).</li>
+            <li>When an action creates a review item, the countdown starts immediately.</li>
+            <li>You can manually approve or skip at any time before the deadline.</li>
+            <li>If you do nothing, the item auto-approves when the window expires.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ── CATEGORY 3 ── -->
+      <section class="category" id="cat-mcp">
+        <h2>MCP &amp; Capability Overrides</h2>
+        <p class="category-intro">Connect external tools to your assistant and replace built-in capabilities with your own.</p>
+
+        <div class="feature" id="mcp-install">
+          <h3>Installing MCP Servers via Directive</h3>
+          <p class="feature-desc">You can tell your assistant to integrate an MCP server in plain language — it handles registration and configuration without you touching any config files.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Find an MCP server you want (e.g. a CRM tool, a database connector, a custom API wrapper).</li>
+            <li>Tell your assistant: <em>"Integrate the [server name] MCP server. Here's the connection info: [details]."</em></li>
+            <li>The assistant registers the server, stores it in the database, and makes its tools available immediately.</li>
+            <li>You can also manage MCP servers manually in <strong>Settings → MCP Servers</strong>.</li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> After integrating an MCP server, tell your assistant what the tools do and when to use them — it will incorporate them into its decision-making.</div>
+        </div>
+
+        <div class="feature" id="capability-slots">
+          <h3>Capability Slots</h3>
+          <p class="feature-desc">Capability slots are named positions in the agent's tool set that can be filled by different implementations. Think of them as swappable tool sockets.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Built-in system slots: <code>email_send</code>, <code>social_post</code>, <code>browser_task</code>, and others.</li>
+            <li>Create custom slots for capabilities unique to your workflow (e.g. <code>crm_contacts</code>, <code>invoice_create</code>).</li>
+            <li>Manage slots in <strong>Settings → MCP Servers → Capability Overrides</strong>.</li>
+            <li>Or via directive: <em>"Create a capability slot called crm_contacts."</em></li>
+          </ul>
+        </div>
+
+        <div class="feature" id="tool-overrides">
+          <h3>Overriding Built-in Tools</h3>
+          <p class="feature-desc">Once an MCP server is connected, you can assign one of its tools to a capability slot. The assistant will use your tool instead of the built-in equivalent.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Go to <strong>Settings → MCP Servers → Capability Overrides</strong>.</li>
+            <li>Select a capability slot (e.g. <code>email_send</code>) and choose an MCP tool to fill it.</li>
+            <li>Or via directive: <em>"Override the email_send slot with the [MCP tool name] tool from [server name]."</em></li>
+            <li>The override takes effect immediately — the agent routes all matching actions through your tool.</li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> Overrides are scoped — you can apply them globally or to a specific product only.</div>
+        </div>
+      </section>
+
+      <!-- ── CATEGORY 4 ── -->
+      <section class="category" id="cat-skills">
+        <h2>Agent Tools &amp; Skills</h2>
+        <p class="category-intro">Your assistant can expand its own capabilities at runtime.</p>
+
+        <div class="feature" id="skills">
+          <h3>Installing Skills via Directive</h3>
+          <p class="feature-desc">Your assistant can discover and install skill packages that add new tools and capabilities without a restart.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Tell your assistant: <em>"Find and install a skill for [capability]."</em></li>
+            <li>The assistant calls <code>find_skill</code> to search available packages and <code>install_skill</code> to install the chosen one.</li>
+            <li>Skills are loaded from the <code>extensions/</code> directory and activate immediately.</li>
+            <li>Disabled skills are tracked in <code>extensions/_config.json</code>.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="custom-tools">
+          <h3>Scaffolding Custom Tools</h3>
+          <p class="feature-desc">Your assistant can write a new Python tool from scratch, save it, and start using it — all in one go.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Tell your assistant: <em>"Add a tool that [does X]."</em></li>
+            <li>The assistant calls <code>add_agent_tool</code>, which scaffolds a Python module with a <code>TOOL_DEFINITION</code> schema and an <code>execute()</code> function.</li>
+            <li>The file is saved to <code>extensions/</code> and loaded immediately.</li>
+            <li>If a restart is needed, the assistant can call <code>restart_server</code> to force a reload.</li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> Be specific about what the tool should accept as input and return as output — the assistant writes better code with precise specs.</div>
+        </div>
+
+        <div class="feature" id="subagents">
+          <h3>Sub-Agent Types</h3>
+          <p class="feature-desc">When you ask your assistant to delegate a task, it routes to a specialized sub-agent based on what kind of work is needed.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Delegation happens automatically — your assistant decides which agent to use.</li>
+            <li><strong>Research Agent</strong> — web search, competitive analysis, information gathering.</li>
+            <li><strong>General Agent</strong> — file access, local operations, skill installation, broader tasks.</li>
+            <li><strong>Email Agent</strong> — Gmail operations, drafting, sending, and reading email.</li>
+            <li>Each agent type can be configured to use a different Claude model in Settings → Agent Model.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ── CATEGORY 5 ── -->
+      <section class="category" id="cat-background">
+        <h2>Background Automation</h2>
+        <p class="category-intro">Things Adjutant does automatically in the background to keep things running smoothly.</p>
+
+        <div class="feature" id="compaction">
+          <h3>Conversation Compaction</h3>
+          <p class="feature-desc">Long-running products automatically summarize older messages to keep context lean and avoid excessive token usage — you never hit a wall.</p>
+          <div class="feature-how-label">How it works</div>
+          <ul>
+            <li>When a product's message history exceeds 20 messages, compaction triggers automatically.</li>
+            <li>The most recent 10 messages are kept verbatim.</li>
+            <li>Earlier messages are summarized into a single "Summary of previous conversation" block injected at the start of context.</li>
+            <li>No action required — this happens transparently in the background.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="digest">
+          <h3>Email Digest</h3>
+          <p class="feature-desc">Compile all product activity into a single summary email sent to your Gmail — useful for an end-of-day or weekly rollup.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Trigger via directive: <em>"Send me a digest of all product activity."</em></li>
+            <li>Or call <code>POST /api/digest</code> directly (e.g. via a cron job or automation).</li>
+            <li>Requires Gmail OAuth to be connected in Settings → Google OAuth.</li>
+            <li>The digest is sent to your configured Gmail address.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="review-queue">
+          <h3>Review Queue Behavior</h3>
+          <p class="feature-desc">Understanding how the review queue works helps you tune your autonomy settings effectively.</p>
+          <div class="feature-how-label">How it works</div>
+          <ul>
+            <li>When your assistant wants to take a reviewable action, it creates a review item and pauses.</li>
+            <li>Review items appear in the status strip at the bottom of the UI.</li>
+            <li>In <strong>Approve</strong> mode: the item waits indefinitely for manual approval or skip.</li>
+            <li>In <strong>Window</strong> mode: a countdown timer appears on the item; it auto-approves when it expires.</li>
+            <li>In <strong>Auto</strong> mode: the item is approved immediately and doesn't appear in the queue.</li>
+            <li>The background scheduler checks every 60 seconds for expired Window items.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="bootstrap">
+          <h3>Product Bootstrap</h3>
+          <p class="feature-desc">On first setup, Adjutant can automatically generate a relevant set of workstreams and objectives for a new product based on its name and description.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Set the following environment variables before starting Adjutant for the first time:</li>
+          </ul>
+          <pre><code>ADJUTANT_SEED_PRODUCT_NAME="Acme Corp"
+ADJUTANT_SEED_PRODUCT_DESC="B2B SaaS for invoice automation"</code></pre>
+          <ul>
+            <li>On startup, Claude generates 3–5 contextually relevant workstreams and 2–3 objectives.</li>
+            <li>Bootstrap only runs once — it exits immediately if workstreams already exist.</li>
+            <li>You can also trigger this manually via the Product Wizard in Settings → Objectives.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ── CATEGORY 6 ── -->
+      <section class="category" id="cat-config">
+        <h2>Configuration</h2>
+        <p class="category-intro">Settings that shape how your assistant behaves at a fundamental level.</p>
+
+        <div class="feature" id="brand-voice">
+          <h3>Brand Voice in Prompts</h3>
+          <p class="feature-desc">Everything you fill in under Settings → Overview is injected directly into your assistant's system prompt and shapes every piece of content it generates.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Go to <strong>Settings → Overview</strong> for the product.</li>
+            <li>Fill in: brand voice, tone, writing style, target audience, social handles, hashtags, brand notes.</li>
+            <li>These fields are read from the database and prepended to the agent's system prompt at runtime.</li>
+            <li>Your assistant will apply this voice automatically to social posts, emails, and other content — without being told to every time.</li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> Be specific. "Professional but approachable, avoids jargon, speaks to early-stage founders" is more useful than "professional."</div>
+        </div>
+
+        <div class="feature" id="model-selection">
+          <h3>Per-Product Model Selection</h3>
+          <p class="feature-desc">The main agent and each sub-agent type can be configured to use different Claude models independently.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Go to <strong>Settings → Agent Model</strong>.</li>
+            <li>Configure the main agent model (used for all directive processing).</li>
+            <li>Configure sub-agent models separately: Research, General, and Email agents can each use a different model.</li>
+            <li>Use a faster/cheaper model for high-volume sub-agents (e.g. research) and a more capable model for the main agent.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="image-generation">
+          <h3>Image Generation</h3>
+          <p class="feature-desc">Your assistant can source images for social posts automatically — either from stock photography or AI-generated art.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Go to <strong>Settings → Image Generation</strong> to configure sources.</li>
+            <li><strong>Pexels</strong> — free stock photos. Get a free API key at pexels.com/api and add it to settings. Your assistant calls <code>search_stock_photo</code> to find relevant images.</li>
+            <li><strong>DALL-E 3</strong> — AI-generated images via your OpenAI account. Connect via Codex OAuth in settings. Your assistant calls <code>generate_image</code> with a prompt.</li>
+            <li>Your assistant chooses automatically: Pexels for real-world/documentary content, DALL-E for abstract, branded, or stylized visuals.</li>
+          </ul>
+        </div>
+
+        <div class="feature" id="browser-credentials">
+          <h3>Browser Credentials</h3>
+          <p class="feature-desc">Store login credentials for platforms your assistant automates via browser. These are injected automatically into browser tasks so the agent can log in without prompting you.</p>
+          <div class="feature-how-label">How to use it</div>
+          <ul>
+            <li>Go to <strong>Settings → Connections</strong> and add credentials for a platform (e.g. Twitter/X, LinkedIn).</li>
+            <li>When your assistant runs a browser task for that platform, it retrieves and uses the stored credentials.</li>
+            <li>Falls back to OAuth API if available, then to an unauthenticated browser session if neither is configured.</li>
+          </ul>
+          <div class="tip"><strong>Tip:</strong> Credentials are stored locally in your database and never leave your machine.</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer>
+    <a href="/">Home</a>
+    <a href="https://github.com/godzilla74/Adjutant">GitHub</a>
+    <a href="https://github.com/godzilla74/Adjutant/blob/main/SETUP.md">Setup</a>
+    <a href="/privacy-policy.html">Privacy Policy</a>
+    <a href="/terms-of-service.html">Terms of Service</a>
+  </footer>
+
+  <script>
+    // Active section highlighting via IntersectionObserver
+    const links = document.querySelectorAll('.toc-link');
+    const sections = document.querySelectorAll('.feature[id], .category[id]');
+
+    const featureIds = new Set([...links].map(l => l.getAttribute('href').slice(1)));
+    const observedSections = [...sections].filter(s => featureIds.has(s.id));
+
+    let activeId = null;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          activeId = entry.target.id;
+          links.forEach(l => {
+            const isActive = l.getAttribute('href') === '#' + activeId;
+            l.classList.toggle('active', isActive);
+          });
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+
+    observedSections.forEach(s => observer.observe(s));
+  </script>
+
+</body>
+</html>
