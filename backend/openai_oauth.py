@@ -9,7 +9,7 @@ TOKEN_URL = "https://auth.openai.com/oauth/token"
 _AUTH_URL = "https://auth.openai.com/oauth/authorize"
 _SCOPES = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 _PORT = os.environ.get("HANNAH_PORT", "8001")
-REDIRECT_URI = f"http://localhost:{_PORT}/api/openai-oauth/callback"
+REDIRECT_URI = f"http://localhost:{_PORT}/auth/callback"
 
 # Maps state → code_verifier for pending OAuth flows
 _pending: dict[str, str] = {}
@@ -31,6 +31,8 @@ def build_auth_url() -> str:
         "code_challenge": challenge,
         "code_challenge_method": "S256",
         "state": state,
+        "id_token_add_organizations": "true",
+        "codex_cli_simplified_flow": "true",
     }
     return f"{_AUTH_URL}?{urllib.parse.urlencode(params)}"
 

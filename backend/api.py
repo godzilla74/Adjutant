@@ -982,6 +982,7 @@ async def openai_oauth_start(_=Depends(_auth)):
     return {"auth_url": build_auth_url()}
 
 
+@router.get("/auth/callback")
 @router.get("/openai-oauth/callback")
 async def openai_oauth_callback(
     code: str | None = None,
