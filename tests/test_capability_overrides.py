@@ -230,3 +230,62 @@ def test_preflight_intercept_unregistered_tool_passes_through():
         assert result is None
 
     asyncio.run(run())
+
+
+def test_manage_capability_slots_list(db):
+    from core.tools import execute_tool
+    result = asyncio.run(execute_tool("manage_capability_slots", {"action": "list"}))
+    assert "social_post" in result
+    assert "Social Posting" in result
+
+
+def test_manage_capability_slots_create(db):
+    from core.tools import execute_tool
+    result = asyncio.run(execute_tool("manage_capability_slots", {
+        "action": "create",
+        "name": "crm_contacts",
+        "label": "Contact Management",
+    }))
+    assert "created" in result.lower() or "crm_contacts" in result
+    slots = db.list_capability_slot_definitions()
+    assert any(s["name"] == "crm_contacts" for s in slots)
+
+
+def test_manage_capability_slots_create_duplicate_returns_error(db):
+    from core.tools import execute_tool
+    asyncio.run(execute_tool("manage_capability_slots", {
+        "action": "create",
+        "name": "crm_contacts",
+        "label": "CRM",
+    }))
+    result = asyncio.run(execute_tool("manage_capability_slots", {
+        "action": "create",
+        "name": "crm_contacts",
+        "label": "CRM Again",
+    }))
+    assert "already exists" in result.lower() or "error" in result.lower()
+
+
+def test_manage_capability_slots_delete_custom(db):
+    from core.tools import execute_tool
+    asyncio.run(execute_tool("manage_capability_slots", {
+        "action": "create",
+        "name": "crm_contacts",
+        "label": "Contact Management",
+    }))
+    result = asyncio.run(execute_tool("manage_capability_slots", {
+        "action": "delete",
+        "name": "crm_contacts",
+    }))
+    assert "deleted" in result.lower() or "removed" in result.lower()
+    slots = db.list_capability_slot_definitions()
+    assert not any(s["name"] == "crm_contacts" for s in slots)
+
+
+def test_manage_capability_slots_delete_system_returns_error(db):
+    from core.tools import execute_tool
+    result = asyncio.run(execute_tool("manage_capability_slots", {
+        "action": "delete",
+        "name": "social_post",
+    }))
+    assert "system" in result.lower() or "cannot" in result.lower()

@@ -597,6 +597,38 @@ TOOLS_DEFINITIONS = [
             "required": ["prompt"],
         },
     },
+    {
+        "name": "manage_capability_slots",
+        "description": (
+            "Manage capability slot definitions. Use 'list' to see all slots, "
+            "'create' to register a new custom slot, 'delete' to remove a custom slot. "
+            "System slots (social_post, email_send, etc.) cannot be deleted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["list", "create", "delete"],
+                    "description": "The operation to perform.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Slot name slug, e.g. 'crm_contacts'. Required for create and delete.",
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Human-readable display name, e.g. 'Contact Management'. Required for create.",
+                },
+                "built_in_tools": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Built-in tool names this slot replaces. Defaults to [] for custom slots.",
+                },
+            },
+            "required": ["action"],
+        },
+    },
 ]
 
 # Load extensions and append their definitions
@@ -1067,6 +1099,50 @@ async def _generate_image(prompt: str) -> str:
         return f"Image generation failed: {e}"
 
 
+# ── Capability slot management ────────────────────────────────────────────────
+
+def _manage_capability_slots(
+    action: str,
+    name: str | None = None,
+    label: str | None = None,
+    built_in_tools: list[str] | None = None,
+) -> str:
+    from backend.db import list_capability_slot_definitions, create_capability_slot_definition, delete_capability_slot_definition
+
+    if action == "list":
+        slots = list_capability_slot_definitions()
+        if not slots:
+            return "No capability slots defined."
+        lines = ["Capability slots:"]
+        for s in slots:
+            kind = "system" if s["is_system"] else "custom"
+            tools_str = ", ".join(s["built_in_tools"]) if s["built_in_tools"] else "none"
+            lines.append(f"  {s['name']} ({s['label']}, {kind}, built-ins: {tools_str})")
+        return "\n".join(lines)
+
+    elif action == "create":
+        if not name or not label:
+            return "Error: name and label are required for create."
+        try:
+            create_capability_slot_definition(name, label, built_in_tools or [])
+            return f"Capability slot '{name}' ({label}) created."
+        except Exception as e:
+            if "UNIQUE" in str(e) or "unique" in str(e):
+                return f"Error: capability slot '{name}' already exists."
+            return f"Error: {e}"
+
+    elif action == "delete":
+        if not name:
+            return "Error: name is required for delete."
+        try:
+            delete_capability_slot_definition(name)
+            return f"Capability slot '{name}' deleted."
+        except ValueError as e:
+            return f"Error: {e}"
+
+    return f"Error: unknown action '{action}'."
+
+
 # ── Executor ──────────────────────────────────────────────────────────────────
 
 async def execute_tool(name: str, inputs: dict) -> str:
@@ -1111,6 +1187,8 @@ async def execute_tool(name: str, inputs: dict) -> str:
         return _restart_server()
     if name == "manage_mcp_server":
         return await _manage_mcp_server(**inputs)
+    if name == "manage_capability_slots":
+        return _manage_capability_slots(**inputs)
     if name == "schedule_next_run":
         return _schedule_next_run(**inputs)
     if name == "update_objective_progress":
