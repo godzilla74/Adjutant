@@ -177,12 +177,8 @@ def _exchange_tokens(code: str, verifier: str) -> str | None:
             })
             if resp2.status_code == 200:
                 api_key = resp2.json().get("access_token") or access_token
-                logger.info("OpenAI: using exchanged API key")
             else:
-                logger.warning(
-                    "OpenAI API key exchange failed (%s), falling back to access_token: %s",
-                    resp2.status_code, resp2.text[:200],
-                )
+                logger.info("OpenAI API key exchange unavailable (%s), using access_token directly", resp2.status_code)
                 api_key = access_token
             if not api_key:
                 msg = "No access_token in step 1 response and step 2 also failed"
