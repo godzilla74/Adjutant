@@ -164,17 +164,10 @@ def _exchange_tokens(code: str, verifier: str) -> str | None:
                 logger.error("OpenAI token exchange: %s", msg)
                 return msg
 
-            # Decode JWT payload (no verification needed — just inspecting claims)
-            try:
-                import json as _json
-                _payload_b64 = id_token.split(".")[1]
-                _payload_b64 += "=" * (-len(_payload_b64) % 4)
-                _claims = _json.loads(base64.urlsafe_b64decode(_payload_b64))
-                logger.info("OpenAI id_token claims: %s", list(_claims.keys()))
-                logger.info("OpenAI id_token org: %s", _claims.get("organization_id") or _claims.get("org_id") or _claims.get("orgs"))
-            except Exception:
-                logger.warning("Could not decode id_token for inspection")
-
+            # Try step 2: exchange id_token for an openai-api-key.
+            # This requires an org and fails for ChatGPT-only subscribers,
+            # so fall back to using the access_token from step 1 directly.
+            access_token = tokens.get("access_token", "")
             resp2 = client.post(TOKEN_URL, data={
                 "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
                 "client_id": CLIENT_ID,
@@ -182,14 +175,18 @@ def _exchange_tokens(code: str, verifier: str) -> str | None:
                 "subject_token": id_token,
                 "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
             })
-            if resp2.status_code != 200:
-                msg = f"Step 2 failed ({resp2.status_code}): {resp2.text[:300]}"
-                logger.error("OpenAI API key exchange: %s", msg)
-                return msg
-            api_key = resp2.json().get("access_token")
+            if resp2.status_code == 200:
+                api_key = resp2.json().get("access_token") or access_token
+                logger.info("OpenAI: using exchanged API key")
+            else:
+                logger.warning(
+                    "OpenAI API key exchange failed (%s), falling back to access_token: %s",
+                    resp2.status_code, resp2.text[:200],
+                )
+                api_key = access_token
             if not api_key:
-                msg = f"Step 2: no access_token in response. Keys: {list(resp2.json().keys())}"
-                logger.error("OpenAI API key exchange: %s", msg)
+                msg = "No access_token in step 1 response and step 2 also failed"
+                logger.error("OpenAI token exchange: %s", msg)
                 return msg
 
         from backend.db import set_agent_config
