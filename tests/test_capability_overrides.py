@@ -119,3 +119,64 @@ def test_override_context_no_overrides(db):
     suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers=set())
     assert suppress == set()
     assert disconnected == {}
+
+
+import asyncio
+from unittest.mock import MagicMock
+
+
+def test_preflight_intercept_disconnected_server():
+    """Interceptor must return a reconnect prompt when override server is disconnected."""
+    async def run():
+        from backend.main import _build_preflight_interceptor
+        interceptor = _build_preflight_interceptor(
+            product_id="prod-1",
+            disconnected_overrides={"twitter_post": "ghl"},
+        )
+        block = MagicMock()
+        block.name = "twitter_post"
+        block.input = {}
+        block.id = "tu_123"
+        result = await interceptor(block)
+        assert result is not None
+        assert "ghl" in result["content"]
+        assert "disconnected" in result["content"].lower()
+        assert result["tool_use_id"] == "tu_123"
+
+    asyncio.run(run())
+
+
+def test_preflight_intercept_force_builtin_bypasses():
+    """force_builtin=True must cause interceptor to return None (proceed normally)."""
+    async def run():
+        from backend.main import _build_preflight_interceptor
+        interceptor = _build_preflight_interceptor(
+            product_id="prod-1",
+            disconnected_overrides={"twitter_post": "ghl"},
+        )
+        block = MagicMock()
+        block.name = "twitter_post"
+        block.input = {"force_builtin": True, "text": "hello"}
+        block.id = "tu_456"
+        result = await interceptor(block)
+        assert result is None
+
+    asyncio.run(run())
+
+
+def test_preflight_intercept_unregistered_tool_passes_through():
+    """Tools not in disconnected_overrides must return None."""
+    async def run():
+        from backend.main import _build_preflight_interceptor
+        interceptor = _build_preflight_interceptor(
+            product_id="prod-1",
+            disconnected_overrides={"twitter_post": "ghl"},
+        )
+        block = MagicMock()
+        block.name = "some_other_tool"
+        block.input = {}
+        block.id = "tu_789"
+        result = await interceptor(block)
+        assert result is None
+
+    asyncio.run(run())

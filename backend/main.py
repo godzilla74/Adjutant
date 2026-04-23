@@ -271,7 +271,7 @@ async def _publish_social_draft(draft: dict) -> dict:
     except RuntimeError as e:
         return {"success": False, "error": str(e)}
 from core.config import get_system_prompt, get_global_system_prompt
-from core.tools import execute_tool, get_tools_for_product, get_global_tools
+from core.tools import execute_tool, get_tools_for_product, get_global_tools, get_capability_override_context, CAPABILITY_SLOTS
 
 init_db()
 
@@ -700,6 +700,29 @@ async def _maybe_compact(product_id: str | None) -> None:
     delete_messages_by_ids(product_id, ids_to_remove)
 
 
+# ── Pre-flight interceptor ────────────────────────────────────────────────────
+
+def _build_preflight_interceptor(product_id: str, disconnected_overrides: dict[str, str]):
+    """Return an async callable that checks for disconnected MCP overrides before tool dispatch.
+
+    Returns None if the tool should proceed normally, or a tool_result dict with a
+    reconnect/fallback prompt if the override server is disconnected.
+    """
+    async def check(block) -> dict | None:
+        server_name = disconnected_overrides.get(block.name)
+        if server_name is None:
+            return None
+        if block.input.get("force_builtin"):
+            return None
+        msg = (
+            f"The MCP server '{server_name}' configured to handle this action is currently "
+            f"disconnected. Would you like to: (1) reconnect it in Settings → MCP Servers, "
+            f"or (2) proceed using the built-in tool by re-calling with force_builtin=true?"
+        )
+        return {"type": "tool_result", "tool_use_id": block.id, "content": msg}
+    return check
+
+
 # ── Agent agentic loop ────────────────────────────────────────────────────────
 
 async def _agent_loop(send_fn, product_id: str | None, messages: list, session_id: str | None = None) -> tuple[list, list]:
@@ -728,8 +751,14 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     _stdio_tools = _mcp_manager.get_tools() if _mcp_manager else []
     if product_id is None:
         _all_tools = get_global_tools() + _stdio_tools
+        _disconnected_overrides: dict[str, str] = {}
     else:
-        _all_tools = get_tools_for_product(product_id) + _stdio_tools
+        _connected_server_names = _mcp_manager.get_connected_server_names() if _mcp_manager else set()
+        _suppress, _disconnected_overrides = get_capability_override_context(product_id, _connected_server_names)
+        _base_tools = get_tools_for_product(product_id)
+        _all_tools = [t for t in _base_tools if t["name"] not in _suppress] + _stdio_tools
+
+    _preflight = _build_preflight_interceptor(product_id or "", _disconnected_overrides)
 
     # Read model config fresh so Settings changes take effect without restart
     _live_cfg = _get_agent_config()
@@ -863,6 +892,9 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 if block.name.startswith("mcp__") and _mcp_manager is not None:
                     output = await _mcp_manager.execute_tool(block.name, block.input)
                 else:
+                    intercepted = await _preflight(block)
+                    if intercepted is not None:
+                        return intercepted
                     result = await execute_tool(block.name, block.input)
                     output = result if isinstance(result, str) else json.dumps(result)
             except Exception as exc:

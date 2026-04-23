@@ -550,6 +550,47 @@ async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
     delete_mcp_server(server_id)
 
 
+# ── Capability Overrides ──────────────────────────────────────────────────────
+
+@router.get("/capability-slots")
+async def get_capability_slots_route(_=Depends(_auth)):
+    from core.tools import CAPABILITY_SLOTS
+    return {slot: tools for slot, tools in CAPABILITY_SLOTS.items()}
+
+
+@router.get("/products/{product_id}/capability-overrides")
+async def get_product_capability_overrides(product_id: str, _=Depends(_auth)):
+    from backend.db import list_capability_overrides
+    return list_capability_overrides(product_id)
+
+
+@router.post("/products/{product_id}/capability-overrides")
+async def set_product_capability_override(product_id: str, body: dict, _=Depends(_auth)):
+    from backend.db import set_capability_override
+    slot = body.get("capability_slot", "")
+    server_name = body.get("mcp_server_name", "")
+    tool_name = body.get("mcp_tool_name", "")
+    if not slot or not server_name or not tool_name:
+        raise HTTPException(status_code=400, detail="capability_slot, mcp_server_name, and mcp_tool_name are required")
+    set_capability_override(product_id, slot, server_name, tool_name)
+    return {"ok": True}
+
+
+@router.delete("/products/{product_id}/capability-overrides/{slot}")
+async def delete_product_capability_override(product_id: str, slot: str, _=Depends(_auth)):
+    from backend.db import delete_capability_override
+    delete_capability_override(product_id, slot)
+    return {"ok": True}
+
+
+@router.get("/mcp-servers/{server_name}/tools")
+async def get_mcp_server_tools_route(server_name: str, _=Depends(_auth)):
+    import backend.main as _main
+    if _main._mcp_manager is None:
+        return []
+    return _main._mcp_manager.get_tools_for_server(server_name)
+
+
 # ── Extensions (custom agent tools) ──────────────────────────────────────────
 
 class ExtensionUpdate(BaseModel):
