@@ -349,6 +349,7 @@ export default function MCPSettings({ productId, password }: Props) {
   const [capSlots, setCapSlots] = useState<CapabilitySlot[]>([])
   const [capOverrides, setCapOverrides] = useState<CapabilityOverride[]>([])
   const [capServerTools, setCapServerTools] = useState<Record<string, { name: string; description: string }[]>>({})
+  const [deletingSlots, setDeletingSlots] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     setLoading(true)
@@ -517,9 +518,14 @@ export default function MCPSettings({ productId, password }: Props) {
   }
 
   const handleDeleteCapSlot = async (name: string) => {
-    await api.deleteCapabilitySlot(password, name).catch(() => null)
-    setCapSlots(prev => prev.filter(s => s.name !== name))
-    setCapOverrides(prev => prev.filter(o => o.capability_slot !== name))
+    if (!confirm(`Delete the "${name}" capability slot? This cannot be undone.`)) return
+    setDeletingSlots(prev => new Set(prev).add(name))
+    const result = await api.deleteCapabilitySlot(password, name).catch(() => null)
+    setDeletingSlots(prev => { const s = new Set(prev); s.delete(name); return s })
+    if (result !== null) {
+      setCapSlots(prev => prev.filter(s => s.name !== name))
+      setCapOverrides(prev => prev.filter(o => o.capability_slot !== name))
+    }
   }
 
   const handleCapToolChange = async (slot: string, toolName: string) => {
@@ -681,7 +687,8 @@ export default function MCPSettings({ productId, password }: Props) {
                     {!slot.is_system && (
                       <button
                         onClick={() => handleDeleteCapSlot(slot.name)}
-                        className="text-xs text-adj-text-faint hover:text-red-400 px-1 transition-colors"
+                        disabled={deletingSlots.has(slot.name)}
+                        className="text-xs text-adj-text-faint hover:text-red-400 px-1 transition-colors disabled:opacity-50"
                         title="Delete slot"
                       >
                         ✕
