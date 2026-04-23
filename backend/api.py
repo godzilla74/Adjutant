@@ -97,6 +97,12 @@ class CapabilityOverrideBody(BaseModel):
     mcp_tool_name: str
 
 
+class CapabilitySlotBody(BaseModel):
+    name: str
+    label: str
+    built_in_tools: list[str] = []
+
+
 # ── Product config ────────────────────────────────────────────────────────────
 
 @router.get("/products/{product_id}/config")
@@ -562,6 +568,28 @@ async def delete_mcp_server_api(server_id: int, _=Depends(_auth)):
 async def get_capability_slots_route(_=Depends(_auth)):
     from backend.db import list_capability_slot_definitions
     return list_capability_slot_definitions()
+
+
+@router.post("/capability-slots")
+async def create_capability_slot_route(body: CapabilitySlotBody, _=Depends(_auth)):
+    from backend.db import create_capability_slot_definition
+    try:
+        create_capability_slot_definition(body.name, body.label, body.built_in_tools)
+        return {"ok": True}
+    except Exception as e:
+        if "UNIQUE" in str(e) or "unique" in str(e):
+            raise HTTPException(status_code=400, detail=f"Slot '{body.name}' already exists.")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/capability-slots/{name}")
+async def delete_capability_slot_route(name: str, _=Depends(_auth)):
+    from backend.db import delete_capability_slot_definition
+    try:
+        delete_capability_slot_definition(name)
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/products/{product_id}/capability-overrides")
