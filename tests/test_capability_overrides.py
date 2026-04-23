@@ -84,3 +84,38 @@ def test_mcp_manager_get_tools_for_server_unknown_returns_empty():
     from backend.mcp_manager import MCPManager
     mgr = MCPManager()
     assert mgr.get_tools_for_server("nonexistent") == []
+
+
+def test_capability_slots_covers_social_tools():
+    from core.tools import CAPABILITY_SLOTS
+    assert "social_post" in CAPABILITY_SLOTS
+    social_tools = CAPABILITY_SLOTS["social_post"]
+    assert "twitter_post" in social_tools
+    assert "linkedin_post" in social_tools
+    assert "facebook_post" in social_tools
+    assert "instagram_post" in social_tools
+
+
+def test_override_context_connected_server_suppresses_tools(db):
+    db.set_capability_override("prod-1", "social_post", "ghl", "mcp__ghl__social_post")
+    from core.tools import get_capability_override_context
+    suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers={"ghl"})
+    assert "twitter_post" in suppress
+    assert "linkedin_post" in suppress
+    assert disconnected == {}
+
+
+def test_override_context_disconnected_server_marks_tools(db):
+    db.set_capability_override("prod-1", "social_post", "ghl", "mcp__ghl__social_post")
+    from core.tools import get_capability_override_context
+    suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers=set())
+    assert suppress == set()
+    assert disconnected["twitter_post"] == "ghl"
+    assert disconnected["linkedin_post"] == "ghl"
+
+
+def test_override_context_no_overrides(db):
+    from core.tools import get_capability_override_context
+    suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers=set())
+    assert suppress == set()
+    assert disconnected == {}

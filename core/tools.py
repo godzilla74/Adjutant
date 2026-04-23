@@ -602,6 +602,20 @@ TOOLS_DEFINITIONS = [
 # Load extensions and append their definitions
 TOOLS_DEFINITIONS.extend(_load_extensions())
 
+CAPABILITY_SLOTS: dict[str, list[str]] = {
+    "social_post": [
+        "twitter_post",
+        "linkedin_post",
+        "facebook_post",
+        "instagram_post",
+        "draft_social_post",
+    ],
+    "email_send": [
+        "send_email",
+        "draft_email",
+    ],
+}
+
 _DISPATCH_TOOL = {
     "name": "dispatch_to_product",
     "description": (
@@ -866,6 +880,34 @@ def get_tools_for_product(product_id: str) -> list[dict]:
     if "instagram" in connections:
         tools.extend(_INSTAGRAM_TOOLS)
     return tools
+
+
+def get_capability_override_context(
+    product_id: str,
+    connected_mcp_servers: set[str],
+) -> tuple[set[str], dict[str, str]]:
+    """Return (tools_to_suppress, disconnected_overrides).
+
+    tools_to_suppress: built-in tool names to remove from the tool list because
+    their override MCP server is currently connected.
+
+    disconnected_overrides: {tool_name: server_name} for built-in tools whose
+    override server is configured but not connected — used by the pre-flight check.
+    """
+    from backend.db import list_capability_overrides
+    overrides = list_capability_overrides(product_id)
+    suppress: set[str] = set()
+    disconnected: dict[str, str] = {}
+    for row in overrides:
+        slot = row["capability_slot"]
+        server_name = row["mcp_server_name"]
+        slot_tools = CAPABILITY_SLOTS.get(slot, [])
+        if server_name in connected_mcp_servers:
+            suppress.update(slot_tools)
+        else:
+            for tool_name in slot_tools:
+                disconnected[tool_name] = server_name
+    return suppress, disconnected
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
