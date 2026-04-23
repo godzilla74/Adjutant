@@ -14,6 +14,59 @@ def db(tmp_path, monkeypatch):
     return db_mod
 
 
+def test_list_capability_slot_definitions_returns_system_slots(db):
+    slots = db.list_capability_slot_definitions()
+    names = [s["name"] for s in slots]
+    assert "social_post" in names
+    assert "email_send" in names
+
+
+def test_list_capability_slot_definitions_shape(db):
+    slots = db.list_capability_slot_definitions()
+    social = next(s for s in slots if s["name"] == "social_post")
+    assert social["label"] == "Social Posting"
+    assert isinstance(social["built_in_tools"], list)
+    assert "twitter_post" in social["built_in_tools"]
+    assert social["is_system"] == 1
+
+
+def test_create_capability_slot_definition(db):
+    db.create_capability_slot_definition("crm_contacts", "Contact Management", [])
+    slots = db.list_capability_slot_definitions()
+    names = [s["name"] for s in slots]
+    assert "crm_contacts" in names
+    slot = next(s for s in slots if s["name"] == "crm_contacts")
+    assert slot["label"] == "Contact Management"
+    assert slot["built_in_tools"] == []
+    assert slot["is_system"] == 0
+
+
+def test_create_capability_slot_definition_duplicate_raises(db):
+    import sqlite3 as _sqlite3
+    with pytest.raises(_sqlite3.IntegrityError):
+        db.create_capability_slot_definition("social_post", "Dupe", [])
+
+
+def test_delete_capability_slot_definition_custom(db):
+    db.create_capability_slot_definition("crm_contacts", "Contact Management", [])
+    db.delete_capability_slot_definition("crm_contacts")
+    slots = db.list_capability_slot_definitions()
+    assert "crm_contacts" not in [s["name"] for s in slots]
+
+
+def test_delete_capability_slot_definition_system_raises(db):
+    with pytest.raises(ValueError, match="system slot"):
+        db.delete_capability_slot_definition("social_post")
+
+
+def test_init_db_seeding_is_idempotent(db):
+    import importlib, backend.db as db_mod
+    db_mod.init_db()  # second call — must not fail or duplicate
+    slots = db.list_capability_slot_definitions()
+    social = [s for s in slots if s["name"] == "social_post"]
+    assert len(social) == 1
+
+
 def test_set_and_list_capability_override(db):
     db.set_capability_override("prod-1", "social_post", "gohighlevel", "mcp__gohighlevel__social_media_post")
     overrides = db.list_capability_overrides("prod-1")

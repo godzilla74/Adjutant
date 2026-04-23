@@ -191,6 +191,15 @@ def init_db() -> None:
                 created_at     TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE(product_id, capability_slot)
             );
+
+            CREATE TABLE IF NOT EXISTS capability_slot_definitions (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                name           TEXT NOT NULL UNIQUE,
+                label          TEXT NOT NULL,
+                built_in_tools TEXT NOT NULL DEFAULT '[]',
+                is_system      INTEGER NOT NULL DEFAULT 0,
+                created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            );
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -318,6 +327,7 @@ def init_db() -> None:
             "UPDATE activity_events SET status = 'done' WHERE status = 'running'"
         )
         _seed_products(conn)
+        _seed_capability_slots(conn)
 
         # ── Sessions ──────────────────────────────────────────────────────────
         conn.execute("""
@@ -462,6 +472,22 @@ def init_db() -> None:
                 "UPDATE messages SET session_id = ? WHERE product_id = ? AND session_id IS NULL",
                 (session_id, pid),
             )
+
+
+_SYSTEM_SLOTS = [
+    ("social_post", "Social Posting", ["twitter_post", "linkedin_post", "facebook_post", "instagram_post", "draft_social_post"]),
+    ("email_send",  "Email Sending",  ["send_email", "draft_email"]),
+]
+
+
+def _seed_capability_slots(conn: sqlite3.Connection) -> None:
+    import json as _json
+    for name, label, tools in _SYSTEM_SLOTS:
+        conn.execute(
+            """INSERT OR IGNORE INTO capability_slot_definitions (name, label, built_in_tools, is_system)
+               VALUES (?, ?, ?, 1)""",
+            (name, label, _json.dumps(tools)),
+        )
 
 
 def _seed_products(conn: sqlite3.Connection) -> None:
@@ -1744,3 +1770,38 @@ def delete_capability_override(product_id: str, capability_slot: str) -> None:
             "DELETE FROM mcp_capability_overrides WHERE product_id = ? AND capability_slot = ?",
             (product_id, capability_slot),
         )
+
+
+# ── Capability Slot Definitions ───────────────────────────────────────────────
+
+def list_capability_slot_definitions() -> list[dict]:
+    import json as _json
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT name, label, built_in_tools, is_system FROM capability_slot_definitions ORDER BY id"
+        ).fetchall()
+    return [
+        {**dict(r), "built_in_tools": _json.loads(r["built_in_tools"])}
+        for r in rows
+    ]
+
+
+def create_capability_slot_definition(name: str, label: str, built_in_tools: list[str]) -> None:
+    import json as _json
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO capability_slot_definitions (name, label, built_in_tools, is_system) VALUES (?, ?, ?, 0)",
+            (name, label, _json.dumps(built_in_tools)),
+        )
+
+
+def delete_capability_slot_definition(name: str) -> None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT is_system FROM capability_slot_definitions WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Capability slot '{name}' not found.")
+        if row["is_system"]:
+            raise ValueError(f"Cannot delete system slot '{name}'.")
+        conn.execute("DELETE FROM capability_slot_definitions WHERE name = ?", (name,))
