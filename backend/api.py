@@ -570,24 +570,22 @@ async def get_capability_slots_route(_=Depends(_auth)):
     return list_capability_slot_definitions()
 
 
-@router.post("/capability-slots")
+@router.post("/capability-slots", status_code=201)
 async def create_capability_slot_route(body: CapabilitySlotBody, _=Depends(_auth)):
     from backend.db import create_capability_slot_definition
+    import sqlite3
     try:
         create_capability_slot_definition(body.name, body.label, body.built_in_tools)
         return {"ok": True}
-    except Exception as e:
-        if "UNIQUE" in str(e) or "unique" in str(e):
-            raise HTTPException(status_code=400, detail=f"Slot '{body.name}' already exists.")
-        raise HTTPException(status_code=400, detail=str(e))
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail=f"Slot '{body.name}' already exists.")
 
 
-@router.delete("/capability-slots/{name}")
+@router.delete("/capability-slots/{name}", status_code=204)
 async def delete_capability_slot_route(name: str, _=Depends(_auth)):
     from backend.db import delete_capability_slot_definition
     try:
         delete_capability_slot_definition(name)
-        return {"ok": True}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -20,7 +20,7 @@ def test_post_capability_slot_creates(client, db):
         json={"name": "crm_contacts", "label": "Contact Management", "built_in_tools": []},
         headers={"X-Agent-Password": "testpw"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     assert resp.json()["ok"] is True
     slots = db.list_capability_slot_definitions()
     assert any(s["name"] == "crm_contacts" for s in slots)
@@ -41,7 +41,7 @@ def test_delete_capability_slot_custom(client, db):
         "/api/capability-slots/crm_contacts",
         headers={"X-Agent-Password": "testpw"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 204
     slots = db.list_capability_slot_definitions()
     assert not any(s["name"] == "crm_contacts" for s in slots)
 
@@ -49,6 +49,14 @@ def test_delete_capability_slot_custom(client, db):
 def test_delete_capability_slot_system_returns_400(client, db):
     resp = client.delete(
         "/api/capability-slots/social_post",
+        headers={"X-Agent-Password": "testpw"},
+    )
+    assert resp.status_code == 400
+
+
+def test_delete_capability_slot_not_found_returns_400(client):
+    resp = client.delete(
+        "/api/capability-slots/does_not_exist",
         headers={"X-Agent-Password": "testpw"},
     )
     assert resp.status_code == 400
