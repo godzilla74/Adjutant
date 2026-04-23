@@ -363,10 +363,17 @@ export default function MCPSettings({ productId, password }: Props) {
         setExtensions(exts)
         setCapSlots(slots)
         setCapOverrides(overrides)
+        // Eagerly fetch tools for servers that already have overrides
+        const serverNames = [...new Set(overrides.map((o: { capability_slot: string; mcp_server_name: string; mcp_tool_name: string }) => o.mcp_server_name))]
+        Promise.all(serverNames.map((name: string) => api.getMcpServerTools(password, name).catch(() => [] as { name: string; description: string }[]))).then(results => {
+          const toolMap: Record<string, { name: string; description: string }[]> = {}
+          serverNames.forEach((name: string, i: number) => { toolMap[name] = results[i] })
+          setCapServerTools(toolMap)
+        })
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [password])
+  }, [password, productId])
 
   const handleMcpToggle = async (id: number, enabled: boolean) => {
     await api.updateMcpServer(password, id, { enabled: !enabled }).catch(() => null)
