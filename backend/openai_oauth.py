@@ -90,13 +90,6 @@ def start_callback_server() -> None:
             returned_state = (params.get("state") or [None])[0]
             error = (params.get("error") or [None])[0]
 
-            body = _HTML_DONE.encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
             if error or not code:
                 logger.warning("OpenAI OAuth callback error: %s", error or "missing code")
             else:
@@ -104,11 +97,16 @@ def start_callback_server() -> None:
                 if not verifier:
                     logger.warning("OpenAI OAuth: unknown state %r", returned_state)
                 else:
-                    threading.Thread(
-                        target=_exchange_tokens,
-                        args=(code, verifier),
-                        daemon=True,
-                    ).start()
+                    # Exchange tokens synchronously before responding so the token
+                    # is stored before the popup closes and the frontend stops polling.
+                    _exchange_tokens(code, verifier)
+
+            body = _HTML_DONE.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
             threading.Thread(target=_shutdown_callback_server, daemon=True).start()
 
