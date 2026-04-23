@@ -70,6 +70,7 @@ export default function ImageGenerationSettings({ password }: Props) {
       const { auth_url } = await api.startOpenAIOAuth(password)
       const popup = window.open(auth_url, '_blank', 'width=500,height=600')
       popupRef.current = popup
+      let closedAt: number | null = null
       pollRef.current = setInterval(async () => {
         try {
           const status = await api.getOpenAIOAuthStatus(password)
@@ -82,11 +83,15 @@ export default function ImageGenerationSettings({ password }: Props) {
           }
         } catch {}
         if (!popup || popup.closed) {
-          setConnecting(false)
-          clearInterval(pollRef.current!)
-          pollRef.current = null
+          if (closedAt === null) closedAt = Date.now()
+          // Keep polling for up to 5s after popup closes to catch late token storage
+          if (Date.now() - closedAt > 5000) {
+            setConnecting(false)
+            clearInterval(pollRef.current!)
+            pollRef.current = null
+          }
         }
-      }, 1500)
+      }, 1000)
     } catch {
       setConnecting(false)
     }

@@ -90,18 +90,29 @@ def start_callback_server() -> None:
             returned_state = (params.get("state") or [None])[0]
             error = (params.get("error") or [None])[0]
 
+            err_msg: str | None = None
             if error or not code:
-                logger.warning("OpenAI OAuth callback error: %s", error or "missing code")
+                err_msg = error or "missing code"
+                logger.warning("OpenAI OAuth callback error: %s", err_msg)
             else:
                 verifier = pop_verifier(returned_state or "")
                 if not verifier:
+                    err_msg = "invalid or expired session"
                     logger.warning("OpenAI OAuth: unknown state %r", returned_state)
                 else:
                     # Exchange tokens synchronously before responding so the token
                     # is stored before the popup closes and the frontend stops polling.
-                    _exchange_tokens(code, verifier)
+                    err_msg = _exchange_tokens(code, verifier)
 
-            body = _HTML_DONE.encode()
+            if err_msg:
+                html = (
+                    "<html><body style='font-family:sans-serif;padding:20px'>"
+                    f"<p style='color:red'>Authentication failed: {err_msg}</p>"
+                    "<p>You can close this window.</p></body></html>"
+                )
+            else:
+                html = _HTML_DONE
+            body = html.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.send_header("Content-Length", str(len(body)))
@@ -129,8 +140,8 @@ def start_callback_server() -> None:
     _callback_timer.start()
 
 
-def _exchange_tokens(code: str, verifier: str) -> None:
-    """Exchange authorization code for API key and persist it."""
+def _exchange_tokens(code: str, verifier: str) -> str | None:
+    """Exchange authorization code for API key and persist it. Returns error string or None on success."""
     try:
         with httpx.Client(timeout=30) as client:
             resp = client.post(TOKEN_URL, data={
@@ -141,14 +152,16 @@ def _exchange_tokens(code: str, verifier: str) -> None:
                 "code_verifier": verifier,
             })
             if resp.status_code != 200:
-                logger.error("OpenAI token exchange failed (%s): %s", resp.status_code, resp.text)
-                return
+                msg = f"Step 1 failed ({resp.status_code}): {resp.text[:300]}"
+                logger.error("OpenAI token exchange: %s", msg)
+                return msg
             tokens = resp.json()
             id_token = tokens.get("id_token")
             refresh_token = tokens.get("refresh_token", "")
             if not id_token:
-                logger.error("OpenAI token exchange: no id_token in response")
-                return
+                msg = f"Step 1: no id_token in response. Keys: {list(tokens.keys())}"
+                logger.error("OpenAI token exchange: %s", msg)
+                return msg
 
             resp2 = client.post(TOKEN_URL, data={
                 "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
@@ -158,18 +171,22 @@ def _exchange_tokens(code: str, verifier: str) -> None:
                 "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
             })
             if resp2.status_code != 200:
-                logger.error("OpenAI API key exchange failed (%s): %s", resp2.status_code, resp2.text)
-                return
+                msg = f"Step 2 failed ({resp2.status_code}): {resp2.text[:300]}"
+                logger.error("OpenAI API key exchange: %s", msg)
+                return msg
             api_key = resp2.json().get("access_token")
             if not api_key:
-                logger.error("OpenAI API key exchange: no access_token in response")
-                return
+                msg = f"Step 2: no access_token in response. Keys: {list(resp2.json().keys())}"
+                logger.error("OpenAI API key exchange: %s", msg)
+                return msg
 
         from backend.db import set_agent_config
         set_agent_config("openai_access_token", api_key)
         if refresh_token:
             set_agent_config("openai_refresh_token", refresh_token)
         logger.info("OpenAI API key stored successfully")
+        return None
 
-    except Exception:
+    except Exception as exc:
         logger.exception("OpenAI token exchange error")
+        return str(exc)
