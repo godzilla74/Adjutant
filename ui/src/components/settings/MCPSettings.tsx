@@ -260,11 +260,11 @@ type CapabilityOverride = {
   mcp_tool_name: string
 }
 
-type CapabilitySlots = Record<string, string[]>
-
-const SLOT_LABELS: Record<string, string> = {
-  social_post: 'Social Posting',
-  email_send: 'Email Sending',
+type CapabilitySlot = {
+  name: string
+  label: string
+  built_in_tools: string[]
+  is_system: boolean
 }
 
 type ExtEditState = {
@@ -346,7 +346,7 @@ export default function MCPSettings({ productId, password }: Props) {
   const [extensions, setExtensions] = useState<Extension[]>([])
   const [extEditState, setExtEditState] = useState<ExtEditState | null>(null)
   const [loading, setLoading] = useState(true)
-  const [capSlots, setCapSlots] = useState<CapabilitySlots>({})
+  const [capSlots, setCapSlots] = useState<CapabilitySlot[]>([])
   const [capOverrides, setCapOverrides] = useState<CapabilityOverride[]>([])
   const [capServerTools, setCapServerTools] = useState<Record<string, { name: string; description: string }[]>>({})
 
@@ -516,6 +516,12 @@ export default function MCPSettings({ productId, password }: Props) {
     })
   }
 
+  const handleDeleteCapSlot = async (name: string) => {
+    await api.deleteCapabilitySlot(password, name).catch(() => null)
+    setCapSlots(prev => prev.filter(s => s.name !== name))
+    setCapOverrides(prev => prev.filter(o => o.capability_slot !== name))
+  }
+
   const handleCapToolChange = async (slot: string, toolName: string) => {
     const override = capOverrides.find(o => o.capability_slot === slot)
     if (!override) return
@@ -657,25 +663,36 @@ export default function MCPSettings({ productId, password }: Props) {
         <p className="text-xs text-adj-text-faint mb-3">
           Choose an MCP tool to handle a built-in capability. The built-in is suppressed when the server is connected.
         </p>
-        {Object.keys(capSlots).length === 0 ? (
+        {capSlots.length === 0 ? (
           <p className="text-xs text-adj-text-faint">No capability slots defined.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {Object.keys(capSlots).map(slot => {
-              const override = capOverrides.find(o => o.capability_slot === slot)
+            {capSlots.map(slot => {
+              const override = capOverrides.find(o => o.capability_slot === slot.name)
               const selectedServer = override?.mcp_server_name || ''
               const selectedTool = override?.mcp_tool_name || ''
               const serverDisconnected = selectedServer !== '' &&
                 !mcpServers.some(s => s.name === selectedServer && s.enabled)
               const serverToolOptions = capServerTools[selectedServer] || []
               return (
-                <div key={slot} className="space-y-1">
-                  <p className="text-xs text-adj-text-secondary">{SLOT_LABELS[slot] ?? slot}</p>
+                <div key={slot.name} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-adj-text-secondary">{slot.label}</p>
+                    {!slot.is_system && (
+                      <button
+                        onClick={() => handleDeleteCapSlot(slot.name)}
+                        className="text-xs text-adj-text-faint hover:text-red-400 px-1 transition-colors"
+                        title="Delete slot"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <select
                       className={inputCls}
                       value={selectedServer}
-                      onChange={e => handleCapServerChange(slot, e.target.value)}
+                      onChange={e => handleCapServerChange(slot.name, e.target.value)}
                     >
                       <option value="">Built-in</option>
                       {mcpServers.filter(s => s.enabled).map(s => (
@@ -686,7 +703,7 @@ export default function MCPSettings({ productId, password }: Props) {
                       <select
                         className={inputCls}
                         value={selectedTool}
-                        onChange={e => handleCapToolChange(slot, e.target.value)}
+                        onChange={e => handleCapToolChange(slot.name, e.target.value)}
                       >
                         <option value="">— pick tool —</option>
                         {serverToolOptions.map(t => (

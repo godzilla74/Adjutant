@@ -207,7 +207,20 @@ export const api = {
     apiFetch<void>(`/api/mcp-servers/${id}`, pw, { method: 'DELETE' }),
 
   getCapabilitySlots: (pw: string) =>
-    apiFetch<Record<string, string[]>>('/api/capability-slots', pw),
+    apiFetch<{ name: string; label: string; built_in_tools: string[]; is_system: boolean }[]>(
+      '/api/capability-slots', pw,
+    ),
+
+  createCapabilitySlot: (pw: string, payload: { name: string; label: string; built_in_tools: string[] }) =>
+    apiFetch<{ ok: boolean }>('/api/capability-slots', pw, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteCapabilitySlot: (pw: string, name: string) =>
+    apiFetch<void>(`/api/capability-slots/${encodeURIComponent(name)}`, pw, {
+      method: 'DELETE',
+    }),
 
   getCapabilityOverrides: (pw: string, productId: string) =>
     apiFetch<{ capability_slot: string; mcp_server_name: string; mcp_tool_name: string }[]>(
