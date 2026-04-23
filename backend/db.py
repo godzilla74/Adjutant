@@ -181,6 +181,16 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_product_autonomy_product
                 ON product_autonomy(product_id);
+
+            CREATE TABLE IF NOT EXISTS mcp_capability_overrides (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id     TEXT NOT NULL,
+                capability_slot TEXT NOT NULL,
+                mcp_server_name TEXT NOT NULL,
+                mcp_tool_name  TEXT NOT NULL,
+                created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(product_id, capability_slot)
+            );
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -1705,3 +1715,33 @@ def list_browser_credentials(product_id: str) -> list[dict]:
 def delete_mcp_server(id: int) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM mcp_servers WHERE id = ?", (id,))
+
+
+def list_capability_overrides(product_id: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT capability_slot, mcp_server_name, mcp_tool_name FROM mcp_capability_overrides WHERE product_id = ?",
+            (product_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def set_capability_override(product_id: str, capability_slot: str, mcp_server_name: str, mcp_tool_name: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO mcp_capability_overrides (product_id, capability_slot, mcp_server_name, mcp_tool_name)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(product_id, capability_slot) DO UPDATE SET
+                 mcp_server_name = excluded.mcp_server_name,
+                 mcp_tool_name   = excluded.mcp_tool_name,
+                 created_at      = datetime('now')""",
+            (product_id, capability_slot, mcp_server_name, mcp_tool_name),
+        )
+
+
+def delete_capability_override(product_id: str, capability_slot: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM mcp_capability_overrides WHERE product_id = ? AND capability_slot = ?",
+            (product_id, capability_slot),
+        )
