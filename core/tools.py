@@ -602,7 +602,6 @@ TOOLS_DEFINITIONS = [
 # Load extensions and append their definitions
 TOOLS_DEFINITIONS.extend(_load_extensions())
 
-
 _DISPATCH_TOOL = {
     "name": "dispatch_to_product",
     "description": (
