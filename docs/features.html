@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Features — Adjutant</title>
+  <meta name="description" content="Power user guide to Adjutant's non-obvious features: autonomy tiers, MCP integration, workstream scheduling, skill installation, and more." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,6 +31,7 @@
     .topnav-links { display: flex; gap: 1.5rem; }
     .topnav-links a { font-size: 0.875rem; color: #71717a; text-decoration: none; transition: color 0.15s; }
     .topnav-links a:hover { color: #e4e4e7; }
+    .topnav-links .topnav-current { color: #e4e4e7; }
 
     /* ── Layout ── */
     .layout {
@@ -188,14 +190,14 @@
     <div class="topnav-links">
       <a href="https://github.com/godzilla74/Adjutant">GitHub</a>
       <a href="https://github.com/godzilla74/Adjutant/blob/main/SETUP.md">Setup</a>
-      <a href="/features" aria-current="page" style="color:#e4e4e7">Features</a>
+      <a href="/features" aria-current="page" class="topnav-current">Features</a>
     </div>
   </nav>
 
   <div class="layout">
 
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Page contents">
       <div class="sidebar-title">On this page</div>
 
       <div class="toc-group">
@@ -608,24 +610,26 @@ ADJUTANT_SEED_PRODUCT_DESC="B2B SaaS for invoice automation"</code></pre>
   </footer>
 
   <script>
-    // Active section highlighting via IntersectionObserver
     const links = document.querySelectorAll('.toc-link');
-    const sections = document.querySelectorAll('.feature[id], .category[id]');
+    const observedSections = [...document.querySelectorAll('.feature[id]')];
+    const featureIds = new Set(observedSections.map(s => s.id));
 
-    const featureIds = new Set([...links].map(l => l.getAttribute('href').slice(1)));
-    const observedSections = [...sections].filter(s => featureIds.has(s.id));
-
-    let activeId = null;
+    const visibleIds = new Set();
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          activeId = entry.target.id;
-          links.forEach(l => {
-            const isActive = l.getAttribute('href') === '#' + activeId;
-            l.classList.toggle('active', isActive);
-          });
-        }
+        if (entry.isIntersecting) visibleIds.add(entry.target.id);
+        else visibleIds.delete(entry.target.id);
       });
+      // Pick topmost visible section; fall back to last section if at bottom of page
+      let activeId = null;
+      const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 50;
+      if (atBottom) {
+        activeId = observedSections[observedSections.length - 1].id;
+      } else {
+        const active = observedSections.find(s => visibleIds.has(s.id));
+        activeId = active ? active.id : null;
+      }
+      links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + activeId));
     }, { rootMargin: '-20% 0px -70% 0px' });
 
     observedSections.forEach(s => observer.observe(s));
