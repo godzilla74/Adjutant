@@ -60,7 +60,7 @@ def test_delete_capability_slot_definition_system_raises(db):
 
 
 def test_init_db_seeding_is_idempotent(db):
-    import importlib, backend.db as db_mod
+    import backend.db as db_mod
     db_mod.init_db()  # second call — must not fail or duplicate
     slots = db.list_capability_slot_definitions()
     social = [s for s in slots if s["name"] == "social_post"]

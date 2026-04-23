@@ -481,12 +481,11 @@ _SYSTEM_SLOTS = [
 
 
 def _seed_capability_slots(conn: sqlite3.Connection) -> None:
-    import json as _json
     for name, label, tools in _SYSTEM_SLOTS:
         conn.execute(
             """INSERT OR IGNORE INTO capability_slot_definitions (name, label, built_in_tools, is_system)
                VALUES (?, ?, ?, 1)""",
-            (name, label, _json.dumps(tools)),
+            (name, label, json.dumps(tools)),
         )
 
 
@@ -1775,23 +1774,21 @@ def delete_capability_override(product_id: str, capability_slot: str) -> None:
 # ── Capability Slot Definitions ───────────────────────────────────────────────
 
 def list_capability_slot_definitions() -> list[dict]:
-    import json as _json
     with _conn() as conn:
         rows = conn.execute(
             "SELECT name, label, built_in_tools, is_system FROM capability_slot_definitions ORDER BY id"
         ).fetchall()
     return [
-        {**dict(r), "built_in_tools": _json.loads(r["built_in_tools"])}
+        {**dict(r), "built_in_tools": json.loads(r["built_in_tools"])}
         for r in rows
     ]
 
 
 def create_capability_slot_definition(name: str, label: str, built_in_tools: list[str]) -> None:
-    import json as _json
     with _conn() as conn:
         conn.execute(
             "INSERT INTO capability_slot_definitions (name, label, built_in_tools, is_system) VALUES (?, ?, ?, 0)",
-            (name, label, _json.dumps(built_in_tools)),
+            (name, label, json.dumps(built_in_tools)),
         )
 
 
