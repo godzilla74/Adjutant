@@ -164,6 +164,17 @@ def _exchange_tokens(code: str, verifier: str) -> str | None:
                 logger.error("OpenAI token exchange: %s", msg)
                 return msg
 
+            # Decode JWT payload (no verification needed — just inspecting claims)
+            try:
+                import json as _json
+                _payload_b64 = id_token.split(".")[1]
+                _payload_b64 += "=" * (-len(_payload_b64) % 4)
+                _claims = _json.loads(base64.urlsafe_b64decode(_payload_b64))
+                logger.info("OpenAI id_token claims: %s", list(_claims.keys()))
+                logger.info("OpenAI id_token org: %s", _claims.get("organization_id") or _claims.get("org_id") or _claims.get("orgs"))
+            except Exception:
+                logger.warning("Could not decode id_token for inspection")
+
             resp2 = client.post(TOKEN_URL, data={
                 "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
                 "client_id": CLIENT_ID,
