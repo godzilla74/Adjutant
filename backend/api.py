@@ -719,6 +719,63 @@ def delete_extension(name: str, _=Depends(_auth)):
     _set_disabled_extensions(disabled)
 
 
+# ── Extension permissions ─────────────────────────────────────────────────────
+
+class ExtensionEnabledBody(BaseModel):
+    enabled: bool
+
+
+class ExtensionScopeBody(BaseModel):
+    scope: str  # 'global' | 'product'
+    product_id: str = ""
+
+
+@router.get("/products/{product_id}/extensions")
+def get_product_extensions_route(product_id: str, _=Depends(_auth)):
+    """List all installed extensions with per-product enabled status."""
+    from backend.db import get_product_extension_names, list_all_extensions_with_permissions
+    from core.tools import _EXTENSION_DEFS
+    enabled_names = get_product_extension_names(product_id)
+    perm_map = {r["extension_name"]: r for r in list_all_extensions_with_permissions()}
+    result = []
+    for mod_name, defn in _EXTENSION_DEFS.items():
+        perm = perm_map.get(mod_name)
+        result.append({
+            "name": mod_name,
+            "tool_name": defn.get("name", mod_name),
+            "description": defn.get("description", ""),
+            "scope": perm["scope"] if perm else "global",
+            "product_id": perm["product_id"] if perm else "",
+            "enabled": mod_name in enabled_names,
+        })
+    return result
+
+
+@router.patch("/products/{product_id}/extensions/{name}")
+def toggle_product_extension_route(product_id: str, name: str, body: ExtensionEnabledBody, _=Depends(_auth)):
+    """Toggle an extension's enabled state for a specific product."""
+    from backend.db import set_extension_enabled, list_all_extensions_with_permissions
+    from core.tools import _EXTENSION_DEFS
+    if name not in _EXTENSION_DEFS:
+        raise HTTPException(status_code=404, detail="Extension not found")
+    perm_map = {r["extension_name"]: r for r in list_all_extensions_with_permissions()}
+    perm = perm_map.get(name)
+    pid = product_id if (perm and perm["scope"] == "product") else ""
+    set_extension_enabled(name, pid, body.enabled)
+    return {"ok": True}
+
+
+@router.post("/extensions/{name}/scope")
+def set_extension_scope_route(name: str, body: ExtensionScopeBody, _=Depends(_auth)):
+    """Change whether an extension is global or product-scoped."""
+    from backend.db import set_extension_scope
+    from core.tools import _EXTENSION_DEFS
+    if name not in _EXTENSION_DEFS:
+        raise HTTPException(status_code=404, detail="Extension not found")
+    set_extension_scope(name, body.scope, body.product_id)
+    return {"ok": True}
+
+
 # ── Wizard plan ──────────────────────────────────────────────────────────────
 
 class WizardPlanRequest(BaseModel):
