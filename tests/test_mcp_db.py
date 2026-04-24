@@ -12,6 +12,15 @@ def db(tmp_path, monkeypatch):
     return db_mod
 
 
+@pytest.fixture
+def tmp_db(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    return db_mod
+
+
 def test_add_and_get_global_mcp_server(db):
     sid = db.add_mcp_server(
         name="GoHighLevel", type="remote",
@@ -113,3 +122,52 @@ def test_add_stdio_mcp_server(db):
     assert server["type"] == "stdio"
     assert server["command"] == "npx"
     assert '"@modelcontextprotocol/server-filesystem"' in server["args"]
+
+
+# ── Extension permissions tests ───────────────────────────────────────────────
+
+from backend.db import (
+    add_extension_permission, get_product_extension_names,
+    list_all_extensions_with_permissions, set_extension_enabled,
+    set_extension_scope,
+)
+
+
+def test_add_extension_permission_global(tmp_db):
+    add_extension_permission("my_tool", "global", "")
+    perms = list_all_extensions_with_permissions()
+    assert any(p["extension_name"] == "my_tool" and p["scope"] == "global" for p in perms)
+
+
+def test_get_product_extension_names_includes_global(tmp_db):
+    add_extension_permission("global_tool", "global", "")
+    names = get_product_extension_names("prod_1")
+    assert "global_tool" in names
+
+
+def test_get_product_extension_names_includes_product_scoped(tmp_db):
+    add_extension_permission("product_tool", "product", "prod_1")
+    names = get_product_extension_names("prod_1")
+    assert "product_tool" in names
+
+
+def test_get_product_extension_names_excludes_other_product(tmp_db):
+    add_extension_permission("other_tool", "product", "prod_2")
+    names = get_product_extension_names("prod_1")
+    assert "other_tool" not in names
+
+
+def test_set_extension_enabled_false(tmp_db):
+    add_extension_permission("my_tool", "global", "")
+    set_extension_enabled("my_tool", "", False)
+    names = get_product_extension_names("any_product")
+    assert "my_tool" not in names
+
+
+def test_set_extension_scope_global_to_product(tmp_db):
+    add_extension_permission("my_tool", "global", "")
+    set_extension_scope("my_tool", "product", "prod_1")
+    names_prod1 = get_product_extension_names("prod_1")
+    names_prod2 = get_product_extension_names("prod_2")
+    assert "my_tool" in names_prod1
+    assert "my_tool" not in names_prod2

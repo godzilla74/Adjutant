@@ -200,6 +200,14 @@ def init_db() -> None:
                 is_system      INTEGER NOT NULL DEFAULT 0,
                 created_at     TEXT NOT NULL DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS extension_permissions (
+                extension_name TEXT NOT NULL,
+                scope          TEXT NOT NULL DEFAULT 'global',
+                product_id     TEXT NOT NULL DEFAULT '',
+                enabled        INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (extension_name, product_id)
+            );
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -329,6 +337,9 @@ def init_db() -> None:
         _seed_products(conn)
         _seed_capability_slots(conn)
 
+    migrate_extensions_to_db()
+
+    with _conn() as conn:
         # ── Sessions ──────────────────────────────────────────────────────────
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
@@ -1618,6 +1629,99 @@ def get_mcp_server_by_name(name: str) -> dict | None:
             (name,),
         ).fetchone()
         return dict(row) if row else None
+
+
+def list_all_extensions_with_permissions() -> list[dict]:
+    """Return all rows from extension_permissions."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT extension_name, scope, product_id, enabled FROM extension_permissions"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_product_extension_names(product_id: str) -> set[str]:
+    """Return names of extensions enabled for a product (global + product-scoped)."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT extension_name FROM extension_permissions
+               WHERE enabled = 1
+                 AND (scope = 'global' OR (scope = 'product' AND product_id = ?))""",
+            (product_id,),
+        ).fetchall()
+        return {r["extension_name"] for r in rows}
+
+
+def add_extension_permission(name: str, scope: str, product_id: str = "", enabled: int = 1) -> None:
+    """Insert or replace an extension permission row."""
+    with _conn() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO extension_permissions
+               (extension_name, scope, product_id, enabled) VALUES (?, ?, ?, ?)""",
+            (name, scope, product_id, enabled),
+        )
+
+
+def set_extension_enabled(name: str, product_id: str, enabled: bool) -> None:
+    """Toggle the enabled flag for a specific (extension_name, product_id) row."""
+    with _conn() as conn:
+        conn.execute(
+            """UPDATE extension_permissions SET enabled = ?
+               WHERE extension_name = ? AND product_id = ?""",
+            (1 if enabled else 0, name, product_id),
+        )
+
+
+def set_extension_scope(name: str, scope: str, new_product_id: str = "") -> None:
+    """Change scope and product_id for an extension. Updates the PRIMARY KEY columns
+    by deleting the old row and inserting a new one to avoid constraint errors."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT enabled FROM extension_permissions WHERE extension_name = ? LIMIT 1",
+            (name,),
+        ).fetchone()
+        enabled = row["enabled"] if row else 1
+        conn.execute("DELETE FROM extension_permissions WHERE extension_name = ?", (name,))
+        conn.execute(
+            """INSERT INTO extension_permissions (extension_name, scope, product_id, enabled)
+               VALUES (?, ?, ?, ?)""",
+            (name, scope, new_product_id, enabled),
+        )
+
+
+def migrate_extensions_to_db() -> None:
+    """Seed extension_permissions from extensions/_config.json if table is empty.
+
+    Called once at startup. After migration, extension_permissions is the source
+    of truth; _config.json is no longer written to by the new code paths.
+    """
+    with _conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM extension_permissions").fetchone()[0]
+        if count > 0:
+            return  # already migrated
+
+    import pkgutil
+    from pathlib import Path
+    ext_dir = Path(__file__).parent.parent / "extensions"
+    if not ext_dir.exists():
+        return
+
+    config_file = ext_dir / "_config.json"
+    disabled: set[str] = set()
+    if config_file.exists():
+        try:
+            disabled = set(json.loads(config_file.read_text()).get("disabled", []))
+        except Exception:
+            pass
+
+    with _conn() as conn:
+        for _, name, _ in pkgutil.iter_modules([str(ext_dir)]):
+            enabled = 0 if name in disabled else 1
+            conn.execute(
+                """INSERT OR IGNORE INTO extension_permissions
+                   (extension_name, scope, product_id, enabled) VALUES (?, 'global', '', ?)""",
+                (name, enabled),
+            )
 
 
 def update_mcp_server(
