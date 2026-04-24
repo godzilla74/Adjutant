@@ -262,6 +262,22 @@ export const api = {
   deleteExtension: (pw: string, name: string) =>
     apiFetch<void>(`/api/extensions/${name}`, pw, { method: 'DELETE' }),
 
+  getProductExtensions: (pw: string, productId: string) =>
+    apiFetch<{
+      name: string; tool_name: string; description: string;
+      scope: string; product_id: string; enabled: boolean;
+    }[]>(`/api/products/${productId}/extensions`, pw),
+
+  updateProductExtension: (pw: string, productId: string, name: string, patch: { enabled: boolean }) =>
+    apiFetch<{ ok: boolean }>(`/api/products/${productId}/extensions/${encodeURIComponent(name)}`, pw, {
+      method: 'PATCH', body: JSON.stringify(patch),
+    }),
+
+  setExtensionScope: (pw: string, name: string, scope: 'global' | 'product', productId?: string) =>
+    apiFetch<{ ok: boolean }>(`/api/extensions/${encodeURIComponent(name)}/scope`, pw, {
+      method: 'POST', body: JSON.stringify({ scope, product_id: productId ?? '' }),
+    }),
+
   getGoogleOAuthSettings: (pw: string) =>
     apiFetch<{ google_oauth_client_id: string; google_oauth_client_secret: string }>(
       '/api/settings/google-oauth', pw,
