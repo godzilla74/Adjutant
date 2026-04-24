@@ -208,8 +208,10 @@ async def fetch_remote_tools(url: str, headers: dict) -> list[dict]:
 
     # Try Streamable HTTP first (newer transport)
     try:
+        import httpx
         from mcp.client.streamable_http import streamable_http_client
-        async with streamable_http_client(url, headers=h) as (read, write, _):
+        http_client = httpx.AsyncClient(headers=h) if h else None
+        async with streamable_http_client(url, http_client=http_client) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 return _parse_tools(await session.list_tools())
