@@ -650,8 +650,10 @@ def _load_all_extensions() -> None:
 _load_all_extensions()
 
 
-def get_extensions_for_product(product_id: str) -> list[dict]:
+def get_extensions_for_product(product_id: str | None) -> list[dict]:
     """Return tool definitions for extensions enabled for this product."""
+    if not product_id:
+        return []
     from backend.db import get_product_extension_names
     enabled_names = get_product_extension_names(product_id)
     return [defn for name, defn in _EXTENSION_DEFS.items() if name in enabled_names]
