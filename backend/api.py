@@ -687,6 +687,12 @@ def update_extension(name: str, body: ExtensionUpdate, _=Depends(_auth)):
         else:
             disabled.add(name)
         _set_disabled_extensions(disabled)
+        # Also sync to DB so runtime get_extensions_for_product() picks up the change
+        from backend.db import set_extension_enabled, add_extension_permission, list_all_extensions_with_permissions
+        perm_map = {r["extension_name"]: r for r in list_all_extensions_with_permissions()}
+        if name not in perm_map:
+            add_extension_permission(name, "global", "")
+        set_extension_enabled(name, "", body.enabled)
 
     # Update description and/or instructions (only for auto-generated extensions)
     if body.description is not None or body.instructions is not None:
@@ -718,6 +724,9 @@ def delete_extension(name: str, _=Depends(_auth)):
     disabled = _get_disabled_extensions()
     disabled.discard(name)
     _set_disabled_extensions(disabled)
+    # Clean up DB rows so stale permissions don't linger
+    from backend.db import delete_extension_permission
+    delete_extension_permission(name)
 
 
 # ── Extension permissions ─────────────────────────────────────────────────────

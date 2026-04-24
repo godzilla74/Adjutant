@@ -1695,6 +1695,12 @@ def set_extension_scope(name: str, scope: str, new_product_id: str = "") -> None
         )
 
 
+def delete_extension_permission(name: str) -> None:
+    """Remove all permission rows for an extension (called when extension is deleted)."""
+    with _conn() as conn:
+        conn.execute("DELETE FROM extension_permissions WHERE extension_name = ?", (name,))
+
+
 def migrate_extensions_to_db() -> None:
     """Seed extension_permissions from extensions/_config.json if table is empty.
 
