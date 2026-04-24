@@ -897,7 +897,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 if block.name.startswith("mcp__") and _mcp_manager is not None:
                     output = await _mcp_manager.execute_tool(block.name, block.input)
                 else:
-                    result = await execute_tool(block.name, block.input)
+                    result = await execute_tool(block.name, block.input, product_id=product_id)
                     output = result if isinstance(result, str) else json.dumps(result)
             except Exception as exc:
                 output = f"Error in {block.name}: {exc}"

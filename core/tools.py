@@ -631,8 +631,30 @@ TOOLS_DEFINITIONS = [
     },
 ]
 
-# Load extensions and append their definitions
-TOOLS_DEFINITIONS.extend(_load_extensions())
+# Load all extension modules at startup. Extensions are NOT added to TOOLS_DEFINITIONS —
+# they are filtered per-product at runtime via get_extensions_for_product().
+_EXTENSION_DEFS: dict[str, dict] = {}  # module_name → tool definition
+
+def _load_all_extensions() -> None:
+    if not _EXTENSIONS_DIR.exists():
+        return
+    for _, name, _ in pkgutil.iter_modules([str(_EXTENSIONS_DIR)]):
+        try:
+            mod = importlib.import_module(f"extensions.{name}")
+            if hasattr(mod, "TOOL_DEFINITION") and hasattr(mod, "execute"):
+                _EXTENSION_DEFS[name] = mod.TOOL_DEFINITION
+                _EXTENSION_EXECUTORS[mod.TOOL_DEFINITION["name"]] = mod.execute
+        except Exception as e:
+            print(f"[extensions] Failed to load {name}: {e}", file=sys.stderr)
+
+_load_all_extensions()
+
+
+def get_extensions_for_product(product_id: str) -> list[dict]:
+    """Return tool definitions for extensions enabled for this product."""
+    from backend.db import get_product_extension_names
+    enabled_names = get_product_extension_names(product_id)
+    return [defn for name, defn in _EXTENSION_DEFS.items() if name in enabled_names]
 
 _DISPATCH_TOOL = {
     "name": "dispatch_to_product",
@@ -883,6 +905,7 @@ _INSTAGRAM_TOOLS = [
 def get_tools_for_product(product_id: str) -> list[dict]:
     from backend.db import list_oauth_connections
     tools = list(TOOLS_DEFINITIONS)
+    tools.extend(get_extensions_for_product(product_id))
     connections = {c["service"] for c in list_oauth_connections(product_id)}
     if "gmail" in connections:
         tools.extend(_GMAIL_TOOLS)
@@ -1147,7 +1170,7 @@ def _manage_capability_slots(
 
 # ── Executor ──────────────────────────────────────────────────────────────────
 
-async def execute_tool(name: str, inputs: dict) -> str:
+async def execute_tool(name: str, inputs: dict, product_id: str | None = None) -> str:
     """Dispatch a tool call by name."""
     if name == "delegate_task":
         return await _delegate_task(**inputs)
@@ -1184,7 +1207,7 @@ async def execute_tool(name: str, inputs: dict) -> str:
     if name == "install_skill":
         return await _install_skill(**inputs)
     if name == "add_agent_tool":
-        return _add_agent_tool(**inputs)
+        return _add_agent_tool(**inputs, _product_id=product_id)
     if name == "restart_server":
         return _restart_server()
     if name == "manage_mcp_server":
@@ -1524,7 +1547,7 @@ async def _install_skill(package: str) -> str:
     return clean.strip() or f"Installed {package}."
 
 
-def _add_agent_tool(tool_name: str, description: str, agent_instructions: str) -> str:
+def _add_agent_tool(tool_name: str, description: str, agent_instructions: str, _product_id: str | None = None) -> str:
     import re
     if not re.match(r"^[a-z][a-z0-9_]*$", tool_name):
         return f"Invalid tool_name '{tool_name}': must be lowercase snake_case."
@@ -1588,6 +1611,11 @@ async def execute(inputs: dict) -> str:
     return result
 '''
     (ext_dir / f"{tool_name}.py").write_text(code)
+    from backend.db import add_extension_permission
+    if _product_id:
+        add_extension_permission(tool_name, "product", _product_id)
+    else:
+        add_extension_permission(tool_name, "global", "")
     return f"Created extension: extensions/{tool_name}.py — call restart_server to activate."
 
 
