@@ -186,25 +186,45 @@ class MCPManager:
 
 
 async def fetch_remote_tools(url: str, headers: dict) -> list[dict]:
-    """Discover tools from a remote (HTTP/SSE) MCP server on demand."""
-    from mcp.client.sse import sse_client
+    """Discover tools from a remote MCP server on demand.
+
+    Tries Streamable HTTP first (MCP 2025-03-26+), falls back to legacy SSE.
+    """
     from mcp import ClientSession
+
+    def _parse_tools(result) -> list[dict]:
+        return [
+            {
+                "name": tool.name,
+                "description": tool.description or "",
+                "input_schema": tool.inputSchema if tool.inputSchema else {
+                    "type": "object", "properties": {}
+                },
+            }
+            for tool in result.tools
+        ]
+
+    h = headers or None
+
+    # Try Streamable HTTP first (newer transport)
     try:
-        async with asyncio.timeout(10):
-            async with sse_client(url, headers=headers or None) as (read, write):
+        from mcp.client.streamable_http import streamable_http_client
+        async with asyncio.timeout(15):
+            async with streamable_http_client(url, headers=h) as (read, write, _):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
-                    result = await session.list_tools()
-                    return [
-                        {
-                            "name": tool.name,
-                            "description": tool.description or "",
-                            "input_schema": tool.inputSchema if tool.inputSchema else {
-                                "type": "object", "properties": {}
-                            },
-                        }
-                        for tool in result.tools
-                    ]
+                    return _parse_tools(await session.list_tools())
+    except Exception as e:
+        logger.debug("Streamable HTTP failed for %s (%s), trying SSE", url, e)
+
+    # Fall back to legacy SSE transport
+    try:
+        from mcp.client.sse import sse_client
+        async with asyncio.timeout(10):
+            async with sse_client(url, headers=h) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return _parse_tools(await session.list_tools())
     except Exception as e:
         logger.warning("Remote MCP tool discovery failed for %s: %s", url, e)
         return []
