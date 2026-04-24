@@ -1663,7 +1663,10 @@ def add_extension_permission(name: str, scope: str, product_id: str = "", enable
 
 
 def set_extension_enabled(name: str, product_id: str, enabled: bool) -> None:
-    """Toggle the enabled flag for a specific (extension_name, product_id) row."""
+    """Toggle the enabled flag for a specific (extension_name, product_id) row.
+
+    No-op if the row does not exist (caller is responsible for prior insert).
+    """
     with _conn() as conn:
         conn.execute(
             """UPDATE extension_permissions SET enabled = ?
@@ -1673,8 +1676,11 @@ def set_extension_enabled(name: str, product_id: str, enabled: bool) -> None:
 
 
 def set_extension_scope(name: str, scope: str, new_product_id: str = "") -> None:
-    """Change scope and product_id for an extension. Updates the PRIMARY KEY columns
-    by deleting the old row and inserting a new one to avoid constraint errors."""
+    """Change scope and product_id for an extension. Assumes one row per extension name.
+
+    Deletes the old row and inserts a new one to update the PRIMARY KEY columns,
+    preserving the enabled state.
+    """
     with _conn() as conn:
         row = conn.execute(
             "SELECT enabled FROM extension_permissions WHERE extension_name = ? LIMIT 1",
@@ -1695,11 +1701,6 @@ def migrate_extensions_to_db() -> None:
     Called once at startup. After migration, extension_permissions is the source
     of truth; _config.json is no longer written to by the new code paths.
     """
-    with _conn() as conn:
-        count = conn.execute("SELECT COUNT(*) FROM extension_permissions").fetchone()[0]
-        if count > 0:
-            return  # already migrated
-
     import pkgutil
     from pathlib import Path
     ext_dir = Path(__file__).parent.parent / "extensions"
@@ -1715,6 +1716,9 @@ def migrate_extensions_to_db() -> None:
             pass
 
     with _conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM extension_permissions").fetchone()[0]
+        if count > 0:
+            return
         for _, name, _ in pkgutil.iter_modules([str(ext_dir)]):
             enabled = 0 if name in disabled else 1
             conn.execute(
