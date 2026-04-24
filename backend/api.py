@@ -5,6 +5,7 @@ import os
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
+from typing import Literal
 from pydantic import BaseModel
 
 from backend.uploads import save_uploaded_file
@@ -726,7 +727,7 @@ class ExtensionEnabledBody(BaseModel):
 
 
 class ExtensionScopeBody(BaseModel):
-    scope: str  # 'global' | 'product'
+    scope: Literal["global", "product"]
     product_id: str = ""
 
 
@@ -754,13 +755,18 @@ def get_product_extensions_route(product_id: str, _=Depends(_auth)):
 @router.patch("/products/{product_id}/extensions/{name}")
 def toggle_product_extension_route(product_id: str, name: str, body: ExtensionEnabledBody, _=Depends(_auth)):
     """Toggle an extension's enabled state for a specific product."""
-    from backend.db import set_extension_enabled, list_all_extensions_with_permissions
+    from backend.db import set_extension_enabled, list_all_extensions_with_permissions, add_extension_permission
     from core.tools import _EXTENSION_DEFS
     if name not in _EXTENSION_DEFS:
         raise HTTPException(status_code=404, detail="Extension not found")
     perm_map = {r["extension_name"]: r for r in list_all_extensions_with_permissions()}
     perm = perm_map.get(name)
-    pid = product_id if (perm and perm["scope"] == "product") else ""
+    if perm is None:
+        # No row yet — create a global permission row before toggling
+        add_extension_permission(name, "global", "")
+        pid = ""
+    else:
+        pid = product_id if perm["scope"] == "product" else ""
     set_extension_enabled(name, pid, body.enabled)
     return {"ok": True}
 
