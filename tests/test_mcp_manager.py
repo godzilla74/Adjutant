@@ -154,8 +154,8 @@ async def test_fetch_remote_tools_returns_tool_list():
     mock_sse.__aenter__ = AsyncMock(return_value=(AsyncMock(), AsyncMock()))
     mock_sse.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("backend.mcp_manager.sse_client", return_value=mock_sse), \
-         patch("backend.mcp_manager.ClientSession", return_value=mock_client_session):
+    with patch("mcp.client.sse.sse_client", return_value=mock_sse), \
+         patch("mcp.ClientSession", return_value=mock_client_session):
         tools = await fetch_remote_tools("https://example.com/mcp", {"x-api-key": "test"})
 
     assert len(tools) == 1
@@ -166,6 +166,6 @@ async def test_fetch_remote_tools_returns_tool_list():
 
 @pytest.mark.asyncio
 async def test_fetch_remote_tools_returns_empty_on_error():
-    with patch("backend.mcp_manager.sse_client", side_effect=Exception("Connection refused")):
+    with patch("mcp.client.sse.sse_client", side_effect=Exception("Connection refused")):
         tools = await fetch_remote_tools("https://bad-url.com/mcp", {})
     assert tools == []

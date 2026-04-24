@@ -618,9 +618,9 @@ async def get_mcp_server_tools_route(server_name: str, _=Depends(_auth)):
     if server is None:
         return []
     if server["type"] == "remote":
-        import json
+        import json as _json
         from backend.mcp_manager import fetch_remote_tools
-        env = json.loads(server.get("env") or "{}")
+        env = _json.loads(server.get("env") or "{}")
         headers = env.get("headers", {})
         return await fetch_remote_tools(server["url"] or "", headers)
     if _main._mcp_manager is None:

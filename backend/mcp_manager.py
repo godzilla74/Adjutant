@@ -5,9 +5,6 @@ import json
 import logging
 import os
 
-from mcp.client.sse import sse_client
-from mcp import ClientSession
-
 logger = logging.getLogger(__name__)
 
 
@@ -190,6 +187,8 @@ class MCPManager:
 
 async def fetch_remote_tools(url: str, headers: dict) -> list[dict]:
     """Discover tools from a remote (HTTP/SSE) MCP server on demand."""
+    from mcp.client.sse import sse_client
+    from mcp import ClientSession
     try:
         async with asyncio.timeout(10):
             async with sse_client(url, headers=headers or None) as (read, write):
