@@ -10,12 +10,13 @@ import SocialSettings from './settings/SocialSettings'
 import AgentModelSettings from './settings/AgentModelSettings'
 import GoogleOAuthSettings from './settings/GoogleOAuthSettings'
 import RemoteAccessSettings from './settings/RemoteAccessSettings'
-import MCPSettings from './settings/MCPSettings'
+import GlobalMCPSettings from './settings/GlobalMCPSettings'
+import ProductMCPSettings from './settings/ProductMCPSettings'
 import ImageGenerationSettings from './settings/ImageGenerationSettings'
 
 export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
-  | 'connections' | 'social'
+  | 'connections' | 'social' | 'product-mcp'
   | 'agent-model' | 'google-oauth' | 'remote-access' | 'mcp' | 'image-generation'
 
 interface Props {
@@ -42,6 +43,7 @@ const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
 const INTEGRATION_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'connections', label: 'Connections', icon: '🔗' },
   { key: 'social',      label: 'Social',      icon: '📱' },
+  { key: 'product-mcp', label: 'MCP Servers', icon: '⚡' },
 ]
 const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'agent-model',       label: 'Agent Model',       icon: '🤖' },
@@ -96,7 +98,8 @@ export default function SettingsPage({
       case 'agent-model':   return <AgentModelSettings {...common} />
       case 'google-oauth':  return <GoogleOAuthSettings {...common} />
       case 'remote-access': return <RemoteAccessSettings {...common} />
-      case 'mcp':              return <MCPSettings {...productCommon} />
+      case 'product-mcp':      return <ProductMCPSettings {...productCommon} />
+      case 'mcp':              return <GlobalMCPSettings {...common} />
       case 'image-generation': return <ImageGenerationSettings {...common} />
     }
   }

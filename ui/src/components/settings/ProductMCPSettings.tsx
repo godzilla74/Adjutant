@@ -3,7 +3,7 @@ import { api } from '../../api'
 import {
   McpServer, AddFormState, EditState, Extension, ExtEditState,
   CapabilityOverride, CapabilitySlot,
-  rowCls, inputCls, McpRow, EditForm, AddForm, ExtRow, ExtEditForm,
+  inputCls, McpRow, EditForm, AddForm, ExtRow, ExtEditForm,
 } from './MCPShared'
 
 interface Props {
