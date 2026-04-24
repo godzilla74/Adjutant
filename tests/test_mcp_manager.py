@@ -1,10 +1,10 @@
 # tests/test_mcp_manager.py
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.mcp_manager import MCPManager
+from backend.mcp_manager import MCPManager, fetch_remote_tools
 
 
 def _make_mock_tool(name: str, description: str = "A tool", schema: dict | None = None):
@@ -125,3 +125,47 @@ def test_remove_server_clears_tools_and_session(manager):
     asyncio.run(manager.remove_server(1))
     assert manager.get_tools() == []
     assert 1 not in manager._sessions
+
+
+# ── fetch_remote_tools ────────────────────────────────────────────────────────
+
+def _make_remote_tool(name: str, description: str = "A tool"):
+    tool = MagicMock()
+    tool.name = name
+    tool.description = description
+    tool.inputSchema = {"type": "object", "properties": {}}
+    return tool
+
+
+@pytest.mark.asyncio
+async def test_fetch_remote_tools_returns_tool_list():
+    mock_result = MagicMock()
+    mock_result.tools = [_make_remote_tool("create_contact", "Create a contact")]
+
+    mock_session = AsyncMock()
+    mock_session.initialize = AsyncMock()
+    mock_session.list_tools = AsyncMock(return_value=mock_result)
+
+    mock_client_session = MagicMock()
+    mock_client_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_client_session.__aexit__ = AsyncMock(return_value=None)
+
+    mock_sse = MagicMock()
+    mock_sse.__aenter__ = AsyncMock(return_value=(AsyncMock(), AsyncMock()))
+    mock_sse.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("backend.mcp_manager.sse_client", return_value=mock_sse), \
+         patch("backend.mcp_manager.ClientSession", return_value=mock_client_session):
+        tools = await fetch_remote_tools("https://example.com/mcp", {"x-api-key": "test"})
+
+    assert len(tools) == 1
+    assert tools[0]["name"] == "create_contact"
+    assert tools[0]["description"] == "Create a contact"
+    assert "input_schema" in tools[0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_remote_tools_returns_empty_on_error():
+    with patch("backend.mcp_manager.sse_client", side_effect=Exception("Connection refused")):
+        tools = await fetch_remote_tools("https://bad-url.com/mcp", {})
+    assert tools == []

@@ -5,6 +5,9 @@ import json
 import logging
 import os
 
+from mcp.client.sse import sse_client
+from mcp import ClientSession
+
 logger = logging.getLogger(__name__)
 
 
@@ -183,3 +186,26 @@ class MCPManager:
             self._tool_to_server.pop(k, None)
             self._tool_defs.pop(k, None)
         self._server_id_to_name.pop(server_id, None)
+
+
+async def fetch_remote_tools(url: str, headers: dict) -> list[dict]:
+    """Discover tools from a remote (HTTP/SSE) MCP server on demand."""
+    try:
+        async with asyncio.timeout(10):
+            async with sse_client(url, headers=headers or None) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    result = await session.list_tools()
+                    return [
+                        {
+                            "name": tool.name,
+                            "description": tool.description or "",
+                            "input_schema": tool.inputSchema if tool.inputSchema else {
+                                "type": "object", "properties": {}
+                            },
+                        }
+                        for tool in result.tools
+                    ]
+    except Exception as e:
+        logger.warning("Remote MCP tool discovery failed for %s: %s", url, e)
+        return []

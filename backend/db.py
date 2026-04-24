@@ -1610,6 +1610,16 @@ def get_mcp_server(id: int) -> dict | None:
         return dict(row) if row else None
 
 
+def get_mcp_server_by_name(name: str) -> dict | None:
+    """Return the first MCP server row matching the given name, or None."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, type, url, env FROM mcp_servers WHERE name = ? LIMIT 1",
+            (name,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def update_mcp_server(
     id: int,
     enabled: bool | None = None,

@@ -613,6 +613,16 @@ async def delete_product_capability_override(product_id: str, slot: str, _=Depen
 @router.get("/mcp-servers/{server_name}/tools")
 async def get_mcp_server_tools_route(server_name: str, _=Depends(_auth)):
     import backend.main as _main
+    from backend.db import get_mcp_server_by_name
+    server = get_mcp_server_by_name(server_name)
+    if server is None:
+        return []
+    if server["type"] == "remote":
+        import json
+        from backend.mcp_manager import fetch_remote_tools
+        env = json.loads(server.get("env") or "{}")
+        headers = env.get("headers", {})
+        return await fetch_remote_tools(server["url"] or "", headers)
     if _main._mcp_manager is None:
         return []
     return _main._mcp_manager.get_tools_for_server(server_name)
