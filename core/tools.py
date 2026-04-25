@@ -376,6 +376,33 @@ TOOLS_DEFINITIONS = [
         },
     },
     {
+        "name": "shell_task",
+        "description": (
+            "Run a shell command on the local host machine. "
+            "Sources ~/.bashrc so user-defined functions and aliases (e.g. makevideo) are available. "
+            "Returns the exit code and combined stdout/stderr output. "
+            "Use for running scripts, CLI tools, build steps, or any local automation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "Shell command to run (bash, ~/.bashrc sourced first)",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds before killing the process (default: 120)",
+                },
+                "cwd": {
+                    "type": "string",
+                    "description": "Working directory for the command (default: user home directory)",
+                },
+            },
+            "required": ["command"],
+        },
+    },
+    {
         "name": "list_uploads",
         "description": (
             "List all files that have been uploaded or stored locally. "
@@ -682,7 +709,7 @@ _DISPATCH_TOOL = {
 }
 
 _GLOBAL_BASE_TOOL_NAMES = {
-    "delegate_task", "save_note", "read_notes", "get_datetime",
+    "delegate_task", "save_note", "read_notes", "get_datetime", "shell_task",
     "create_product", "update_product", "delete_product",
     "create_workstream", "update_workstream_status", "delete_workstream",
     "create_objective", "update_objective", "delete_objective",
@@ -1188,6 +1215,8 @@ async def execute_tool(name: str, inputs: dict, product_id: str | None = None) -
         return _update_objective(**inputs)
     if name == "get_datetime":
         return _get_datetime()
+    if name == "shell_task":
+        return await _shell_task(**inputs)
     if name == "create_product":
         return _create_product(**inputs)
     if name == "update_product":
@@ -1475,6 +1504,37 @@ def _read_notes(search: str = "") -> str:
 
 def _get_datetime() -> str:
     return datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+
+
+async def _shell_task(command: str, timeout: int = 120, cwd: str | None = None) -> str:
+    import asyncio
+    import json as _json
+    import os
+
+    wrapped = f'source ~/.bashrc 2>/dev/null; {command}'
+    work_dir = cwd or str(Path.home())
+
+    proc = await asyncio.create_subprocess_shell(
+        wrapped,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=work_dir,
+        env={**os.environ},
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        output = stdout.decode("utf-8", errors="replace").strip()
+        return _json.dumps({
+            "exit_code": proc.returncode,
+            "output": output or "(no output)",
+        })
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        return _json.dumps({
+            "exit_code": -1,
+            "output": f"Command timed out after {timeout}s",
+        })
 
 
 def _list_uploads() -> str:
