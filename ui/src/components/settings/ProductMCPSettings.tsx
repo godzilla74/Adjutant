@@ -155,26 +155,37 @@ export default function ProductMCPSettings({ productId, password }: Props) {
       setCapOverrides(prev => prev.filter(o => o.capability_slot !== slot))
       return
     }
+    const existing = capOverrides.find(o => o.capability_slot === slot)
+    if (existing) {
+      await api.deleteCapabilityOverride(password, productId, slot).catch(() => null)
+    }
     if (!capServerTools[serverName]) {
       const tools = await api.getMcpServerTools(password, serverName).catch(() => [] as { name: string; description: string }[])
       setCapServerTools(prev => ({ ...prev, [serverName]: tools }))
     }
     setCapOverrides(prev => {
-      const existing = prev.find(o => o.capability_slot === slot)
-      if (existing) return prev.map(o => o.capability_slot === slot ? { ...o, mcp_server_name: serverName, mcp_tool_name: '' } : o)
-      return [...prev, { capability_slot: slot, mcp_server_name: serverName, mcp_tool_name: '' }]
+      if (existing) return prev.map(o => o.capability_slot === slot ? { ...o, mcp_server_name: serverName, mcp_tool_names: [] } : o)
+      return [...prev, { capability_slot: slot, mcp_server_name: serverName, mcp_tool_names: [] }]
     })
   }
 
-  const handleCapToolChange = async (slot: string, toolName: string) => {
+  const handleCapToolToggle = async (slot: string, toolName: string, checked: boolean) => {
     const override = capOverrides.find(o => o.capability_slot === slot)
     if (!override) return
-    await api.setCapabilityOverride(password, productId, {
-      capability_slot: slot,
-      mcp_server_name: override.mcp_server_name,
-      mcp_tool_name: toolName,
-    }).catch(() => null)
-    setCapOverrides(prev => prev.map(o => o.capability_slot === slot ? { ...o, mcp_tool_name: toolName } : o))
+    const newTools = checked
+      ? [...override.mcp_tool_names, toolName]
+      : override.mcp_tool_names.filter(t => t !== toolName)
+    if (newTools.length === 0) {
+      await api.deleteCapabilityOverride(password, productId, slot).catch(() => null)
+      setCapOverrides(prev => prev.filter(o => o.capability_slot !== slot))
+    } else {
+      await api.setCapabilityOverride(password, productId, {
+        capability_slot: slot,
+        mcp_server_name: override.mcp_server_name,
+        mcp_tool_names: newTools,
+      }).catch(() => null)
+      setCapOverrides(prev => prev.map(o => o.capability_slot === slot ? { ...o, mcp_tool_names: newTools } : o))
+    }
   }
 
   const handleDeleteCapSlot = async (name: string) => {
@@ -259,7 +270,7 @@ export default function ProductMCPSettings({ productId, password }: Props) {
             {capSlots.map(slot => {
               const override = capOverrides.find(o => o.capability_slot === slot.name)
               const selectedServer = override?.mcp_server_name || ''
-              const selectedTool = override?.mcp_tool_name || ''
+              const selectedTools = override?.mcp_tool_names ?? []
               const serverToolOptions = capServerTools[selectedServer] || []
               return (
                 <div key={slot.name} className="space-y-1">
@@ -284,12 +295,23 @@ export default function ProductMCPSettings({ productId, password }: Props) {
                       ))}
                     </select>
                     {selectedServer && (
-                      <select className={inputCls} value={selectedTool} onChange={e => handleCapToolChange(slot.name, e.target.value)}>
-                        <option value="">— pick tool —</option>
-                        {serverToolOptions.map(t => (
-                          <option key={t.name} value={t.name} title={t.description}>{t.name}</option>
-                        ))}
-                      </select>
+                      <div className="mt-1 max-h-44 overflow-y-auto flex flex-col gap-0.5 border border-adj-border rounded p-1.5 bg-adj-surface">
+                        {serverToolOptions.length === 0 ? (
+                          <p className="text-xs text-adj-text-faint px-1">Loading tools…</p>
+                        ) : (
+                          serverToolOptions.map(t => (
+                            <label key={t.name} className="flex items-center gap-2 px-1 py-0.5 hover:bg-adj-panel rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedTools.includes(t.name)}
+                                onChange={e => handleCapToolToggle(slot.name, t.name, e.target.checked)}
+                                className="accent-adj-accent"
+                              />
+                              <span className="text-xs text-adj-text-secondary truncate" title={t.description}>{t.name}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
                     )}
                   </div>
                   {selectedServer && !allServers.some(s => s.name === selectedServer && s.enabled) && (
