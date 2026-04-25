@@ -183,12 +183,12 @@ def init_db() -> None:
                 ON product_autonomy(product_id);
 
             CREATE TABLE IF NOT EXISTS mcp_capability_overrides (
-                id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_id     TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id      TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
                 capability_slot TEXT NOT NULL,
                 mcp_server_name TEXT NOT NULL,
-                mcp_tool_name  TEXT NOT NULL,
-                created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                mcp_tool_names  TEXT NOT NULL DEFAULT '[]',
+                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE(product_id, capability_slot)
             );
 
@@ -338,6 +338,7 @@ def init_db() -> None:
         _seed_capability_slots(conn)
 
     migrate_extensions_to_db()
+    migrate_capability_overrides_to_tool_names()
 
     with _conn() as conn:
         # ── Sessions ──────────────────────────────────────────────────────────
@@ -1734,6 +1735,35 @@ def migrate_extensions_to_db() -> None:
             )
 
 
+def migrate_capability_overrides_to_tool_names() -> None:
+    """Convert mcp_capability_overrides.mcp_tool_name (str) → mcp_tool_names (JSON array).
+
+    Safe to call on already-migrated databases — the column-existence guard exits early.
+    """
+    with _conn() as conn:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(mcp_capability_overrides)").fetchall()]
+        if "mcp_tool_names" in cols:
+            return
+        conn.executescript("""
+            CREATE TABLE mcp_capability_overrides_new (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id      TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                capability_slot TEXT NOT NULL,
+                mcp_server_name TEXT NOT NULL,
+                mcp_tool_names  TEXT NOT NULL DEFAULT '[]',
+                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(product_id, capability_slot)
+            );
+            INSERT INTO mcp_capability_overrides_new
+                (id, product_id, capability_slot, mcp_server_name, mcp_tool_names, created_at)
+            SELECT id, product_id, capability_slot, mcp_server_name,
+                   json_array(mcp_tool_name), created_at
+            FROM mcp_capability_overrides;
+            DROP TABLE mcp_capability_overrides;
+            ALTER TABLE mcp_capability_overrides_new RENAME TO mcp_capability_overrides;
+        """)
+
+
 def update_mcp_server(
     id: int,
     enabled: bool | None = None,
@@ -1869,21 +1899,26 @@ def delete_mcp_server(id: int) -> None:
 def list_capability_overrides(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT capability_slot, mcp_server_name, mcp_tool_name FROM mcp_capability_overrides WHERE product_id = ?",
+            "SELECT capability_slot, mcp_server_name, mcp_tool_names FROM mcp_capability_overrides WHERE product_id = ?",
             (product_id,),
         ).fetchall()
-    return [dict(r) for r in rows]
+    return [
+        {**dict(r), "mcp_tool_names": json.loads(r["mcp_tool_names"])}
+        for r in rows
+    ]
 
 
-def set_capability_override(product_id: str, capability_slot: str, mcp_server_name: str, mcp_tool_name: str) -> None:
+def set_capability_override(
+    product_id: str, capability_slot: str, mcp_server_name: str, mcp_tool_names: list[str],
+) -> None:
     with _conn() as conn:
         conn.execute(
-            """INSERT INTO mcp_capability_overrides (product_id, capability_slot, mcp_server_name, mcp_tool_name)
+            """INSERT INTO mcp_capability_overrides (product_id, capability_slot, mcp_server_name, mcp_tool_names)
                VALUES (?, ?, ?, ?)
                ON CONFLICT(product_id, capability_slot) DO UPDATE SET
                  mcp_server_name = excluded.mcp_server_name,
-                 mcp_tool_name   = excluded.mcp_tool_name""",
-            (product_id, capability_slot, mcp_server_name, mcp_tool_name),
+                 mcp_tool_names  = excluded.mcp_tool_names""",
+            (product_id, capability_slot, mcp_server_name, json.dumps(mcp_tool_names)),
         )
 
 

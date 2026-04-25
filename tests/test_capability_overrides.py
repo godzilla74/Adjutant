@@ -127,31 +127,31 @@ def test_init_db_seeding_is_idempotent(db):
 
 
 def test_set_and_list_capability_override(db):
-    db.set_capability_override("prod-1", "social_post", "gohighlevel", "mcp__gohighlevel__social_media_post")
+    db.set_capability_override("prod-1", "social_post", "gohighlevel", ["mcp__gohighlevel__social_media_post"])
     overrides = db.list_capability_overrides("prod-1")
     assert len(overrides) == 1
     assert overrides[0]["capability_slot"] == "social_post"
     assert overrides[0]["mcp_server_name"] == "gohighlevel"
-    assert overrides[0]["mcp_tool_name"] == "mcp__gohighlevel__social_media_post"
+    assert overrides[0]["mcp_tool_names"] == ["mcp__gohighlevel__social_media_post"]
 
 
 def test_set_override_is_upsert(db):
-    db.set_capability_override("prod-1", "social_post", "server-a", "mcp__server-a__post")
-    db.set_capability_override("prod-1", "social_post", "server-b", "mcp__server-b__post")
+    db.set_capability_override("prod-1", "social_post", "server-a", ["mcp__server-a__post"])
+    db.set_capability_override("prod-1", "social_post", "server-b", ["mcp__server-b__post"])
     overrides = db.list_capability_overrides("prod-1")
     assert len(overrides) == 1
     assert overrides[0]["mcp_server_name"] == "server-b"
 
 
 def test_delete_capability_override(db):
-    db.set_capability_override("prod-1", "social_post", "gohighlevel", "mcp__gohighlevel__post")
+    db.set_capability_override("prod-1", "social_post", "gohighlevel", ["mcp__gohighlevel__post"])
     db.delete_capability_override("prod-1", "social_post")
     assert db.list_capability_overrides("prod-1") == []
 
 
 def test_list_overrides_scoped_to_product(db):
-    db.set_capability_override("prod-1", "social_post", "server-a", "mcp__server-a__post")
-    db.set_capability_override("prod-2", "social_post", "server-b", "mcp__server-b__post")
+    db.set_capability_override("prod-1", "social_post", "server-a", ["mcp__server-a__post"])
+    db.set_capability_override("prod-2", "social_post", "server-b", ["mcp__server-b__post"])
     assert len(db.list_capability_overrides("prod-1")) == 1
     assert db.list_capability_overrides("prod-1")[0]["mcp_server_name"] == "server-a"
 
@@ -209,7 +209,7 @@ def test_capability_slots_covers_social_tools(db):
 
 
 def test_override_context_connected_server_suppresses_tools(db):
-    db.set_capability_override("prod-1", "social_post", "ghl", "mcp__ghl__social_post")
+    db.set_capability_override("prod-1", "social_post", "ghl", ["mcp__ghl__social_post"])
     from core.tools import get_capability_override_context
     suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers={"ghl"})
     assert "twitter_post" in suppress
@@ -218,7 +218,7 @@ def test_override_context_connected_server_suppresses_tools(db):
 
 
 def test_override_context_disconnected_server_marks_tools(db):
-    db.set_capability_override("prod-1", "social_post", "ghl", "mcp__ghl__social_post")
+    db.set_capability_override("prod-1", "social_post", "ghl", ["mcp__ghl__social_post"])
     from core.tools import get_capability_override_context
     suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers=set())
     assert suppress == set()
@@ -361,7 +361,38 @@ def test_manage_capability_slots_delete_nonexistent_returns_error(db):
 
 def test_delete_capability_slot_also_removes_overrides(db):
     db.create_capability_slot_definition("crm_contacts", "Contact Management", [])
-    db.set_capability_override("prod-1", "crm_contacts", "some-server", "mcp__some__tool")
+    db.set_capability_override("prod-1", "crm_contacts", "some-server", ["mcp__some__tool"])
     db.delete_capability_slot_definition("crm_contacts")
     overrides = db.list_capability_overrides("prod-1")
     assert not any(o["capability_slot"] == "crm_contacts" for o in overrides)
+
+
+def test_set_and_list_capability_override_multi_tool(db):
+    db.set_capability_override("prod-1", "social_post", "ghl", ["create-post", "edit-post", "get-post"])
+    overrides = db.list_capability_overrides("prod-1")
+    assert len(overrides) == 1
+    assert overrides[0]["capability_slot"] == "social_post"
+    assert overrides[0]["mcp_server_name"] == "ghl"
+    assert overrides[0]["mcp_tool_names"] == ["create-post", "edit-post", "get-post"]
+
+
+def test_set_override_single_tool_list(db):
+    db.set_capability_override("prod-1", "email_send", "myserver", ["send-email"])
+    overrides = db.list_capability_overrides("prod-1")
+    assert overrides[0]["mcp_tool_names"] == ["send-email"]
+
+
+def test_set_override_upsert_replaces_tool_list(db):
+    db.set_capability_override("prod-1", "social_post", "server-a", ["tool-a"])
+    db.set_capability_override("prod-1", "social_post", "server-b", ["tool-b", "tool-c"])
+    overrides = db.list_capability_overrides("prod-1")
+    assert len(overrides) == 1
+    assert overrides[0]["mcp_server_name"] == "server-b"
+    assert overrides[0]["mcp_tool_names"] == ["tool-b", "tool-c"]
+
+
+def test_capability_override_migration_preserves_existing_rows(db):
+    """After migration, existing single-tool rows appear as single-element lists."""
+    db.set_capability_override("prod-1", "social_post", "ghl", ["mcp__ghl__social_post"])
+    overrides = db.list_capability_overrides("prod-1")
+    assert isinstance(overrides[0]["mcp_tool_names"], list)
