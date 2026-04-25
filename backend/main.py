@@ -807,9 +807,10 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
         except anthropic.BadRequestError as e:
             if _remote_mcp and "mcp" in str(e).lower():
                 # One or more remote MCP servers are misconfigured; retry without them
+                print(f"[mcp] BadRequestError with remote MCP servers: {e}", flush=True)
                 await send_fn({
                     "type": "error",
-                    "message": "⚠ One or more remote MCP servers failed (check credentials in Settings → MCP Servers). Continuing without them.",
+                    "message": f"⚠ One or more remote MCP servers failed: {e}. Continuing without them.",
                 })
                 fallback = {k: v for k, v in _stream_kwargs.items() if k not in ("extra_body", "extra_headers")}
                 accumulated_text = ""
