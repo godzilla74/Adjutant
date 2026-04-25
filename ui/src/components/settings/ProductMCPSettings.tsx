@@ -285,7 +285,7 @@ export default function ProductMCPSettings({ productId, password }: Props) {
                       >✕</button>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-1">
                     <select className={inputCls} value={selectedServer} onChange={e => handleCapServerChange(slot.name, e.target.value)}>
                       <option value="">Built-in</option>
                       {enabledServersForPicker.map(s => (
@@ -295,7 +295,7 @@ export default function ProductMCPSettings({ productId, password }: Props) {
                       ))}
                     </select>
                     {selectedServer && (
-                      <div className="mt-1 max-h-44 overflow-y-auto flex flex-col gap-0.5 border border-adj-border rounded p-1.5 bg-adj-surface">
+                      <div className="max-h-44 overflow-y-auto flex flex-col gap-0.5 border border-adj-border rounded p-1.5 bg-adj-surface">
                         {serverToolOptions.length === 0 ? (
                           <p className="text-xs text-adj-text-faint px-1">Loading tools…</p>
                         ) : (
