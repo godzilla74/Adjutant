@@ -391,8 +391,48 @@ def test_set_override_upsert_replaces_tool_list(db):
     assert overrides[0]["mcp_tool_names"] == ["tool-b", "tool-c"]
 
 
-def test_capability_override_migration_preserves_existing_rows(db):
-    """After migration, existing single-tool rows appear as single-element lists."""
-    db.set_capability_override("prod-1", "social_post", "ghl", ["mcp__ghl__social_post"])
-    overrides = db.list_capability_overrides("prod-1")
-    assert isinstance(overrides[0]["mcp_tool_names"], list)
+def test_capability_override_migration_preserves_existing_rows():
+    """Migration converts existing mcp_tool_name rows to single-element mcp_tool_names lists."""
+    import sqlite3
+    import tempfile
+    import os
+    import json as _json
+
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        tmp_path = f.name
+    try:
+        conn = sqlite3.connect(tmp_path)
+        conn.row_factory = sqlite3.Row
+        # Create old schema with mcp_tool_name (singular)
+        conn.execute("""
+            CREATE TABLE mcp_capability_overrides (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT NOT NULL,
+                capability_slot TEXT NOT NULL,
+                mcp_server_name TEXT NOT NULL,
+                mcp_tool_name TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(product_id, capability_slot)
+            )
+        """)
+        conn.execute(
+            "INSERT INTO mcp_capability_overrides (product_id, capability_slot, mcp_server_name, mcp_tool_name) VALUES (?, ?, ?, ?)",
+            ("prod-1", "social_post", "ghl", "mcp__ghl__social_post"),
+        )
+        conn.commit()
+        conn.close()
+
+        # Patch DB_PATH to use the temp file, run migration
+        import backend.db as db_module
+        original_path = db_module.DB_PATH
+        db_module.DB_PATH = tmp_path
+        try:
+            db_module.migrate_capability_overrides_to_tool_names()
+            rows = db_module.list_capability_overrides("prod-1")
+            assert len(rows) == 1
+            assert isinstance(rows[0]["mcp_tool_names"], list)
+            assert rows[0]["mcp_tool_names"] == ["mcp__ghl__social_post"]
+        finally:
+            db_module.DB_PATH = original_path
+    finally:
+        os.unlink(tmp_path)

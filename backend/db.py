@@ -1745,6 +1745,7 @@ def migrate_capability_overrides_to_tool_names() -> None:
         if "mcp_tool_names" in cols:
             return
         conn.executescript("""
+            PRAGMA foreign_keys=OFF;
             CREATE TABLE mcp_capability_overrides_new (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 product_id      TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -1761,6 +1762,7 @@ def migrate_capability_overrides_to_tool_names() -> None:
             FROM mcp_capability_overrides;
             DROP TABLE mcp_capability_overrides;
             ALTER TABLE mcp_capability_overrides_new RENAME TO mcp_capability_overrides;
+            PRAGMA foreign_keys=ON;
         """)
 
 
