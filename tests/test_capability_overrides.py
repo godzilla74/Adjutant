@@ -391,6 +391,27 @@ def test_set_override_upsert_replaces_tool_list(db):
     assert overrides[0]["mcp_tool_names"] == ["tool-b", "tool-c"]
 
 
+def test_api_set_capability_override_accepts_tool_list(client, db):
+    payload = {
+        "capability_slot": "social_post",
+        "mcp_server_name": "ghl",
+        "mcp_tool_names": ["create-post", "edit-post"],
+    }
+    resp = client.post("/api/products/prod-1/capability-overrides", json=payload, headers={"X-Agent-Password": "testpw"})
+    assert resp.status_code == 200
+    overrides = db.list_capability_overrides("prod-1")
+    assert overrides[0]["mcp_tool_names"] == ["create-post", "edit-post"]
+
+
+def test_api_get_capability_overrides_returns_tool_list(client, db):
+    db.set_capability_override("prod-1", "social_post", "ghl", ["create-post", "edit-post"])
+    resp = client.get("/api/products/prod-1/capability-overrides", headers={"X-Agent-Password": "testpw"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["mcp_tool_names"] == ["create-post", "edit-post"]
+    assert "mcp_tool_name" not in data[0]
+
+
 def test_capability_override_migration_preserves_existing_rows():
     """Migration converts existing mcp_tool_name rows to single-element mcp_tool_names lists."""
     import sqlite3

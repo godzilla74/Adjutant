@@ -95,7 +95,7 @@ class McpServerUpdate(BaseModel):
 class CapabilityOverrideBody(BaseModel):
     capability_slot: str
     mcp_server_name: str
-    mcp_tool_name: str
+    mcp_tool_names: list[str]
 
 
 class CapabilitySlotBody(BaseModel):
@@ -600,7 +600,7 @@ async def get_product_capability_overrides(product_id: str, _=Depends(_auth)):
 @router.post("/products/{product_id}/capability-overrides")
 async def set_product_capability_override(product_id: str, body: CapabilityOverrideBody, _=Depends(_auth)):
     from backend.db import set_capability_override
-    set_capability_override(product_id, body.capability_slot, body.mcp_server_name, body.mcp_tool_name)
+    set_capability_override(product_id, body.capability_slot, body.mcp_server_name, body.mcp_tool_names)
     return {"ok": True}
 
 
