@@ -223,12 +223,12 @@ export const api = {
     }),
 
   getCapabilityOverrides: (pw: string, productId: string) =>
-    apiFetch<{ capability_slot: string; mcp_server_name: string; mcp_tool_name: string }[]>(
+    apiFetch<{ capability_slot: string; mcp_server_name: string; mcp_tool_names: string[] }[]>(
       `/api/products/${productId}/capability-overrides`, pw,
     ),
 
   setCapabilityOverride: (pw: string, productId: string, payload: {
-    capability_slot: string; mcp_server_name: string; mcp_tool_name: string;
+    capability_slot: string; mcp_server_name: string; mcp_tool_names: string[];
   }) =>
     apiFetch<{ ok: boolean }>(
       `/api/products/${productId}/capability-overrides`, pw,

@@ -53,7 +53,7 @@ export type ExtEditState = {
 export type CapabilityOverride = {
   capability_slot: string
   mcp_server_name: string
-  mcp_tool_name: string
+  mcp_tool_names: string[]
 }
 
 export type CapabilitySlot = {
