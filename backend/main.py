@@ -59,12 +59,12 @@ from backend.api import router as api_router
 
 
 def _inject_datetime(messages: list[dict]) -> list[dict]:
-    """Prepend current datetime to the first user message so the system prompt stays static."""
+    """Prepend current datetime to the last user message so the system prompt stays static."""
     prefix = f"[Current datetime: {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}]\n\n"
     result = list(messages)
-    for i, msg in enumerate(result):
+    for i in range(len(result) - 1, -1, -1):
+        msg = result[i]
         if msg["role"] == "user":
-            result = list(result)  # shallow copy so we can replace element
             if isinstance(msg.get("content"), str):
                 result[i] = {**msg, "content": prefix + msg["content"]}
             elif isinstance(msg.get("content"), list):
@@ -808,23 +808,24 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     _agent_model = os.environ.get("AGENT_MODEL", _live_cfg["agent_model"])
     _runner.SUBAGENT_MODEL = os.environ.get("AGENT_SUBAGENT_MODEL", _live_cfg["subagent_model"])
 
+    # Extract last user message for prescreener BEFORE datetime injection
+    _last_user_msg_for_prescreener = next(
+        (m["content"] for m in reversed(messages)
+         if m["role"] == "user" and isinstance(m.get("content"), str)),
+        "",
+    )
     messages = _inject_datetime(messages)
 
     # Pre-screen user message with a cheap model to route simple replies
     # and prune the tool list. Only applies to product agents.
     if product_id is not None:
         _available_groups = _compute_available_groups(product_id)
-        _last_user_msg = next(
-            (m["content"] for m in reversed(messages)
-             if m["role"] == "user" and isinstance(m.get("content"), str)),
-            "",
-        )
-        if _last_user_msg:
+        if _last_user_msg_for_prescreener:
             _prescreener_model = os.environ.get(
                 "AGENT_PRESCREENER_MODEL",
                 _live_cfg.get("prescreener_model", "claude-haiku-4-5-20251001")
             )
-            _pre = await _prescreen(_last_user_msg, _available_groups, client, _prescreener_model)
+            _pre = await _prescreen(_last_user_msg_for_prescreener, _available_groups, client, _prescreener_model)
 
             if _pre.route == "haiku":
                 _ts_val = _ts()

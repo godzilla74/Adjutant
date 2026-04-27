@@ -102,18 +102,19 @@ def test_get_agent_config_returns_prescreener_model():
 
 # ── Datetime injection ────────────────────────────────────────────────────────
 
-def test_inject_datetime_prepends_to_first_user_message():
+def test_inject_datetime_prepends_to_last_user_message():
     from backend.main import _inject_datetime
     messages = [
-        {"role": "user", "content": "hello"},
+        {"role": "user", "content": "first message"},
         {"role": "assistant", "content": "hi"},
         {"role": "user", "content": "second message"},
     ]
     result = _inject_datetime(messages)
-    assert result[0]["content"].startswith("[Current datetime:")
-    assert "hello" in result[0]["content"]
-    # Only first user message modified
-    assert result[2]["content"] == "second message"
+    # Last user message gets the prefix
+    assert result[2]["content"].startswith("[Current datetime:")
+    assert "second message" in result[2]["content"]
+    # First user message is NOT modified
+    assert result[0]["content"] == "first message"
 
 
 def test_inject_datetime_does_not_mutate_input():
