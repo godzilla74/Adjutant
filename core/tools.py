@@ -55,11 +55,7 @@ def _load_extensions() -> list[dict]:
 TOOLS_DEFINITIONS = [
     {
         "name": "delegate_task",
-        "description": (
-            "Delegate a task to a specialized sub-agent for autonomous execution. "
-            "Use for research, competitive analysis, document drafting, or any task "
-            "that requires focused independent work. The sub-agent runs and returns results."
-        ),
+        "description": "Delegate a task to a specialized sub-agent for autonomous execution.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -70,14 +66,11 @@ TOOLS_DEFINITIONS = [
                 "agent_type": {
                     "type": "string",
                     "enum": ["research", "general"],
-                    "description": (
-                        "'research' for web research tasks; "
-                        "'general' for broader tasks including file access"
-                    ),
+                    "description": "'research' for web research; 'general' for broader tasks including file access",
                 },
                 "context": {
                     "type": "string",
-                    "description": "Background context for the sub-agent AND rationale shown to the user in the activity feed. Write this as a human-readable explanation of why this task is being done.",
+                    "description": "Background context and rationale shown to the user",
                 },
             },
             "required": ["task", "agent_type"],
@@ -85,32 +78,23 @@ TOOLS_DEFINITIONS = [
     },
     {
         "name": "save_note",
-        "description": "Save an important note, decision, action item, or piece of context for later retrieval.",
+        "description": "Save an important note, decision, or action item for later retrieval.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "title": {
-                    "type": "string",
-                    "description": "Short descriptive title for the note",
-                },
-                "content": {
-                    "type": "string",
-                    "description": "The content to save",
-                },
+                "title": {"type": "string", "description": "Short descriptive title"},
+                "content": {"type": "string", "description": "Content to save"},
             },
             "required": ["title", "content"],
         },
     },
     {
         "name": "read_notes",
-        "description": "Read previously saved notes. Optionally filter by a search term.",
+        "description": "Read previously saved notes, optionally filtered by keyword.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "search": {
-                    "type": "string",
-                    "description": "Optional keyword to filter notes by title or content",
-                }
+                "search": {"type": "string", "description": "Keyword to filter notes by"},
             },
             "required": [],
         },
@@ -118,34 +102,29 @@ TOOLS_DEFINITIONS = [
     {
         "name": "create_review_item",
         "description": (
-            "Add an item to the user's approval queue. Use this before taking any consequential, "
-            "irreversible, or public-facing action: sending emails to clients, posting to social "
-            "media, making purchases, or anything that goes out under the user's name. "
-            "Do NOT use for internal research or drafting."
+            "Add an item to the user's approval queue before taking any consequential, "
+            "irreversible, or public-facing action."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "title": {
                     "type": "string",
-                    "description": "Short title for the item, e.g. 'LinkedIn post: launch announcement'",
+                    "description": "Short title, e.g. 'LinkedIn post: launch announcement'",
                 },
                 "description": {
                     "type": "string",
-                    "description": "2-3 sentence summary of what will happen when approved: who receives it, what it says, timing. Do not paste full content here — that belongs in the activity feed.",
+                    "description": "2-3 sentence summary of what will happen when approved",
                 },
                 "risk_label": {
                     "type": "string",
-                    "description": "One short phrase describing the risk, e.g. 'Public-facing · irreversible' or 'Sends from your email · 12 recipients'",
+                    "description": "Short risk phrase, e.g. 'Public-facing · irreversible'",
                 },
-                "product_id": {
-                    "type": "string",
-                    "description": "The product this action belongs to",
-                },
+                "product_id": {"type": "string", "description": "The product this action belongs to"},
                 "action_type": {
                     "type": "string",
                     "enum": ["social_post", "email", "agent_review"],
-                    "description": "Category of action: 'social_post' for social media posts, 'email' for email actions, 'agent_review' for any other consequential action",
+                    "description": "Category: social_post, email, or agent_review",
                 },
             },
             "required": ["title", "description", "risk_label", "product_id", "action_type"],
@@ -153,90 +132,74 @@ TOOLS_DEFINITIONS = [
     },
     {
         "name": "create_objective",
-        "description": "Create a new objective for a product. Use when the user asks to add a new goal or target.",
+        "description": "Create a new objective (goal or target) for a product.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product this objective belongs to"},
-                "text": {"type": "string", "description": "The objective description, e.g. '500 Instagram followers by June 1'"},
+                "product_id": {"type": "string", "description": "Product this objective belongs to"},
+                "text": {"type": "string", "description": "Objective description, e.g. '500 Instagram followers by June 1'"},
                 "progress_current": {"type": "integer", "description": "Starting progress value (default 0)"},
-                "progress_target": {"type": "integer", "description": "Target value, e.g. 500. Omit if open-ended."},
+                "progress_target": {"type": "integer", "description": "Target value; omit if open-ended"},
             },
             "required": ["product_id", "text"],
         },
     },
     {
         "name": "update_objective",
-        "description": (
-            "Update the progress on one of the user's active objectives for the current product. "
-            "Use this after completing work that advances a measurable goal — e.g. after publishing "
-            "an SEO post, increment the SEO post counter. Match the objective by a short text fragment."
-        ),
+        "description": "Update progress on an active objective after completing work that advances a measurable goal.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {
-                    "type": "string",
-                    "description": "The product this objective belongs to",
-                },
-                "text_fragment": {
-                    "type": "string",
-                    "description": "A few words from the objective text to identify it, e.g. 'SEO posts' or 'trial signups'",
-                },
-                "progress_current": {
-                    "type": "integer",
-                    "description": "The new current progress value",
-                },
-                "progress_target": {
-                    "type": "integer",
-                    "description": "Optional: update the target value too",
-                },
+                "product_id": {"type": "string", "description": "Product this objective belongs to"},
+                "text_fragment": {"type": "string", "description": "Words from the objective text to identify it"},
+                "progress_current": {"type": "integer", "description": "New current progress value"},
+                "progress_target": {"type": "integer", "description": "Updated target value (optional)"},
             },
             "required": ["product_id", "text_fragment", "progress_current"],
         },
     },
     {
         "name": "create_product",
-        "description": "Create a new product in Adjutant. Use when the user wants to add a new business or product to track.",
+        "description": "Create a new product in Adjutant.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "id":         {"type": "string", "description": "Unique slug, e.g. 'my-product' (lowercase, hyphens ok)"},
-                "name":       {"type": "string", "description": "Display name, e.g. 'My Product'"},
-                "icon_label": {"type": "string", "description": "2-3 character label shown in the product rail, e.g. 'MP'"},
-                "color":      {"type": "string", "description": "Hex color for the product, e.g. '#2563eb'"},
+                "id":         {"type": "string", "description": "Unique slug, e.g. 'my-product'"},
+                "name":       {"type": "string", "description": "Display name"},
+                "icon_label": {"type": "string", "description": "2-3 char label shown in product rail"},
+                "color":      {"type": "string", "description": "Hex color, e.g. '#2563eb'"},
             },
             "required": ["id", "name", "icon_label", "color"],
         },
     },
     {
         "name": "update_product",
-        "description": "Update a product's display info or brand configuration (brand voice, tone, writing style, target audience, social handles, hashtags, notes).",
+        "description": "Update a product's display info or brand configuration.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id":      {"type": "string", "description": "The product's id slug"},
+                "product_id":      {"type": "string", "description": "Product id slug"},
                 "name":            {"type": "string", "description": "Display name"},
                 "icon_label":      {"type": "string", "description": "2-3 char label"},
                 "color":           {"type": "string", "description": "Hex color"},
-                "brand_voice":     {"type": "string", "description": "Brand voice description, e.g. 'authoritative and warm'"},
-                "tone":            {"type": "string", "description": "Tone guidelines, e.g. 'professional but approachable, never salesy'"},
-                "writing_style":   {"type": "string", "description": "Writing style notes, e.g. 'short sentences, active voice, no jargon'"},
+                "brand_voice":     {"type": "string", "description": "Brand voice description"},
+                "tone":            {"type": "string", "description": "Tone guidelines"},
+                "writing_style":   {"type": "string", "description": "Writing style notes"},
                 "target_audience": {"type": "string", "description": "Who the product is for"},
-                "social_handles":  {"type": "string", "description": "JSON string of platform handles, e.g. {\"instagram\": \"@handle\", \"linkedin\": \"url\"}"},
-                "hashtags":        {"type": "string", "description": "Comma-separated hashtags to use for this product"},
-                "brand_notes":     {"type": "string", "description": "Any other brand guidance or context"},
+                "social_handles":  {"type": "string", "description": "JSON string of platform handles"},
+                "hashtags":        {"type": "string", "description": "Comma-separated hashtags"},
+                "brand_notes":     {"type": "string", "description": "Additional brand guidance"},
             },
             "required": ["product_id"],
         },
     },
     {
         "name": "delete_product",
-        "description": "Permanently delete a product and all its data (workstreams, objectives, events, messages). Use with caution — irreversible.",
+        "description": "Permanently delete a product and all its data. Irreversible.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product's id slug"},
+                "product_id": {"type": "string", "description": "Product id slug"},
             },
             "required": ["product_id"],
         },
@@ -261,7 +224,7 @@ TOOLS_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "product_id":    {"type": "string"},
-                "name_fragment": {"type": "string", "description": "Part of the workstream name to match"},
+                "name_fragment": {"type": "string", "description": "Part of workstream name to match"},
                 "status":        {"type": "string", "enum": ["running", "warn", "paused"]},
             },
             "required": ["product_id", "name_fragment", "status"],
@@ -274,7 +237,7 @@ TOOLS_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "product_id":    {"type": "string"},
-                "name_fragment": {"type": "string", "description": "Part of the workstream name to match"},
+                "name_fragment": {"type": "string", "description": "Part of workstream name to match"},
             },
             "required": ["product_id", "name_fragment"],
         },
@@ -286,7 +249,7 @@ TOOLS_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "product_id":    {"type": "string"},
-                "text_fragment": {"type": "string", "description": "Part of the objective text to match"},
+                "text_fragment": {"type": "string", "description": "Part of objective text to match"},
             },
             "required": ["product_id", "text_fragment"],
         },
@@ -294,72 +257,60 @@ TOOLS_DEFINITIONS = [
     {
         "name": "draft_social_post",
         "description": (
-            "Draft a social media post for a product. Saves the draft and automatically adds it to the user's "
-            "approval queue before anything is posted. Use the product's brand voice and tone when writing content. "
-            "Optionally schedule the post for a future date/time using scheduled_for (ISO-8601, e.g. '2026-05-01T09:00:00')."
+            "Draft a social media post for a product and add it to the approval queue. "
+            "Respects autonomy tier — publishes immediately if set to 'auto'."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id":         {"type": "string"},
-                "platform":           {"type": "string", "description": "e.g. 'instagram', 'linkedin', 'twitter', 'facebook'"},
-                "content":            {"type": "string", "description": "The post text, ready to publish"},
-                "image_description":  {"type": "string", "description": "Description of the image/visual to pair with this post (optional)"},
-                "image_url":          {"type": "string", "description": "Public URL of an image to attach (required for Instagram, optional for others)"},
-                "scheduled_for":      {"type": "string", "description": "ISO-8601 datetime to auto-publish (e.g. '2026-05-01T09:00:00'). Omit to post immediately on approval."},
+                "product_id":        {"type": "string"},
+                "platform":          {"type": "string", "description": "e.g. 'instagram', 'linkedin'"},
+                "content":           {"type": "string", "description": "Post text, ready to publish"},
+                "image_description": {"type": "string", "description": "Description of image to pair with post"},
+                "image_url":         {"type": "string", "description": "Public image URL (required for Instagram)"},
+                "scheduled_for":     {"type": "string", "description": "ISO-8601 datetime to auto-publish"},
             },
             "required": ["product_id", "platform", "content"],
         },
     },
     {
         "name": "find_skill",
-        "description": (
-            "Search the skills.sh ecosystem for agent skills that can add a new capability. "
-            "Use this when you identify a capability gap — e.g. posting to Instagram, generating images, "
-            "sending SMS. Returns a list of matching skills with install counts."
-        ),
+        "description": "Search the skills.sh ecosystem for agent skills that add a new capability.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Keywords to search for, e.g. 'instagram posting' or 'image generation'"},
+                "query": {"type": "string", "description": "Keywords to search for"},
             },
             "required": ["query"],
         },
     },
     {
         "name": "install_skill",
-        "description": "Install a skill from skills.sh so it becomes available to sub-agents. Run find_skill first to identify the right package.",
+        "description": "Install a skill from skills.sh. Run find_skill first to identify the right package.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "package": {"type": "string", "description": "The package to install, e.g. 'inferen-sh/skills@ai-social-media-content'"},
+                "package": {"type": "string", "description": "Package to install, e.g. 'org/skills@name'"},
             },
             "required": ["package"],
         },
     },
     {
         "name": "add_agent_tool",
-        "description": (
-            "Create a new tool by writing an extension file. The tool will spawn a sub-agent with your specified "
-            "instructions. After calling this, call restart_server to activate it."
-        ),
+        "description": "Create a new tool by writing an extension file that spawns a sub-agent. Call restart_server after.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "tool_name": {"type": "string", "description": "Snake_case name for the tool, e.g. 'instagram_post'"},
-                "description": {"type": "string", "description": "What this tool does (shown in your tool list)"},
-                "agent_instructions": {"type": "string", "description": "Full system prompt / instructions for the sub-agent that will execute this tool"},
+                "tool_name":          {"type": "string", "description": "Snake_case tool name"},
+                "description":        {"type": "string", "description": "What this tool does"},
+                "agent_instructions": {"type": "string", "description": "System prompt for the sub-agent"},
             },
             "required": ["tool_name", "description", "agent_instructions"],
         },
     },
     {
         "name": "restart_server",
-        "description": (
-            "Restart the Adjutant server to pick up new extensions or code changes. "
-            "The client will reconnect automatically within a few seconds. "
-            "Call this after add_agent_tool or any code modification."
-        ),
+        "description": "Restart the Adjutant server to pick up new extensions or code changes.",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -377,38 +328,20 @@ TOOLS_DEFINITIONS = [
     },
     {
         "name": "shell_task",
-        "description": (
-            "Run a shell command on the local host machine. "
-            "Sources ~/.bashrc so user-defined functions and aliases (e.g. makevideo) are available. "
-            "Returns the exit code and combined stdout/stderr output. "
-            "Use for running scripts, CLI tools, build steps, or any local automation."
-        ),
+        "description": "Run a shell command on the local host machine. Sources ~/.bashrc; returns exit code and combined output.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "command": {
-                    "type": "string",
-                    "description": "Shell command to run (bash, ~/.bashrc sourced first)",
-                },
-                "timeout": {
-                    "type": "integer",
-                    "description": "Timeout in seconds before killing the process (default: 120)",
-                },
-                "cwd": {
-                    "type": "string",
-                    "description": "Working directory for the command (default: user home directory)",
-                },
+                "command": {"type": "string", "description": "Shell command to run"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds (default 120)"},
+                "cwd":     {"type": "string", "description": "Working directory (default: home)"},
             },
             "required": ["command"],
         },
     },
     {
         "name": "list_uploads",
-        "description": (
-            "List all files that have been uploaded or stored locally. "
-            "Returns file names, paths, sizes, and timestamps. "
-            "Use this to find stored videos or documents you can reference in tasks."
-        ),
+        "description": "List all files that have been uploaded or stored locally.",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -417,33 +350,18 @@ TOOLS_DEFINITIONS = [
     },
     {
         "name": "send_telegram_file",
-        "description": (
-            "Send a locally stored file to the user via Telegram. "
-            "Use for sending stored videos, PDFs, or other files. "
-            "Requires Telegram to be configured."
-        ),
+        "description": "Send a locally stored file to the user via Telegram.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "file_path": {
-                    "type": "string",
-                    "description": "Absolute path to the file to send (use list_uploads to find paths)",
-                },
+                "file_path": {"type": "string", "description": "Absolute path to the file to send"},
             },
             "required": ["file_path"],
         },
     },
     {
         "name": "manage_mcp_server",
-        "description": (
-            "Add, remove, enable, disable, or list MCP (Model Context Protocol) servers. "
-            "Before adding any server: (1) use browser_task to read its documentation "
-            "and identify the endpoint URL and required credentials, (2) confirm with the "
-            "user whether the server should be global (all products) or scoped to a specific "
-            "product. For remote servers, store auth credentials in the env field as "
-            '{"authorization_token": "Bearer <token>"}. '
-            "For stdio servers, store additional env vars needed by the process."
-        ),
+        "description": "Add, remove, enable, disable, or list MCP servers. Confirm scope (global vs product) with the user before adding.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -452,205 +370,119 @@ TOOLS_DEFINITIONS = [
                     "enum": ["add", "remove", "enable", "disable", "list"],
                     "description": "Action to perform",
                 },
-                "name": {
-                    "type": "string",
-                    "description": "Display name (required for add)",
-                },
-                "type": {
-                    "type": "string",
-                    "enum": ["remote", "stdio"],
-                    "description": "'remote' for HTTP/SSE servers, 'stdio' for local process servers",
-                },
-                "url": {
-                    "type": "string",
-                    "description": "SSE/HTTP endpoint URL (required for remote type)",
-                },
-                "command": {
-                    "type": "string",
-                    "description": "Executable command (required for stdio type, e.g. 'npx')",
-                },
-                "args": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Command arguments for stdio servers",
-                },
-                "env": {
-                    "type": "object",
-                    "description": (
-                        "Credentials and config. For remote: HTTP headers "
-                        '(e.g. {"authorization_token": "Bearer xxx"}). '
-                        "For stdio: extra env vars for the process."
-                    ),
-                },
-                "scope": {
-                    "type": "string",
-                    "enum": ["global", "product"],
-                    "description": "global = all products; product = specific product only",
-                },
-                "product_id": {
-                    "type": "string",
-                    "description": "Required when scope is 'product'",
-                },
-                "server_id": {
-                    "type": "integer",
-                    "description": "Server ID — required for remove, enable, disable",
-                },
+                "name":       {"type": "string", "description": "Display name (required for add)"},
+                "type":       {"type": "string", "enum": ["remote", "stdio"], "description": "remote or stdio"},
+                "url":        {"type": "string", "description": "SSE/HTTP endpoint URL (remote only)"},
+                "command":    {"type": "string", "description": "Executable command (stdio only)"},
+                "args":       {"type": "array", "items": {"type": "string"}, "description": "Command arguments (stdio only)"},
+                "env":        {"type": "object", "description": "Auth headers (remote) or env vars (stdio)"},
+                "scope":      {"type": "string", "enum": ["global", "product"], "description": "global or product-scoped"},
+                "product_id": {"type": "string", "description": "Required when scope is 'product'"},
+                "server_id":  {"type": "integer", "description": "Required for remove, enable, disable"},
             },
             "required": ["action"],
         },
     },
     {
         "name": "schedule_next_run",
-        "description": (
-            "Schedule the next autonomous run for the current objective. "
-            "Call this at the end of every autonomous cycle to keep the loop running. "
-            "If you need human input instead, call create_review_item — do not call this tool."
-        ),
+        "description": "Schedule the next autonomous run for an objective. Call at the end of every autonomous cycle.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "objective_id": {"type": "integer", "description": "The objective's ID"},
-                "hours": {
-                    "type": "number",
-                    "description": "Hours until next run (fractional ok, e.g. 0.5 for 30 min). Minimum 0.25.",
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "Brief explanation of why this cadence makes sense",
-                },
+                "hours":        {"type": "number", "description": "Hours until next run (min 0.25)"},
+                "reason":       {"type": "string", "description": "Why this cadence makes sense"},
             },
             "required": ["objective_id", "hours", "reason"],
         },
     },
     {
         "name": "update_objective_progress",
-        "description": (
-            "Update the measurable progress toward an objective. "
-            "Call this whenever you have a concrete new number (e.g., follower count, deals closed, items completed)."
-        ),
+        "description": "Update measurable progress toward an objective with a new concrete number.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "objective_id": {"type": "integer", "description": "The objective's ID"},
-                "current": {"type": "integer", "description": "The new current progress value"},
-                "notes": {
-                    "type": "string",
-                    "description": "Optional context about how this was measured or what changed",
-                },
+                "current":      {"type": "integer", "description": "New current progress value"},
+                "notes":        {"type": "string", "description": "How this was measured or what changed"},
             },
             "required": ["objective_id", "current"],
         },
     },
     {
         "name": "set_objective_autonomous",
-        "description": (
-            "Enable or disable autonomous mode for an objective. "
-            "When enabled, the scheduler will begin driving the objective immediately. "
-            "Use this when the user asks to run an objective autonomously or to stop autonomous execution."
-        ),
+        "description": "Enable or disable autonomous mode for an objective.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "objective_id": {"type": "integer", "description": "The objective's ID"},
-                "autonomous": {"type": "boolean", "description": "true to enable, false to disable"},
+                "autonomous":   {"type": "boolean", "description": "true to enable, false to disable"},
             },
             "required": ["objective_id", "autonomous"],
         },
     },
     {
         "name": "report_wizard_progress",
-        "description": (
-            "Report what you are currently doing during the launch wizard setup. "
-            "Call this before each action so the user can see your progress in real time."
-        ),
+        "description": "Report what you are currently doing during the launch wizard setup.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "message": {
-                    "type": "string",
-                    "description": (
-                        "Brief present-tense description of what you are about to do, "
-                        "e.g. 'Configuring brand voice' or 'Creating launch objectives'"
-                    ),
-                },
+                "message": {"type": "string", "description": "Present-tense description, e.g. 'Configuring brand voice'"},
             },
             "required": ["message"],
         },
     },
     {
         "name": "complete_launch",
-        "description": (
-            "Call this when the product is fully configured and all objectives are created "
-            "and set to autonomous mode. This ends the wizard and transitions the user to "
-            "the live product view."
-        ),
+        "description": "End the launch wizard after the product is fully configured and all objectives are set to autonomous.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {
-                    "type": "string",
-                    "description": "The product's ID",
-                },
-                "summary": {
-                    "type": "string",
-                    "description": (
-                        "2-3 sentence summary of what was set up: brand configured, "
-                        "objectives created, what the agent will do next"
-                    ),
-                },
+                "product_id": {"type": "string", "description": "The product's ID"},
+                "summary":    {"type": "string", "description": "2-3 sentence summary of what was set up"},
             },
             "required": ["product_id", "summary"],
         },
     },
     {
         "name": "search_stock_photo",
-        "description": "Search Pexels for a stock photo matching a query. Returns a stable public CDN URL suitable for social posts. Use for topic-based or real-world content (news, lifestyle, people, places).",
+        "description": "Search Pexels for a stock photo. Returns a public CDN URL suitable for social posts.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Search query describing the photo needed"},
+                "query": {"type": "string", "description": "Description of the photo needed"},
             },
             "required": ["query"],
         },
     },
     {
         "name": "generate_image",
-        "description": "Generate a custom image from a text prompt using OpenAI DALL-E 3. Returns a localhost URL. Use for abstract visuals, branded graphics, or illustrations. Requires OpenAI connection in Global settings.",
+        "description": "Generate a custom image from a text prompt using DALL-E 3. Requires OpenAI connection.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "prompt": {"type": "string", "description": "Detailed text description of the image to generate"},
+                "prompt": {"type": "string", "description": "Detailed description of the image to generate"},
             },
             "required": ["prompt"],
         },
     },
     {
         "name": "manage_capability_slots",
-        "description": (
-            "Manage capability slot definitions. Use 'list' to see all slots, "
-            "'create' to register a new custom slot, 'delete' to remove a custom slot. "
-            "System slots (social_post, email_send, etc.) cannot be deleted."
-        ),
+        "description": "Manage capability slot definitions (list, create, or delete). System slots cannot be deleted.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
                     "enum": ["list", "create", "delete"],
-                    "description": "The operation to perform.",
+                    "description": "Operation to perform",
                 },
-                "name": {
-                    "type": "string",
-                    "description": "Slot name slug, e.g. 'crm_contacts'. Required for create and delete.",
-                },
-                "label": {
-                    "type": "string",
-                    "description": "Human-readable display name, e.g. 'Contact Management'. Required for create.",
-                },
+                "name":          {"type": "string", "description": "Slot name slug (required for create/delete)"},
+                "label":         {"type": "string", "description": "Human-readable display name (required for create)"},
                 "built_in_tools": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Built-in tool names this slot replaces. Defaults to [] for custom slots.",
+                    "description": "Built-in tool names this slot replaces",
                 },
             },
             "required": ["action"],
