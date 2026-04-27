@@ -258,7 +258,7 @@ TOOLS_DEFINITIONS = [
         "name": "draft_social_post",
         "description": (
             "Draft a social media post for a product and add it to the approval queue. "
-            "Respects autonomy tier — publishes immediately if set to 'auto'."
+            "Respects autonomy tier — creates a review item if set to 'approve'."
         ),
         "input_schema": {
             "type": "object",
