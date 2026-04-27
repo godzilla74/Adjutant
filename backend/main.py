@@ -53,8 +53,50 @@ from backend.db import (
     set_launch_wizard_active,
     get_product_config,
     create_product as _create_product_db,
+    list_oauth_connections,
 )
 from backend.api import router as api_router
+
+
+def _inject_datetime(messages: list[dict]) -> list[dict]:
+    """Prepend current datetime to the first user message so the system prompt stays static."""
+    prefix = f"[Current datetime: {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}]\n\n"
+    result = list(messages)
+    for i, msg in enumerate(result):
+        if msg["role"] == "user":
+            result = list(result)  # shallow copy so we can replace element
+            if isinstance(msg.get("content"), str):
+                result[i] = {**msg, "content": prefix + msg["content"]}
+            elif isinstance(msg.get("content"), list):
+                result[i] = {**msg, "content": [{"type": "text", "text": prefix}] + list(msg["content"])}
+            break
+    return result
+
+
+def _add_cache_control(system_text: str, tools: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Wrap system prompt as a cached content block and mark the last tool as cached."""
+    system_list = [{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}]
+    if not tools:
+        return system_list, []
+    tools_out = list(tools)
+    tools_out[-1] = {**tools_out[-1], "cache_control": {"type": "ephemeral"}}
+    return system_list, tools_out
+
+
+_SOCIAL_PLATFORMS = {"twitter", "linkedin", "facebook", "instagram"}
+
+
+def _compute_available_groups(product_id: str) -> list[str]:
+    """Return tool group names available for this product based on OAuth connections."""
+    connections = {c["service"] for c in list_oauth_connections(product_id)}
+    groups = ["core", "management", "system"]
+    if "gmail" in connections:
+        groups.append("email")
+    if "google_calendar" in connections:
+        groups.append("calendar")
+    if connections & _SOCIAL_PLATFORMS:
+        groups.append("social")
+    return groups
 
 
 async def _do_publish_draft(draft: dict) -> None:

@@ -98,3 +98,111 @@ def test_get_agent_config_returns_prescreener_model():
     cfg = get_agent_config()
     assert "prescreener_model" in cfg
     assert cfg["prescreener_model"] == "claude-haiku-4-5-20251001"
+
+
+# ── Datetime injection ────────────────────────────────────────────────────────
+
+def test_inject_datetime_prepends_to_first_user_message():
+    from backend.main import _inject_datetime
+    messages = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+        {"role": "user", "content": "second message"},
+    ]
+    result = _inject_datetime(messages)
+    assert result[0]["content"].startswith("[Current datetime:")
+    assert "hello" in result[0]["content"]
+    # Only first user message modified
+    assert result[2]["content"] == "second message"
+
+
+def test_inject_datetime_does_not_mutate_input():
+    from backend.main import _inject_datetime
+    original = [{"role": "user", "content": "hello"}]
+    result = _inject_datetime(original)
+    assert original[0]["content"] == "hello"
+    assert result[0]["content"] != "hello"
+
+
+def test_inject_datetime_handles_list_content():
+    from backend.main import _inject_datetime
+    messages = [
+        {"role": "user", "content": [{"type": "text", "text": "hello"}]},
+    ]
+    result = _inject_datetime(messages)
+    content = result[0]["content"]
+    assert isinstance(content, list)
+    assert content[0]["type"] == "text"
+    assert "[Current datetime:" in content[0]["text"]
+    assert content[1] == {"type": "text", "text": "hello"}
+
+
+def test_inject_datetime_no_user_message_unchanged():
+    from backend.main import _inject_datetime
+    messages = [{"role": "assistant", "content": "hello"}]
+    result = _inject_datetime(messages)
+    assert result[0]["content"] == "hello"
+
+
+# ── cache_control blocks ──────────────────────────────────────────────────────
+
+def test_add_cache_control_wraps_system_as_list():
+    from backend.main import _add_cache_control
+    system_list, tools = _add_cache_control("my system prompt", [{"name": "tool_a"}, {"name": "tool_b"}])
+    assert isinstance(system_list, list)
+    assert system_list[0]["type"] == "text"
+    assert system_list[0]["text"] == "my system prompt"
+    assert system_list[0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_add_cache_control_adds_to_last_tool_only():
+    from backend.main import _add_cache_control
+    original_tools = [{"name": "tool_a"}, {"name": "tool_b"}]
+    _, tools = _add_cache_control("prompt", original_tools)
+    assert "cache_control" not in tools[0]
+    assert tools[1]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_add_cache_control_does_not_mutate_original_tools():
+    from backend.main import _add_cache_control
+    original_tools = [{"name": "tool_a"}, {"name": "tool_b"}]
+    _, tools = _add_cache_control("prompt", original_tools)
+    assert "cache_control" not in original_tools[1]
+
+
+def test_add_cache_control_empty_tools_returns_empty():
+    from backend.main import _add_cache_control
+    system_list, tools = _add_cache_control("prompt", [])
+    assert tools == []
+    assert system_list[0]["cache_control"] == {"type": "ephemeral"}
+
+
+# ── Available groups ──────────────────────────────────────────────────────────
+
+def test_compute_available_groups_no_oauth():
+    from backend.main import _compute_available_groups
+    from unittest.mock import patch
+    with patch("backend.main.list_oauth_connections", return_value=[]):
+        groups = _compute_available_groups("prod-1")
+    assert "core" in groups
+    assert "management" in groups
+    assert "system" in groups
+    assert "email" not in groups
+    assert "calendar" not in groups
+    assert "social" not in groups
+
+
+def test_compute_available_groups_with_gmail():
+    from backend.main import _compute_available_groups
+    from unittest.mock import patch
+    with patch("backend.main.list_oauth_connections", return_value=[{"service": "gmail"}]):
+        groups = _compute_available_groups("prod-1")
+    assert "email" in groups
+
+
+def test_compute_available_groups_with_social():
+    from backend.main import _compute_available_groups
+    from unittest.mock import patch
+    with patch("backend.main.list_oauth_connections", return_value=[{"service": "twitter"}]):
+        groups = _compute_available_groups("prod-1")
+    assert "social" in groups
