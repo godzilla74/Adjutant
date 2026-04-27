@@ -241,9 +241,10 @@ def delete_template(template_id: int, _=Depends(_auth)):
 # ── Agent config ──────────────────────────────────────────────────────────────
 
 class AgentConfigUpdate(BaseModel):
-    agent_model:    str | None = None
-    subagent_model: str | None = None
-    agent_name:     str | None = None
+    agent_model:       str | None = None
+    subagent_model:    str | None = None
+    prescreener_model: str | None = None
+    agent_name:        str | None = None
 
 
 @router.get("/agent-config")
@@ -265,6 +266,9 @@ def update_agent_config_api(body: AgentConfigUpdate, _=Depends(_auth)):
     if body.subagent_model is not None:
         set_agent_config("subagent_model", body.subagent_model)
         runner.SUBAGENT_MODEL = body.subagent_model
+
+    if body.prescreener_model is not None:
+        set_agent_config("prescreener_model", body.prescreener_model)
 
     if body.agent_name is not None:
         set_agent_config("agent_name", body.agent_name)

@@ -83,3 +83,18 @@ def test_get_tools_for_groups_unknown_group_ignored(monkeypatch):
         result = get_tools_for_groups(["core", "nonexistent"], "prod-1")
 
     assert len(result) > 0  # core tools still returned
+
+
+# ── DB + API config ───────────────────────────────────────────────────────────
+
+def test_agent_config_defaults_include_prescreener_model():
+    from backend.db import _AGENT_CONFIG_DEFAULTS
+    assert "prescreener_model" in _AGENT_CONFIG_DEFAULTS
+    assert _AGENT_CONFIG_DEFAULTS["prescreener_model"] == "claude-haiku-4-5-20251001"
+
+
+def test_get_agent_config_returns_prescreener_model():
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    assert "prescreener_model" in cfg
+    assert cfg["prescreener_model"] == "claude-haiku-4-5-20251001"

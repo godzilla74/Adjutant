@@ -1427,6 +1427,7 @@ def delete_directive_template(template_id: int) -> None:
 _AGENT_CONFIG_DEFAULTS = {
     "agent_model":                "claude-sonnet-4-6",
     "subagent_model":             "claude-sonnet-4-6",
+    "prescreener_model":          "claude-haiku-4-5-20251001",
     "agent_name":                 os.environ.get("AGENT_NAME", "Adjutant"),
     "google_oauth_client_id":     "",
     "google_oauth_client_secret": "",
