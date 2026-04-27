@@ -2,6 +2,7 @@
 """SQLite persistence — multi-product schema with WAL mode."""
 
 import json
+import logging
 import os
 import sqlite3
 from pathlib import Path
@@ -221,6 +222,8 @@ def init_db() -> None:
                 cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
                 created_at            TEXT    NOT NULL DEFAULT (datetime('now'))
             );
+            CREATE INDEX IF NOT EXISTS idx_token_usage_created_at
+                ON token_usage(created_at);
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -2032,7 +2035,6 @@ def record_token_usage(
                  fields["cache_read_tokens"], fields["cache_creation_tokens"]),
             )
     except Exception as exc:
-        import logging
         logging.getLogger(__name__).warning("record_token_usage failed: %s", exc)
 
 
