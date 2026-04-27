@@ -100,3 +100,39 @@ def test_get_token_usage_summary_empty(db):
     assert summary["totals"]["input_tokens"] == 0
     assert summary["by_call_type"] == {}
     assert summary["by_day"] == []
+
+
+@pytest.fixture
+def api_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    monkeypatch.setenv("AGENT_PASSWORD", "testpw")
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+
+    import backend.api as api_mod
+    importlib.reload(api_mod)
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    app = FastAPI()
+    app.include_router(api_mod.router)
+    return TestClient(app)
+
+
+def test_token_usage_endpoint_returns_summary(api_client):
+    resp = api_client.get(
+        "/api/token-usage?days=30",
+        headers={"X-Agent-Password": "testpw"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "totals" in body
+    assert "by_call_type" in body
+    assert "by_day" in body
+    assert body["period_days"] == 30
+    assert body["totals"]["input_tokens"] == 0
+
+
+def test_token_usage_endpoint_requires_auth(api_client):
+    resp = api_client.get("/api/token-usage")
+    assert resp.status_code == 401

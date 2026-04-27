@@ -253,6 +253,13 @@ def get_agent_config_api(_=Depends(_auth)):
     return get_agent_config()
 
 
+@router.get("/token-usage")
+def get_token_usage_endpoint(days: int = 30, _=Depends(_auth)):
+    from backend.db import get_token_usage_summary
+    days = max(1, min(365, days))
+    return get_token_usage_summary(days)
+
+
 @router.put("/agent-config")
 def update_agent_config_api(body: AgentConfigUpdate, _=Depends(_auth)):
     from backend.db import set_agent_config, get_agent_config
