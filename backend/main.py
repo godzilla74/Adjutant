@@ -54,6 +54,7 @@ from backend.db import (
     get_product_config,
     create_product as _create_product_db,
     list_oauth_connections,
+    record_token_usage as _record_token_usage,
 )
 from backend.api import router as api_router
 
@@ -738,6 +739,7 @@ async def _maybe_compact(product_id: str | None) -> None:
             ),
         }],
     )
+    _record_token_usage(product_id, "compaction", "anthropic", "claude-haiku-4-5-20251001", resp.usage)
     new_summary = resp.content[0].text.strip()
     save_conversation_summary(product_id, new_summary)
     delete_messages_by_ids(product_id, ids_to_remove)
@@ -826,6 +828,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 _live_cfg.get("prescreener_model", "claude-haiku-4-5-20251001")
             )
             _pre = await _prescreen(_last_user_msg_for_prescreener, _available_groups, client, _prescreener_model)
+            _record_token_usage(product_id, "prescreener", "anthropic", _prescreener_model, _pre.usage)
 
             if _pre.route == "haiku":
                 _ts_val = _ts()
@@ -879,6 +882,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
 
         try:
             final = await _run_stream(_stream_kwargs)
+            _record_token_usage(product_id, "agent", "anthropic", _agent_model, final.usage)
         except anthropic.BadRequestError as e:
             if _remote_mcp and "mcp" in str(e).lower():
                 # One or more remote MCP servers are misconfigured; retry without them
@@ -890,6 +894,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 fallback = {k: v for k, v in _stream_kwargs.items() if k not in ("extra_body", "extra_headers")}
                 accumulated_text = ""
                 final = await _run_stream(fallback)
+                _record_token_usage(product_id, "agent", "anthropic", _agent_model, final.usage)
             else:
                 raise
 

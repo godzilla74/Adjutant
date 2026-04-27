@@ -38,6 +38,7 @@ class PrescreerResult:
     route: Literal["haiku", "sonnet"]
     tool_groups: list[str] = field(default_factory=list)
     response: str | None = None
+    usage: object | None = None
 
 
 def _fallback(available_groups: list[str]) -> PrescreerResult:
@@ -69,7 +70,7 @@ async def prescreen(
             response = data.get("response", "")
             if not isinstance(response, str):
                 return _fallback(available_groups)
-            return PrescreerResult(route="haiku", response=response)
+            return PrescreerResult(route="haiku", response=response, usage=resp.usage)
 
         if route == "sonnet":
             groups = data.get("tool_groups", [])
@@ -77,7 +78,7 @@ async def prescreen(
                 return _fallback(available_groups)
             valid = set(available_groups)
             merged = list({"core"} | (set(groups) & valid))
-            return PrescreerResult(route="sonnet", tool_groups=merged)
+            return PrescreerResult(route="sonnet", tool_groups=merged, usage=resp.usage)
 
         return _fallback(available_groups)
 
