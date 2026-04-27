@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api'
 
 interface UsageSummary {
@@ -43,13 +43,17 @@ export default function TokenUsageSettings({ password }: Props) {
   const [period, setPeriod] = useState<Period>(30)
   const [data, setData] = useState<UsageSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const genRef = useRef(0)
 
   useEffect(() => {
+    const gen = ++genRef.current
     setLoading(true)
+    setError(null)
     api.getTokenUsage(password, period)
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      .then(d => { if (gen === genRef.current) setData(d) })
+      .catch(() => { if (gen === genRef.current) setError('Failed to load usage data.') })
+      .finally(() => { if (gen === genRef.current) setLoading(false) })
   }, [password, period])
 
   const totalInput = data?.totals.input_tokens ?? 0
@@ -83,6 +87,10 @@ export default function TokenUsageSettings({ password }: Props) {
       </div>
 
       {loading && <p className="text-adj-text-muted text-sm">Loading…</p>}
+
+      {!loading && error && (
+        <p className="text-red-400 text-sm">{error}</p>
+      )}
 
       {!loading && data && (
         <div className="flex flex-col gap-6">
