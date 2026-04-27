@@ -41,17 +41,21 @@ async def _run_claude_cli(
         "--model", SUBAGENT_MODEL,
         "--no-session-persistence",
     ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        env={**os.environ},
-        cwd=str(Path.home()),
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env={**os.environ},
+            cwd=str(Path.home()),
+        )
+    except FileNotFoundError:
+        return "Sub-agent failed: 'claude' executable not found on PATH."
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
         proc.kill()
+        await proc.communicate()
         return f"Sub-agent timed out after {timeout}s."
 
     raw = stdout.decode("utf-8", errors="replace").strip()
