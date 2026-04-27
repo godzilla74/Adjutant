@@ -121,7 +121,8 @@ This list is passed to the prescreener so it only suggests groups that actually 
 ### New file: `core/prescreener.py`
 
 ```python
-PRESCREENER_MODEL = os.environ.get("AGENT_PRESCREENER_MODEL", "claude-haiku-4-5-20251001")
+# Read fresh per invocation, consistent with agent_model and subagent_model
+prescreener_model = os.environ.get("AGENT_PRESCREENER_MODEL", _live_cfg["prescreener_model"])
 
 @dataclass
 class PrescreerResult:
@@ -183,6 +184,10 @@ _FALLBACK = PrescreerResult(route="sonnet", tool_groups=available_groups, respon
 
 Any exception, JSON decode error, missing keys, or unexpected `route` value returns the fallback. Behavior is identical to the current system — all tools loaded, Sonnet runs. No user-visible impact.
 
+### Model config
+
+`prescreener_model` is stored in the `agent_config` DB table alongside `agent_model` and `subagent_model`, defaulting to `claude-haiku-4-5-20251001`. It is editable in the Settings UI model selector (same section as the other two model fields). The `AGENT_PRESCREENER_MODEL` env var overrides the DB value, consistent with the existing pattern. Swappable to `gpt-4o-mini` when OpenAI lands.
+
 ---
 
 ## Files Changed
@@ -192,7 +197,9 @@ Any exception, JSON decode error, missing keys, or unexpected `route` value retu
 | `core/config.py` | Remove datetime from `get_system_prompt()`; make prompt fully static |
 | `core/tools.py` | Add `TOOL_GROUPS` dict; add `get_tools_for_groups()` |
 | `core/prescreener.py` | New file — `PrescreerResult`, `prescreen()` |
-| `backend/main.py` | Datetime injection, cache_control blocks, prescreener wiring |
+| `backend/db.py` | Add `prescreener_model` column to `agent_config`; update get/set helpers |
+| `backend/main.py` | Datetime injection, cache_control blocks, prescreener wiring; read `prescreener_model` from `_live_cfg` |
+| `frontend/src/components/SettingsSidebar.tsx` (or equivalent) | Add prescreener model selector alongside existing agent/subagent model fields |
 
 ---
 
