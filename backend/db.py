@@ -208,6 +208,19 @@ def init_db() -> None:
                 enabled        INTEGER NOT NULL DEFAULT 1,
                 PRIMARY KEY (extension_name, product_id)
             );
+
+            CREATE TABLE IF NOT EXISTS token_usage (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id            TEXT,
+                call_type             TEXT    NOT NULL,
+                provider              TEXT    NOT NULL DEFAULT 'anthropic',
+                model                 TEXT    NOT NULL,
+                input_tokens          INTEGER NOT NULL DEFAULT 0,
+                output_tokens         INTEGER NOT NULL DEFAULT 0,
+                cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
+                cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+                created_at            TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -1965,3 +1978,119 @@ def delete_capability_slot_definition(name: str) -> None:
             raise ValueError(f"Cannot delete system slot '{name}'.")
         conn.execute("DELETE FROM mcp_capability_overrides WHERE capability_slot = ?", (name,))
         conn.execute("DELETE FROM capability_slot_definitions WHERE name = ?", (name,))
+
+
+# ── Token usage tracking ──────────────────────────────────────────────────────
+
+def _normalize_usage(provider: str, usage) -> dict:
+    """Translate provider-specific usage object into a common field dict."""
+    try:
+        if provider == "anthropic":
+            return {
+                "input_tokens":          getattr(usage, "input_tokens", 0) or 0,
+                "output_tokens":         getattr(usage, "output_tokens", 0) or 0,
+                "cache_read_tokens":     getattr(usage, "cache_read_input_tokens", 0) or 0,
+                "cache_creation_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+            }
+        if provider == "openai":
+            details = getattr(usage, "prompt_tokens_details", None)
+            cached = 0
+            if details is not None:
+                cached = getattr(details, "cached_tokens", None)
+                if cached is None:
+                    cached = details.get("cached_tokens", 0) if isinstance(details, dict) else 0
+                cached = cached or 0
+            return {
+                "input_tokens":          getattr(usage, "prompt_tokens", 0) or 0,
+                "output_tokens":         getattr(usage, "completion_tokens", 0) or 0,
+                "cache_read_tokens":     cached,
+                "cache_creation_tokens": 0,
+            }
+    except Exception:
+        pass
+    return {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_creation_tokens": 0}
+
+
+def record_token_usage(
+    product_id: str | None,
+    call_type: str,
+    provider: str,
+    model: str,
+    usage,
+) -> None:
+    """Normalise and insert one usage row. Never raises — a failed write must not break an agent turn."""
+    try:
+        fields = _normalize_usage(provider, usage)
+        with _conn() as conn:
+            conn.execute(
+                """INSERT INTO token_usage
+                   (product_id, call_type, provider, model,
+                    input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (product_id, call_type, provider, model,
+                 fields["input_tokens"], fields["output_tokens"],
+                 fields["cache_read_tokens"], fields["cache_creation_tokens"]),
+            )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("record_token_usage failed: %s", exc)
+
+
+def get_token_usage_summary(days: int = 30) -> dict:
+    """Return aggregated token usage totals, by-call-type breakdown, and daily series."""
+    period = f"-{days} days"
+    with _conn() as conn:
+        type_rows = conn.execute(
+            """SELECT call_type,
+                      SUM(input_tokens)          AS input_tokens,
+                      SUM(output_tokens)         AS output_tokens,
+                      SUM(cache_read_tokens)     AS cache_read_tokens,
+                      SUM(cache_creation_tokens) AS cache_creation_tokens
+               FROM token_usage
+               WHERE created_at >= datetime('now', ?)
+               GROUP BY call_type""",
+            (period,),
+        ).fetchall()
+
+        day_rows = conn.execute(
+            """SELECT DATE(created_at)           AS date,
+                      SUM(input_tokens)          AS input_tokens,
+                      SUM(output_tokens)         AS output_tokens,
+                      SUM(cache_read_tokens)     AS cache_read_tokens,
+                      SUM(cache_creation_tokens) AS cache_creation_tokens
+               FROM token_usage
+               WHERE created_at >= datetime('now', ?)
+               GROUP BY DATE(created_at)
+               ORDER BY date""",
+            (period,),
+        ).fetchall()
+
+    by_call_type = {
+        r["call_type"]: {
+            "input_tokens":          r["input_tokens"] or 0,
+            "output_tokens":         r["output_tokens"] or 0,
+            "cache_read_tokens":     r["cache_read_tokens"] or 0,
+            "cache_creation_tokens": r["cache_creation_tokens"] or 0,
+        }
+        for r in type_rows
+    }
+
+    totals = {
+        "input_tokens":          sum(v["input_tokens"]          for v in by_call_type.values()),
+        "output_tokens":         sum(v["output_tokens"]         for v in by_call_type.values()),
+        "cache_read_tokens":     sum(v["cache_read_tokens"]     for v in by_call_type.values()),
+        "cache_creation_tokens": sum(v["cache_creation_tokens"] for v in by_call_type.values()),
+    }
+
+    by_day = [
+        {
+            "date":                  r["date"],
+            "input_tokens":          r["input_tokens"] or 0,
+            "output_tokens":         r["output_tokens"] or 0,
+            "cache_read_tokens":     r["cache_read_tokens"] or 0,
+            "cache_creation_tokens": r["cache_creation_tokens"] or 0,
+        }
+        for r in day_rows
+    ]
+
+    return {"period_days": days, "totals": totals, "by_call_type": by_call_type, "by_day": by_day}
