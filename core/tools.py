@@ -1641,36 +1641,56 @@ _INSTRUCTIONS = """{safe_instructions}"""
 
 
 async def execute(inputs: dict) -> str:
+    import asyncio
+    import json
     import os
-    from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-    from claude_agent_sdk._errors import ProcessError
-    from backend.db import get_agent_config
-    cfg = get_agent_config()
-    model = os.environ.get("AGENT_SUBAGENT_MODEL", cfg.get("subagent_model", "claude-sonnet-4-6"))
+    from pathlib import Path
 
     task = inputs.get("task", "")
     context = inputs.get("context", "")
     full_task = f"{{task}}\\n\\nContext: {{context}}" if context else task
 
-    stderr_lines: list = []
-    result = "Agent completed with no output."
+    cmd = [
+        "claude", "-p", full_task,
+        "--output-format", "json",
+        "--system-prompt", _INSTRUCTIONS,
+        "--permission-mode", "bypassPermissions",
+        "--no-session-persistence",
+    ]
     try:
-        async for message in query(
-            prompt=full_task,
-            options=ClaudeAgentOptions(
-                model=model,
-                max_turns=20,
-                permission_mode="bypassPermissions",
-                system_prompt=_INSTRUCTIONS,
-                stderr=lambda line: stderr_lines.append(line),
-            ),
-        ):
-            if isinstance(message, ResultMessage):
-                result = message.result
-    except ProcessError as e:
-        detail = "\\n".join(stderr_lines).strip() or str(e)
-        return f"Sub-agent process failed: {{detail}}"
-    return result
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env={{**os.environ}},
+            cwd=str(Path.home()),
+        )
+    except FileNotFoundError:
+        return "Sub-agent failed: 'claude' executable not found on PATH."
+
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=900)
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+        try:
+            await proc.communicate()
+        except (asyncio.TimeoutError, OSError):
+            pass
+        return "Sub-agent timed out after 900s."
+
+    raw = stdout.decode("utf-8", errors="replace").strip()
+    if proc.returncode != 0:
+        err = _.decode("utf-8", errors="replace").strip() if _ else ""
+        return f"Sub-agent process failed (exit {{proc.returncode}}): {{err or raw}}"
+
+    try:
+        data = json.loads(raw)
+        return data.get("result", raw)
+    except json.JSONDecodeError:
+        return raw
 '''
     (ext_dir / f"{tool_name}.py").write_text(code)
     from backend.db import add_extension_permission
