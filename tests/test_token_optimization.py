@@ -31,10 +31,14 @@ def test_tool_groups_calendar_tools():
 def test_tool_groups_social_tools():
     from core.tools import TOOL_GROUPS
     social = TOOL_GROUPS["social"]
-    assert "twitter_post" in social
+    assert "post_to_social" in social
     assert "draft_social_post" in social
     assert "generate_image" in social
     assert "search_stock_photo" in social
+    assert "twitter_post" not in social
+    assert "linkedin_post" not in social
+    assert "facebook_post" not in social
+    assert "instagram_post" not in social
 
 
 def test_get_tools_for_groups_always_includes_core(monkeypatch):
@@ -52,7 +56,7 @@ def test_get_tools_for_groups_always_includes_core(monkeypatch):
     assert "delegate_task" in names
     assert "save_note" in names
     # requested group present
-    assert "twitter_post" in names
+    assert "post_to_social" in names
     # unrequested groups excluded
     assert "gmail_send" not in names
     assert "calendar_list_events" not in names
@@ -215,3 +219,63 @@ def test_compute_available_groups_with_google_calendar():
     with patch("backend.main.list_oauth_connections", return_value=[{"service": "google_calendar"}]):
         groups = _compute_available_groups("prod-1")
     assert "calendar" in groups
+
+
+# ── Social tool consolidation ─────────────────────────────────────────────────
+
+def test_post_to_social_in_tool_groups():
+    from core.tools import TOOL_GROUPS
+    social = TOOL_GROUPS["social"]
+    assert "post_to_social" in social
+    # Old names must be gone
+    assert "twitter_post" not in social
+    assert "linkedin_post" not in social
+    assert "facebook_post" not in social
+    assert "instagram_post" not in social
+
+
+@pytest.mark.asyncio
+async def test_post_to_social_dispatches_twitter():
+    from unittest.mock import AsyncMock, patch
+    from core.tools import execute_tool
+    with patch("core.tools._twitter_post", new=AsyncMock(return_value="tweeted")) as mock_tw:
+        result = await execute_tool(
+            "post_to_social",
+            {"product_id": "p1", "platform": "twitter", "text": "hello"},
+        )
+    mock_tw.assert_called_once_with(product_id="p1", text="hello", media_url=None)
+    assert result == "tweeted"
+
+
+@pytest.mark.asyncio
+async def test_post_to_social_dispatches_instagram():
+    from unittest.mock import AsyncMock, patch
+    from core.tools import execute_tool
+    with patch("core.tools._instagram_post", new=AsyncMock(return_value="posted")) as mock_ig:
+        result = await execute_tool(
+            "post_to_social",
+            {"product_id": "p1", "platform": "instagram", "text": "my caption", "image_url": "https://img.example.com/photo.jpg"},
+        )
+    # instagram receives caption=text, image_url forwarded
+    mock_ig.assert_called_once_with(product_id="p1", caption="my caption", image_url="https://img.example.com/photo.jpg")
+    assert result == "posted"
+
+
+@pytest.mark.asyncio
+async def test_post_to_social_instagram_missing_image_url_returns_error():
+    from core.tools import execute_tool
+    result = await execute_tool(
+        "post_to_social",
+        {"product_id": "p1", "platform": "instagram", "text": "caption only"},
+    )
+    assert "image_url" in result.lower() or "required" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_post_to_social_unknown_platform_returns_error():
+    from core.tools import execute_tool
+    result = await execute_tool(
+        "post_to_social",
+        {"product_id": "p1", "platform": "tiktok", "text": "hello"},
+    )
+    assert "unknown" in result.lower() or "tiktok" in result.lower()

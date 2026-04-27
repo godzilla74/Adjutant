@@ -696,8 +696,7 @@ TOOL_GROUPS: dict[str, set[str]] = {
     "email": {"gmail_search", "gmail_read", "gmail_send", "gmail_draft"},
     "calendar": {"calendar_list_events", "calendar_create_event", "calendar_find_free_time"},
     "social": {
-        "draft_social_post", "twitter_post", "linkedin_post",
-        "facebook_post", "instagram_post", "generate_image", "search_stock_photo",
+        "draft_social_post", "post_to_social", "generate_image", "search_stock_photo",
     },
     "management": {
         "create_product", "update_product", "delete_product",
@@ -891,84 +890,26 @@ _CALENDAR_TOOLS = [
 ]
 
 
-_TWITTER_TOOLS = [
+_SOCIAL_TOOLS = [
     {
-        "name": "twitter_post",
+        "name": "post_to_social",
         "description": (
-            "Post a tweet to Twitter/X. Uses the API if a Twitter connection is configured; "
-            "otherwise automatically falls back to browser automation. "
-            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead. "
-            "Maximum 280 characters."
+            "Post to a social platform. Respects autonomy tier — creates a review item if set to 'approve'. "
+            "Instagram requires image_url."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose Twitter account to post from"},
-                "text": {"type": "string", "description": "Tweet text (max 280 characters)"},
-                "media_url": {"type": "string", "description": "Optional URL of image/video to attach"},
+                "product_id": {"type": "string", "description": "Product to post from"},
+                "platform": {
+                    "type": "string",
+                    "enum": ["twitter", "linkedin", "facebook", "instagram"],
+                    "description": "Target platform",
+                },
+                "text": {"type": "string", "description": "Post text (used as caption on Instagram)"},
+                "image_url": {"type": "string", "description": "Image URL (required for Instagram)"},
             },
-            "required": ["product_id", "text"],
-        },
-    },
-]
-
-_LINKEDIN_TOOLS = [
-    {
-        "name": "linkedin_post",
-        "description": (
-            "Publish a post to LinkedIn. Uses the API if a LinkedIn connection is configured; "
-            "otherwise automatically falls back to browser automation. "
-            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "product_id": {"type": "string", "description": "The product whose LinkedIn profile to post from"},
-                "text": {"type": "string", "description": "Post text"},
-                "media_url": {"type": "string", "description": "Optional URL of image to attach"},
-            },
-            "required": ["product_id", "text"],
-        },
-    },
-]
-
-_FACEBOOK_TOOLS = [
-    {
-        "name": "facebook_post",
-        "description": (
-            "Publish a post to Facebook. Uses the API if a Facebook connection is configured; "
-            "otherwise automatically falls back to browser automation. "
-            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "product_id": {"type": "string", "description": "The product whose Facebook Page to post to"},
-                "text": {"type": "string", "description": "Post text"},
-                "media_url": {"type": "string", "description": "Optional URL of image to attach"},
-            },
-            "required": ["product_id", "text"],
-        },
-    },
-]
-
-_INSTAGRAM_TOOLS = [
-    {
-        "name": "instagram_post",
-        "description": (
-            "Publish an image post to Instagram. Uses the API if an Instagram connection is configured; "
-            "otherwise automatically falls back to browser automation. "
-            "Requires an image URL — Instagram does not support text-only posts. "
-            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "product_id": {"type": "string", "description": "The product whose Instagram account to post to"},
-                "caption": {"type": "string", "description": "Post caption text"},
-                "image_url": {"type": "string", "description": "Publicly accessible URL of the image to post"},
-            },
-            "required": ["product_id", "caption", "image_url"],
+            "required": ["product_id", "platform", "text"],
         },
     },
 ]
@@ -985,13 +926,7 @@ def get_tools_for_product(product_id: str) -> list[dict]:
         tools.extend(_CALENDAR_TOOLS)
     # Social tools are always available — if no API connection is configured
     # the implementation falls back to browser automation automatically.
-    tools.extend(_TWITTER_TOOLS)
-    if "linkedin" in connections:
-        tools.extend(_LINKEDIN_TOOLS)
-    if "facebook" in connections:
-        tools.extend(_FACEBOOK_TOOLS)
-    if "instagram" in connections:
-        tools.extend(_INSTAGRAM_TOOLS)
+    tools.extend(_SOCIAL_TOOLS)
     return tools
 
 
@@ -1316,14 +1251,8 @@ async def execute_tool(name: str, inputs: dict, product_id: str | None = None) -
         return await _calendar_create_event(**inputs)
     if name == "calendar_find_free_time":
         return await _calendar_find_free_time(**inputs)
-    if name == "twitter_post":
-        return await _twitter_post(**inputs)
-    if name == "linkedin_post":
-        return await _linkedin_post(**inputs)
-    if name == "facebook_post":
-        return await _facebook_post(**inputs)
-    if name == "instagram_post":
-        return await _instagram_post(**inputs)
+    if name == "post_to_social":
+        return await _post_to_social(**inputs)
     if name == "search_stock_photo":
         return await _search_stock_photo(**inputs)
     if name == "generate_image":
@@ -1515,6 +1444,25 @@ async def _instagram_post(product_id: str, caption: str, image_url: str) -> str:
         f"Confirm the post was published."
     )
     return await execute_tool("browser_task", {"task": task})
+
+
+async def _post_to_social(
+    product_id: str,
+    platform: str,
+    text: str,
+    image_url: str | None = None,
+) -> str:
+    if platform == "twitter":
+        return await _twitter_post(product_id=product_id, text=text, media_url=image_url)
+    if platform == "linkedin":
+        return await _linkedin_post(product_id=product_id, text=text, media_url=image_url)
+    if platform == "facebook":
+        return await _facebook_post(product_id=product_id, text=text, media_url=image_url)
+    if platform == "instagram":
+        if not image_url:
+            return "image_url is required for Instagram posts."
+        return await _instagram_post(product_id=product_id, caption=text, image_url=image_url)
+    return f"Unknown platform: {platform}"
 
 
 def _save_note(title: str, content: str) -> str:
