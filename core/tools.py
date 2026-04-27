@@ -685,6 +685,49 @@ def get_extensions_for_product(product_id: str | None) -> list[dict]:
     enabled_names = get_product_extension_names(product_id)
     return [defn for name, defn in _EXTENSION_DEFS.items() if name in enabled_names]
 
+# ── Tool Groups ───────────────────────────────────────────────────────────────
+
+TOOL_GROUPS: dict[str, set[str]] = {
+    "core": {
+        "delegate_task", "save_note", "read_notes", "create_review_item",
+        "get_datetime", "shell_task", "list_uploads", "send_telegram_file",
+        "schedule_next_run",
+    },
+    "email": {"gmail_search", "gmail_read", "gmail_send", "gmail_draft"},
+    "calendar": {"calendar_list_events", "calendar_create_event", "calendar_find_free_time"},
+    "social": {
+        "draft_social_post", "twitter_post", "linkedin_post",
+        "facebook_post", "instagram_post", "generate_image", "search_stock_photo",
+    },
+    "management": {
+        "create_product", "update_product", "delete_product",
+        "create_workstream", "update_workstream_status", "delete_workstream",
+        "create_objective", "update_objective", "update_objective_progress",
+        "delete_objective", "set_objective_autonomous",
+    },
+    "system": {
+        "add_agent_tool", "find_skill", "install_skill", "restart_server",
+        "manage_mcp_server", "manage_capability_slots",
+        "report_wizard_progress", "complete_launch",
+    },
+}
+
+
+def get_tools_for_groups(groups: list[str], product_id: str | None) -> list[dict]:
+    """Return only the tools belonging to the requested groups (core always included).
+
+    Reuses get_tools_for_product() so OAuth/extension logic is not duplicated.
+    Extensions are always included regardless of group selection.
+    """
+    all_tools = get_tools_for_product(product_id) if product_id else get_global_tools()
+    ext_names = {t["name"] for t in get_extensions_for_product(product_id)} if product_id else set()
+
+    allowed: set[str] = set(TOOL_GROUPS.get("core", set()))
+    for g in groups:
+        allowed |= TOOL_GROUPS.get(g, set())
+
+    return [t for t in all_tools if t["name"] in allowed or t["name"] in ext_names]
+
 _DISPATCH_TOOL = {
     "name": "dispatch_to_product",
     "description": (
