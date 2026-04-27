@@ -601,62 +601,51 @@ def get_global_tools() -> list[dict]:
 _GMAIL_TOOLS = [
     {
         "name": "gmail_search",
-        "description": (
-            "Search the product's connected Gmail inbox. Returns message IDs matching the query. "
-            "Follow up with gmail_read to read specific messages. "
-            "Example queries: 'from:john@example.com', 'subject:invoice is:unread'."
-        ),
+        "description": "Search the product's Gmail inbox and return matching message IDs.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose Gmail account to search"},
+                "product_id": {"type": "string", "description": "Product's Gmail to search"},
                 "query": {"type": "string", "description": "Gmail search query"},
-                "max_results": {"type": "integer", "description": "Maximum messages to return (default 10)"},
+                "max_results": {"type": "integer", "description": "Max messages to return (default 10)"},
             },
             "required": ["product_id", "query"],
         },
     },
     {
         "name": "gmail_read",
-        "description": "Read the full content of a Gmail message by its ID. Returns sender, subject, date, and body.",
+        "description": "Read a Gmail message by ID and return its content.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose Gmail account to read from"},
-                "message_id": {"type": "string", "description": "Gmail message ID (from gmail_search results)"},
+                "product_id": {"type": "string", "description": "Product's Gmail account"},
+                "message_id": {"type": "string", "description": "Message ID from gmail_search"},
             },
             "required": ["product_id", "message_id"],
         },
     },
     {
         "name": "gmail_send",
-        "description": (
-            "Send an email from the product's connected Gmail account. "
-            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead of sending immediately. "
-            "Use thread_id to reply to an existing thread."
-        ),
+        "description": "Send an email from the product's Gmail. Respects autonomy tier — creates a review item if set to 'approve'.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose Gmail account to send from"},
+                "product_id": {"type": "string", "description": "Product's Gmail account"},
                 "to": {"type": "string", "description": "Recipient email address"},
                 "subject": {"type": "string", "description": "Email subject line"},
                 "body": {"type": "string", "description": "Plain text email body"},
-                "thread_id": {"type": "string", "description": "Optional: Gmail thread ID to reply within"},
+                "thread_id": {"type": "string", "description": "Thread ID to reply within (optional)"},
             },
             "required": ["product_id", "to", "subject", "body"],
         },
     },
     {
         "name": "gmail_draft",
-        "description": (
-            "Create a Gmail draft without sending it. Use when the user wants to compose but not send, "
-            "or when you want to prepare content for review."
-        ),
+        "description": "Create a Gmail draft without sending it.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose Gmail account to draft in"},
+                "product_id": {"type": "string", "description": "Product's Gmail account"},
                 "to": {"type": "string", "description": "Recipient email address"},
                 "subject": {"type": "string", "description": "Email subject line"},
                 "body": {"type": "string", "description": "Plain text email body"},
@@ -671,49 +660,45 @@ _GMAIL_TOOLS = [
 _CALENDAR_TOOLS = [
     {
         "name": "calendar_list_events",
-        "description": "List events on the product's Google Calendar between two ISO 8601 datetimes.",
+        "description": "List Google Calendar events between two datetimes.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose calendar to query"},
-                "start": {"type": "string", "description": "Start datetime in ISO 8601 format with timezone, e.g. '2026-04-18T00:00:00Z'"},
-                "end": {"type": "string", "description": "End datetime in ISO 8601 format with timezone"},
+                "product_id": {"type": "string", "description": "Product's Google Calendar"},
+                "start": {"type": "string", "description": "Start datetime, ISO 8601 with timezone"},
+                "end": {"type": "string", "description": "End datetime, ISO 8601 with timezone"},
             },
             "required": ["product_id", "start", "end"],
         },
     },
     {
         "name": "calendar_create_event",
-        "description": (
-            "Create a Google Calendar event for the product. "
-            "Respects the product's autonomy tier — if set to 'approve', creates a review item instead. "
-            "Use ISO 8601 datetimes with timezone for start and end."
-        ),
+        "description": "Create a Google Calendar event. Respects autonomy tier — creates a review item if set to 'approve'.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose calendar to add the event to"},
+                "product_id": {"type": "string", "description": "Product's Google Calendar"},
                 "title": {"type": "string", "description": "Event title"},
-                "start": {"type": "string", "description": "Start datetime in ISO 8601 format, e.g. '2026-04-18T10:00:00Z'"},
-                "end": {"type": "string", "description": "End datetime in ISO 8601 format"},
+                "start": {"type": "string", "description": "Start datetime, ISO 8601 with timezone"},
+                "end": {"type": "string", "description": "End datetime, ISO 8601 with timezone"},
                 "attendees": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional list of attendee email addresses",
+                    "description": "Attendee email addresses (optional)",
                 },
-                "description": {"type": "string", "description": "Optional event description or agenda"},
+                "description": {"type": "string", "description": "Event description or agenda (optional)"},
             },
             "required": ["product_id", "title", "start", "end"],
         },
     },
     {
         "name": "calendar_find_free_time",
-        "description": "Find free time slots on a specific date long enough for a meeting of the given duration.",
+        "description": "Find free time slots on a date long enough for a meeting.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {"type": "string", "description": "The product whose calendar to check"},
-                "date": {"type": "string", "description": "Date to check in YYYY-MM-DD format"},
+                "product_id": {"type": "string", "description": "Product's Google Calendar"},
+                "date": {"type": "string", "description": "Date to check, YYYY-MM-DD"},
                 "duration_minutes": {"type": "integer", "description": "Required meeting duration in minutes"},
             },
             "required": ["product_id", "date", "duration_minutes"],
