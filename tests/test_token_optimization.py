@@ -206,3 +206,11 @@ def test_compute_available_groups_with_social():
     with patch("backend.main.list_oauth_connections", return_value=[{"service": "twitter"}]):
         groups = _compute_available_groups("prod-1")
     assert "social" in groups
+
+
+def test_compute_available_groups_with_google_calendar():
+    from backend.main import _compute_available_groups
+    from unittest.mock import patch
+    with patch("backend.main.list_oauth_connections", return_value=[{"service": "google_calendar"}]):
+        groups = _compute_available_groups("prod-1")
+    assert "calendar" in groups
