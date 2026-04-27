@@ -313,7 +313,8 @@ async def _publish_social_draft(draft: dict) -> dict:
     except RuntimeError as e:
         return {"success": False, "error": str(e)}
 from core.config import get_system_prompt, get_global_system_prompt
-from core.tools import execute_tool, get_tools_for_product, get_global_tools, get_capability_override_context
+from core.tools import execute_tool, get_tools_for_product, get_tools_for_groups, get_global_tools, get_capability_override_context
+from core.prescreener import prescreen as _prescreen
 
 init_db()
 
@@ -807,6 +808,35 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     _agent_model = os.environ.get("AGENT_MODEL", _live_cfg["agent_model"])
     _runner.SUBAGENT_MODEL = os.environ.get("AGENT_SUBAGENT_MODEL", _live_cfg["subagent_model"])
 
+    messages = _inject_datetime(messages)
+
+    # Pre-screen user message with a cheap model to route simple replies
+    # and prune the tool list. Only applies to product agents.
+    if product_id is not None:
+        _available_groups = _compute_available_groups(product_id)
+        _last_user_msg = next(
+            (m["content"] for m in reversed(messages)
+             if m["role"] == "user" and isinstance(m.get("content"), str)),
+            "",
+        )
+        if _last_user_msg:
+            _prescreener_model = os.environ.get(
+                "AGENT_PRESCREENER_MODEL",
+                _live_cfg.get("prescreener_model", "claude-haiku-4-5-20251001")
+            )
+            _pre = await _prescreen(_last_user_msg, _available_groups, client, _prescreener_model)
+
+            if _pre.route == "haiku":
+                _ts_val = _ts()
+                await send_fn({"type": "agent_token", "product_id": product_id, "content": _pre.response})
+                await send_fn({"type": "agent_done", "product_id": product_id, "content": _pre.response, "ts": _ts_val})
+                messages = messages + [{"role": "assistant", "content": _pre.response, "ts": _ts_val}]
+                return messages, new_review_items
+
+            # Sonnet route: replace _all_tools with pruned list
+            _pruned = get_tools_for_groups(_pre.tool_groups, product_id)
+            _all_tools = [t for t in _pruned if t["name"] not in _suppress] + _stdio_tools
+
     while True:
         accumulated_text = ""
 
@@ -821,11 +851,12 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
             else:
                 clean_messages.append(msg)
 
+        _system_cached, _tools_cached = _add_cache_control(system, _all_tools)
         _stream_kwargs: dict = dict(
             model=_agent_model,
             max_tokens=8096,
-            system=system,
-            tools=_all_tools,
+            system=_system_cached,
+            tools=_tools_cached,
             messages=clean_messages,
         )
         if _remote_mcp:
