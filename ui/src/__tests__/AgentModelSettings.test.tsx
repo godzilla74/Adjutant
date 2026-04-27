@@ -1,14 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import AgentModelSettings from '../components/settings/AgentModelSettings'
-
-const mockConfig = {
-  agent_model: 'claude-sonnet-4-6',
-  subagent_model: 'claude-sonnet-4-6',
-  prescreener_model: 'claude-haiku-4-5-20251001',
-  agent_name: 'Adjutant',
-}
 
 vi.mock('../api', () => ({
   api: {
