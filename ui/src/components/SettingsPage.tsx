@@ -13,11 +13,12 @@ import RemoteAccessSettings from './settings/RemoteAccessSettings'
 import GlobalMCPSettings from './settings/GlobalMCPSettings'
 import ProductMCPSettings from './settings/ProductMCPSettings'
 import ImageGenerationSettings from './settings/ImageGenerationSettings'
+import TokenUsageSettings from './settings/TokenUsageSettings'
 
 export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp'
-  | 'agent-model' | 'google-oauth' | 'remote-access' | 'mcp' | 'image-generation'
+  | 'agent-model' | 'google-oauth' | 'remote-access' | 'mcp' | 'image-generation' | 'usage'
 
 interface Props {
   products: Product[]
@@ -51,6 +52,7 @@ const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'remote-access',     label: 'Remote Access',     icon: '📡' },
   { key: 'mcp',               label: 'MCP Servers',       icon: '⚡' },
   { key: 'image-generation',  label: 'Image Generation',  icon: '🖼' },
+  { key: 'usage',             label: 'Usage',             icon: '📊' },
 ]
 
 export default function SettingsPage({
@@ -101,6 +103,7 @@ export default function SettingsPage({
       case 'product-mcp':      return <ProductMCPSettings {...productCommon} />
       case 'mcp':              return <GlobalMCPSettings {...common} />
       case 'image-generation': return <ImageGenerationSettings {...common} />
+      case 'usage':            return <TokenUsageSettings {...common} />
     }
   }
 

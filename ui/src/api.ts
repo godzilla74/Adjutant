@@ -389,4 +389,12 @@ export const api = {
 
   deleteBrowserCredential: (pw: string, productId: string, service: string) =>
     apiFetch<void>(`/api/products/${productId}/browser-credentials/${service}`, pw, { method: 'DELETE' }),
+
+  getTokenUsage: (pw: string, days: number = 30) =>
+    apiFetch<{
+      period_days: number
+      totals: { input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }
+      by_call_type: Record<string, { input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>
+      by_day: Array<{ date: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>
+    }>(`/api/token-usage?days=${days}`, pw),
 }
