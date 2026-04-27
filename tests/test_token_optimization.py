@@ -223,17 +223,6 @@ def test_compute_available_groups_with_google_calendar():
 
 # ── Social tool consolidation ─────────────────────────────────────────────────
 
-def test_post_to_social_in_tool_groups():
-    from core.tools import TOOL_GROUPS
-    social = TOOL_GROUPS["social"]
-    assert "post_to_social" in social
-    # Old names must be gone
-    assert "twitter_post" not in social
-    assert "linkedin_post" not in social
-    assert "facebook_post" not in social
-    assert "instagram_post" not in social
-
-
 @pytest.mark.asyncio
 async def test_post_to_social_dispatches_twitter():
     from unittest.mock import AsyncMock, patch

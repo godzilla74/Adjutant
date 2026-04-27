@@ -195,6 +195,8 @@ def test_social_tools_not_in_tools_definitions():
     from core.tools import TOOLS_DEFINITIONS
     names = [t["name"] for t in TOOLS_DEFINITIONS]
     assert "twitter_post" not in names
+    assert "linkedin_post" not in names
+    assert "facebook_post" not in names
     assert "instagram_post" not in names
 
 

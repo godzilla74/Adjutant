@@ -924,8 +924,9 @@ def get_tools_for_product(product_id: str) -> list[dict]:
         tools.extend(_GMAIL_TOOLS)
     if "google_calendar" in connections:
         tools.extend(_CALENDAR_TOOLS)
-    # Social tools are always available — if no API connection is configured
-    # the implementation falls back to browser automation automatically.
+    # _SOCIAL_TOOLS is always included regardless of OAuth connections — the
+    # underlying helpers fall back to browser automation when no API connection
+    # is configured, so all platforms remain available unconditionally.
     tools.extend(_SOCIAL_TOOLS)
     return tools
 
