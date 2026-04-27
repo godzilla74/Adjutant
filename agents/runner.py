@@ -54,10 +54,13 @@ async def _run_claude_cli(
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
-        proc.kill()
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
         try:
             await proc.communicate()
-        except Exception:
+        except (asyncio.TimeoutError, OSError):
             pass
         return f"Sub-agent timed out after {timeout}s."
 
