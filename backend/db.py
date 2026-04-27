@@ -487,7 +487,7 @@ def init_db() -> None:
 
 
 _SYSTEM_SLOTS = [
-    ("social_post", "Social Posting", ["twitter_post", "linkedin_post", "facebook_post", "instagram_post", "draft_social_post"]),
+    ("social_post", "Social Posting", ["post_to_social", "draft_social_post"]),
     ("email_send",  "Email Sending",  ["send_email", "draft_email"]),
 ]
 

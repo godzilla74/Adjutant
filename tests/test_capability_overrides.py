@@ -85,7 +85,7 @@ def test_list_capability_slot_definitions_shape(db):
     social = next(s for s in slots if s["name"] == "social_post")
     assert social["label"] == "Social Posting"
     assert isinstance(social["built_in_tools"], list)
-    assert "twitter_post" in social["built_in_tools"]
+    assert "post_to_social" in social["built_in_tools"]
     assert social["is_system"] == 1
 
 
@@ -202,18 +202,14 @@ def test_capability_slots_covers_social_tools(db):
     slots = db.list_capability_slot_definitions()
     social = next((s for s in slots if s["name"] == "social_post"), None)
     assert social is not None
-    assert "twitter_post" in social["built_in_tools"]
-    assert "linkedin_post" in social["built_in_tools"]
-    assert "facebook_post" in social["built_in_tools"]
-    assert "instagram_post" in social["built_in_tools"]
+    assert "post_to_social" in social["built_in_tools"]
 
 
 def test_override_context_connected_server_suppresses_tools(db):
     db.set_capability_override("prod-1", "social_post", "ghl", ["mcp__ghl__social_post"])
     from core.tools import get_capability_override_context
     suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers={"ghl"})
-    assert "twitter_post" in suppress
-    assert "linkedin_post" in suppress
+    assert "post_to_social" in suppress
     assert disconnected == {}
 
 
@@ -222,8 +218,7 @@ def test_override_context_disconnected_server_marks_tools(db):
     from core.tools import get_capability_override_context
     suppress, disconnected = get_capability_override_context("prod-1", connected_mcp_servers=set())
     assert suppress == set()
-    assert disconnected["twitter_post"] == "ghl"
-    assert disconnected["linkedin_post"] == "ghl"
+    assert disconnected["post_to_social"] == "ghl"
 
 
 def test_override_context_no_overrides(db):
