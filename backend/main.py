@@ -831,6 +831,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 await send_fn({"type": "agent_token", "product_id": product_id, "content": _pre.response})
                 await send_fn({"type": "agent_done", "product_id": product_id, "content": _pre.response, "ts": _ts_val})
                 messages = messages + [{"role": "assistant", "content": _pre.response, "ts": _ts_val}]
+                save_message(product_id, "assistant", _pre.response, session_id)
                 return messages, new_review_items
 
             # Sonnet route: replace _all_tools with pruned list
