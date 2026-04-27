@@ -40,7 +40,7 @@ class PrescreerResult:
 
 
 def _fallback(available_groups: list[str]) -> PrescreerResult:
-    return PrescreerResult(route="sonnet", tool_groups=list(available_groups))
+    return PrescreerResult(route="sonnet", tool_groups=list({"core"} | set(available_groups)))
 
 
 async def prescreen(
