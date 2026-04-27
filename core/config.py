@@ -1,6 +1,5 @@
 # core/config.py
 import os
-from datetime import datetime
 
 
 
@@ -69,8 +68,6 @@ def get_system_prompt(product_id: str = "") -> str:
     owner_name = os.environ.get("AGENT_OWNER_NAME", "the user")
     owner_bio = os.environ.get("AGENT_OWNER_BIO", "")
 
-    current_dt = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-
     return f"""You are {agent_name}, the AI Executive Assistant to {owner_name}.
 
 {owner_bio}
@@ -133,9 +130,6 @@ Use this loop proactively when {owner_name} asks for something you can't do. Alw
 - Use formatting (headers, bullets) when it helps clarity
 
 {_product_context(product_id)}
-
-## Current Date & Time
-{current_dt}
 """
 
 
@@ -143,7 +137,6 @@ def get_global_system_prompt(products: list[dict]) -> str:
     agent_name = os.environ.get("AGENT_NAME", "Hannah")
     owner_name = os.environ.get("AGENT_OWNER_NAME", "the user")
     owner_bio = os.environ.get("AGENT_OWNER_BIO", "")
-    current_dt = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
 
     if products:
         try:
@@ -196,7 +189,4 @@ You operate at the global level across all products. You:
 ## Communication Style
 - Professional, direct, and concise — {owner_name} is busy
 - Lead with the answer or action, not background
-
-## Current Date & Time
-{current_dt}
 """

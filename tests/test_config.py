@@ -101,3 +101,22 @@ def test_system_prompt_includes_image_tools():
     prompt = get_system_prompt("prod-1")
     assert "generate_image" in prompt
     assert "search_stock_photo" in prompt
+
+
+def test_system_prompt_has_no_datetime(config_mod):
+    import re
+    prompt = config_mod.get_system_prompt("test-product")
+    assert "Current Date & Time" not in prompt
+    # Verify no formatted date pattern like "Monday, April 27, 2026"
+    assert not re.search(r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),", prompt)
+
+
+def test_global_system_prompt_has_no_datetime(monkeypatch):
+    monkeypatch.setenv("AGENT_NAME", "Hannah")
+    monkeypatch.setenv("AGENT_OWNER_NAME", "Justin")
+    monkeypatch.delenv("AGENT_OWNER_BIO", raising=False)
+    import core.config as mod
+    import importlib
+    importlib.reload(mod)
+    prompt = mod.get_global_system_prompt([])
+    assert "Current Date & Time" not in prompt
