@@ -1650,12 +1650,14 @@ async def execute(inputs: dict) -> str:
     context = inputs.get("context", "")
     full_task = f"{{task}}\\n\\nContext: {{context}}" if context else task
 
+    model = os.environ.get("AGENT_SUBAGENT_MODEL", "claude-sonnet-4-6")
     cmd = [
         "claude", "-p", full_task,
         "--output-format", "json",
         "--system-prompt", _INSTRUCTIONS,
         "--permission-mode", "bypassPermissions",
         "--no-session-persistence",
+        "--model", model,
     ]
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -1669,7 +1671,7 @@ async def execute(inputs: dict) -> str:
         return "Sub-agent failed: 'claude' executable not found on PATH."
 
     try:
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=900)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
     except asyncio.TimeoutError:
         try:
             proc.kill()
@@ -1683,7 +1685,7 @@ async def execute(inputs: dict) -> str:
 
     raw = stdout.decode("utf-8", errors="replace").strip()
     if proc.returncode != 0:
-        err = _.decode("utf-8", errors="replace").strip() if _ else ""
+        err = stderr.decode("utf-8", errors="replace").strip() if stderr else ""
         return f"Sub-agent process failed (exit {{proc.returncode}}): {{err or raw}}"
 
     try:
