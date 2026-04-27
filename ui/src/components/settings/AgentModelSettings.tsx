@@ -103,10 +103,7 @@ export default function AgentModelSettings({ password }: Props) {
         </div>
 
         <div>
-          <label
-            htmlFor="prescreener-model-select"
-            className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5"
-          >
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5" htmlFor="prescreener-model-select">
             Pre-screener (message routing)
           </label>
           <select
