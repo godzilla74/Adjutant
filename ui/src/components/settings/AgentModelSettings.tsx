@@ -14,6 +14,7 @@ const MODEL_OPTIONS = [
 export default function AgentModelSettings({ password }: Props) {
   const [agentModel, setAgentModel] = useState('claude-sonnet-4-6')
   const [subagentModel, setSubagentModel] = useState('claude-sonnet-4-6')
+  const [prescreenerModel, setPrescreenerModel] = useState('claude-haiku-4-5-20251001')
   const [agentName, setAgentName] = useState('Adjutant')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -25,6 +26,7 @@ export default function AgentModelSettings({ password }: Props) {
       .then(cfg => {
         setAgentModel(cfg.agent_model)
         setSubagentModel(cfg.subagent_model)
+        setPrescreenerModel(cfg.prescreener_model)
         setAgentName(cfg.agent_name)
       })
       .catch(() => {})
@@ -37,6 +39,7 @@ export default function AgentModelSettings({ password }: Props) {
       await api.updateAgentConfig(password, {
         agent_model: agentModel,
         subagent_model: subagentModel,
+        prescreener_model: prescreenerModel,
         agent_name: agentName,
       })
       setSaved(true)
@@ -91,6 +94,25 @@ export default function AgentModelSettings({ password }: Props) {
           <select
             value={subagentModel}
             onChange={e => setSubagentModel(e.target.value)}
+            className={inputCls}
+          >
+            {MODEL_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="prescreener-model-select"
+            className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5"
+          >
+            Pre-screener (message routing)
+          </label>
+          <select
+            id="prescreener-model-select"
+            value={prescreenerModel}
+            onChange={e => setPrescreenerModel(e.target.value)}
             className={inputCls}
           >
             {MODEL_OPTIONS.map(o => (

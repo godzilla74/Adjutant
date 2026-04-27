@@ -102,10 +102,10 @@ export const api = {
     apiFetch<void>(`/api/templates/${templateId}`, pw, { method: 'DELETE' }),
 
   getAgentConfig: (pw: string) =>
-    apiFetch<{ agent_model: string; subagent_model: string; agent_name: string }>('/api/agent-config', pw),
+    apiFetch<{ agent_model: string; subagent_model: string; prescreener_model: string; agent_name: string }>('/api/agent-config', pw),
 
-  updateAgentConfig: (pw: string, data: { agent_model?: string; subagent_model?: string; agent_name?: string }) =>
-    apiFetch<{ agent_model: string; subagent_model: string; agent_name: string }>('/api/agent-config', pw, {
+  updateAgentConfig: (pw: string, data: { agent_model?: string; subagent_model?: string; prescreener_model?: string; agent_name?: string }) =>
+    apiFetch<{ agent_model: string; subagent_model: string; prescreener_model: string; agent_name: string }>('/api/agent-config', pw, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
