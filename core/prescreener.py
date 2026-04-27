@@ -34,6 +34,7 @@ Always include "core" in tool_groups. Only include groups from the available lis
 
 @dataclass
 class PrescreerResult:
+    """Routing decision from the prescreener: respond directly or delegate to Sonnet."""
     route: Literal["haiku", "sonnet"]
     tool_groups: list[str] = field(default_factory=list)
     response: str | None = None
