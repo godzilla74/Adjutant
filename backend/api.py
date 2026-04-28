@@ -1248,3 +1248,93 @@ def update_anthropic_key_settings(body: AnthropicKeyUpdate, _=Depends(_auth)):
         "configured": bool(body.key),
         "masked": _mask_key(body.key),
     }
+
+
+# --- Available models ---
+
+_ANTHROPIC_FALLBACK = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+_OPENAI_FALLBACK = ["gpt-4o", "gpt-4o-mini", "o3-mini"]
+_OPENAI_EXCLUDE = frozenset([
+    "dall-e", "whisper", "tts", "embedding", "realtime", "audio",
+    "davinci", "babbage", "ada", "curie",
+])
+_MODELS_CACHE_TTL = 3600
+
+
+def _is_chat_model(model_id: str) -> bool:
+    mid = model_id.lower()
+    return not any(exc in mid for exc in _OPENAI_EXCLUDE)
+
+
+def _fetch_models_sync() -> dict:
+    """Fetch live model lists from Anthropic and OpenAI. Returns {anthropic: [...], openai: [...]}."""
+    import json as _json
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+
+    db_key = cfg.get("anthropic_api_key", "")
+    env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    ant_key = db_key or env_key or None
+
+    anthropic_models = list(_ANTHROPIC_FALLBACK)
+    if ant_key:
+        try:
+            import anthropic as _ant
+            page = _ant.Anthropic(api_key=ant_key).models.list()
+            anthropic_models = [m.id for m in page.data]
+        except Exception:
+            pass
+
+    openai_models: list[str] = []
+    openai_token = cfg.get("openai_access_token", "")
+    if openai_token:
+        try:
+            import openai as _oai
+            page = _oai.OpenAI(api_key=openai_token).models.list()
+            openai_models = sorted(m.id for m in page.data if _is_chat_model(m.id))
+        except Exception:
+            pass
+
+    return {"anthropic": anthropic_models, "openai": openai_models}
+
+
+def _get_cached_models(force: bool = False) -> dict:
+    """Return model list from cache, fetching live if stale/missing (or if force=True)."""
+    import datetime as _dt
+    import json as _json
+    from backend.db import get_agent_config, set_agent_config
+
+    cfg = get_agent_config()
+    cache_str = cfg.get("available_models_cache", "")
+    cache_ts = cfg.get("available_models_cache_updated_at", "")
+
+    if not force and cache_str and cache_ts:
+        try:
+            age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cache_ts)).total_seconds()
+            if age < _MODELS_CACHE_TTL:
+                return _json.loads(cache_str)
+        except Exception:
+            pass
+
+    try:
+        result = _fetch_models_sync()
+        set_agent_config("available_models_cache", _json.dumps(result))
+        set_agent_config("available_models_cache_updated_at", _dt.datetime.utcnow().isoformat())
+        return result
+    except Exception:
+        if cache_str:
+            try:
+                return _json.loads(cache_str)
+            except Exception:
+                pass
+        return {"anthropic": list(_ANTHROPIC_FALLBACK), "openai": []}
+
+
+@router.get("/available-models")
+def get_available_models(_=Depends(_auth)):
+    return _get_cached_models(force=False)
+
+
+@router.post("/available-models/refresh")
+def refresh_available_models(_=Depends(_auth)):
+    return _get_cached_models(force=True)
