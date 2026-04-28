@@ -1460,6 +1460,9 @@ _AGENT_CONFIG_DEFAULTS = {
     "linkedin_client_secret":     "",
     "meta_app_id":                "",
     "meta_app_secret":            "",
+    "anthropic_api_key":          "",
+    "available_models_cache":     "",
+    "available_models_cache_updated_at": "",
 }
 
 def get_agent_config() -> dict:
