@@ -20,6 +20,27 @@ const OPENAI_OPTIONS = [
 
 const ALL_OPTIONS = [...ANTHROPIC_OPTIONS, ...OPENAI_OPTIONS]
 
+const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent transition-colors'
+
+const ModelSelect = ({
+  value, onChange, globalDefault, hasOpenAI,
+}: { value: string; onChange: (v: string) => void; globalDefault: string; hasOpenAI: boolean }) => {
+  const defaultLabel = ALL_OPTIONS.find(o => o.value === globalDefault)?.label ?? globalDefault
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
+      <option value="">— Global default ({defaultLabel}) —</option>
+      <optgroup label="Anthropic">
+        {ANTHROPIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </optgroup>
+      {hasOpenAI && (
+        <optgroup label="OpenAI">
+          {OPENAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </optgroup>
+      )}
+    </select>
+  )
+}
+
 export default function ProductModelSettings({ password, productId }: Props) {
   const [agentModel, setAgentModel] = useState('')
   const [subagentModel, setSubagentModel] = useState('')
@@ -72,29 +93,8 @@ export default function ProductModelSettings({ password, productId }: Props) {
     }
   }
 
-  const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent transition-colors'
-
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
   if (error) return <p className="text-red-400 text-sm">{error}</p>
-
-  const ModelSelect = ({
-    value, onChange, globalDefault,
-  }: { value: string; onChange: (v: string) => void; globalDefault: string }) => {
-    const defaultLabel = ALL_OPTIONS.find(o => o.value === globalDefault)?.label ?? globalDefault
-    return (
-      <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
-        <option value="">— Global default ({defaultLabel}) —</option>
-        <optgroup label="Anthropic">
-          {ANTHROPIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </optgroup>
-        {hasOpenAI && (
-          <optgroup label="OpenAI">
-            {OPENAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </optgroup>
-        )}
-      </select>
-    )
-  }
 
   return (
     <div className="w-full">
@@ -106,21 +106,21 @@ export default function ProductModelSettings({ password, productId }: Props) {
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Main Agent Model
           </label>
-          <ModelSelect value={agentModel} onChange={setAgentModel} globalDefault={globalDefaults.agent_model} />
+          <ModelSelect value={agentModel} onChange={setAgentModel} globalDefault={globalDefaults.agent_model} hasOpenAI={hasOpenAI} />
         </div>
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Sub-agents
           </label>
-          <ModelSelect value={subagentModel} onChange={setSubagentModel} globalDefault={globalDefaults.subagent_model} />
+          <ModelSelect value={subagentModel} onChange={setSubagentModel} globalDefault={globalDefaults.subagent_model} hasOpenAI={hasOpenAI} />
         </div>
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Pre-screener
           </label>
-          <ModelSelect value={prescreenerModel} onChange={setPrescreenerModel} globalDefault={globalDefaults.prescreener_model} />
+          <ModelSelect value={prescreenerModel} onChange={setPrescreenerModel} globalDefault={globalDefaults.prescreener_model} hasOpenAI={hasOpenAI} />
         </div>
       </div>
 

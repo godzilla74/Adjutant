@@ -17,6 +17,21 @@ const OPENAI_OPTIONS = [
   { value: 'o3-mini',     label: 'o3-mini' },
 ]
 
+const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent transition-colors'
+
+const ModelSelect = ({ value, onChange, hasOpenAI }: { value: string; onChange: (v: string) => void; hasOpenAI: boolean }) => (
+  <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
+    <optgroup label="Anthropic">
+      {ANTHROPIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </optgroup>
+    {hasOpenAI && (
+      <optgroup label="OpenAI">
+        {OPENAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </optgroup>
+    )}
+  </select>
+)
+
 export default function AgentModelSettings({ password }: Props) {
   const [agentModel, setAgentModel] = useState('claude-sonnet-4-6')
   const [subagentModel, setSubagentModel] = useState('claude-sonnet-4-6')
@@ -26,9 +41,11 @@ export default function AgentModelSettings({ password }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
+    setError(null)
     api.getAgentConfig(password)
       .then(cfg => {
         setAgentModel(cfg.agent_model)
@@ -37,7 +54,7 @@ export default function AgentModelSettings({ password }: Props) {
         setAgentName(cfg.agent_name)
         setHasOpenAI(Boolean(cfg.openai_access_token))
       })
-      .catch(() => {})
+      .catch(() => setError('Failed to load model settings.'))
       .finally(() => setLoading(false))
   }, [password])
 
@@ -57,22 +74,8 @@ export default function AgentModelSettings({ password }: Props) {
     }
   }
 
-  const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent transition-colors'
-
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
-
-  const ModelSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
-      <optgroup label="Anthropic">
-        {ANTHROPIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </optgroup>
-      {hasOpenAI && (
-        <optgroup label="OpenAI">
-          {OPENAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </optgroup>
-      )}
-    </select>
-  )
+  if (error) return <p className="text-red-400 text-sm">{error}</p>
 
   return (
     <div className="w-full">
@@ -97,21 +100,21 @@ export default function AgentModelSettings({ password }: Props) {
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Main Agent Model
           </label>
-          <ModelSelect value={agentModel} onChange={setAgentModel} />
+          <ModelSelect value={agentModel} onChange={setAgentModel} hasOpenAI={hasOpenAI} />
         </div>
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Sub-agents (research, email, etc.)
           </label>
-          <ModelSelect value={subagentModel} onChange={setSubagentModel} />
+          <ModelSelect value={subagentModel} onChange={setSubagentModel} hasOpenAI={hasOpenAI} />
         </div>
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Pre-screener (message routing)
           </label>
-          <ModelSelect value={prescreenerModel} onChange={setPrescreenerModel} />
+          <ModelSelect value={prescreenerModel} onChange={setPrescreenerModel} hasOpenAI={hasOpenAI} />
         </div>
       </div>
 
