@@ -586,8 +586,13 @@ def delete_product(product_id: str) -> str:
         row = conn.execute("SELECT name FROM products WHERE id = ?", (product_id,)).fetchone()
         if not row:
             return f"Product '{product_id}' not found."
-        # Delete child records first (FK enforcement)
-        for table in ("messages", "review_items", "activity_events", "social_drafts", "objectives", "workstreams"):
+        # Delete child records first (non-cascade FKs must be cleared before the product row)
+        for table in (
+            "messages", "review_items", "activity_events", "social_drafts",
+            "objectives", "workstreams", "sessions",
+            "conversation_summaries", "directive_templates",
+            "product_notes", "directive_history",
+        ):
             conn.execute(f"DELETE FROM {table} WHERE product_id = ?", (product_id,))
         conn.execute("DELETE FROM products WHERE id = ?", (product_id,))
     return f"Deleted product: {row['name']}"
