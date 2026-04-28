@@ -205,23 +205,31 @@ async def test_openai_provider_create():
 
 
 @pytest.mark.asyncio
-async def test_openai_provider_skips_mcp_headers():
+async def test_openai_provider_stream_agent_warns_on_mcp_headers():
     from backend.provider import OpenAIProvider
-    import logging
+
     mock_client = MagicMock()
-    mock_resp = MagicMock()
-    mock_resp.choices = [MagicMock()]
-    mock_resp.choices[0].message.content = "ok"
-    mock_resp.usage = MagicMock()
-    mock_client.chat.completions.create = AsyncMock(return_value=mock_resp)
+
+    # Mock the async context manager for streaming
+    async def _empty_aiter(_self=None):
+        return
+        yield  # makes it an async generator
+
+    mock_stream = MagicMock()
+    mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+    mock_stream.__aexit__ = AsyncMock(return_value=False)
+    mock_stream.__aiter__ = _empty_aiter
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_stream)
 
     provider = OpenAIProvider(mock_client)
     with patch("backend.provider.logger") as mock_log:
-        await provider.create(
+        await provider.stream_agent(
             model="gpt-4o",
             system="",
             messages=[{"role": "user", "content": "hi"}],
+            tools=[],
             max_tokens=512,
+            on_text=AsyncMock(),
+            extra_headers={"anthropic-beta": "mcp-client-1.0"},
         )
-        # extra_headers/body not passed to create; no warning for create()
-    # stream_agent skips extra_headers — tested separately via integration
+        mock_log.warning.assert_called_once()

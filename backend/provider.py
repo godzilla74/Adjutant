@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Callable, Protocol, runtime_checkable
-
-if TYPE_CHECKING:
-    pass
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
