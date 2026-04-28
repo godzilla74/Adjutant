@@ -101,11 +101,28 @@ export const api = {
   deleteTemplate: (pw: string, templateId: number) =>
     apiFetch<void>(`/api/templates/${templateId}`, pw, { method: 'DELETE' }),
 
-  getAgentConfig: (pw: string) =>
-    apiFetch<{ agent_model: string; subagent_model: string; prescreener_model: string; agent_name: string }>('/api/agent-config', pw),
+  getAgentConfig: (pw: string, productId?: string) =>
+    apiFetch<{
+      agent_model: string
+      subagent_model: string
+      prescreener_model: string
+      agent_name: string
+      openai_access_token?: string
+    }>(`/api/agent-config${productId ? `?product_id=${encodeURIComponent(productId)}` : ''}`, pw),
 
-  updateAgentConfig: (pw: string, data: { agent_model?: string; subagent_model?: string; prescreener_model?: string; agent_name?: string }) =>
-    apiFetch<{ agent_model: string; subagent_model: string; prescreener_model: string; agent_name: string }>('/api/agent-config', pw, {
+  updateAgentConfig: (pw: string, data: {
+    agent_model?: string
+    subagent_model?: string
+    prescreener_model?: string
+    agent_name?: string
+    product_id?: string
+  }) =>
+    apiFetch<{
+      agent_model: string
+      subagent_model: string
+      prescreener_model: string
+      agent_name: string
+    }>('/api/agent-config', pw, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),

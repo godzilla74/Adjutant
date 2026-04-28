@@ -5,10 +5,16 @@ interface Props {
   password: string
 }
 
-const MODEL_OPTIONS = [
-  { value: 'claude-opus-4-6',            label: 'Opus 4.6 (best, ~$15/Mtok)' },
-  { value: 'claude-sonnet-4-6',          label: 'Sonnet 4.6 (fast, ~$3/Mtok)' },
-  { value: 'claude-haiku-4-5-20251001',  label: 'Haiku 4.5 (cheap, ~$0.80/Mtok)' },
+const ANTHROPIC_OPTIONS = [
+  { value: 'claude-opus-4-7',           label: 'Opus 4.7 (best)' },
+  { value: 'claude-sonnet-4-6',         label: 'Sonnet 4.6 (fast)' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5 (cheap)' },
+]
+
+const OPENAI_OPTIONS = [
+  { value: 'gpt-4o',      label: 'GPT-4o' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
+  { value: 'o3-mini',     label: 'o3-mini' },
 ]
 
 export default function AgentModelSettings({ password }: Props) {
@@ -16,6 +22,7 @@ export default function AgentModelSettings({ password }: Props) {
   const [subagentModel, setSubagentModel] = useState('claude-sonnet-4-6')
   const [prescreenerModel, setPrescreenerModel] = useState('claude-haiku-4-5-20251001')
   const [agentName, setAgentName] = useState('Adjutant')
+  const [hasOpenAI, setHasOpenAI] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -28,6 +35,7 @@ export default function AgentModelSettings({ password }: Props) {
         setSubagentModel(cfg.subagent_model)
         setPrescreenerModel(cfg.prescreener_model)
         setAgentName(cfg.agent_name)
+        setHasOpenAI(Boolean(cfg.openai_access_token))
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -53,6 +61,19 @@ export default function AgentModelSettings({ password }: Props) {
 
   if (loading) return <p className="text-adj-text-muted text-sm">Loading…</p>
 
+  const ModelSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
+      <optgroup label="Anthropic">
+        {ANTHROPIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </optgroup>
+      {hasOpenAI && (
+        <optgroup label="OpenAI">
+          {OPENAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </optgroup>
+      )}
+    </select>
+  )
+
   return (
     <div className="w-full">
       <h2 className="text-base font-bold text-adj-text-primary mb-1">Agent Model</h2>
@@ -76,46 +97,21 @@ export default function AgentModelSettings({ password }: Props) {
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Main Agent Model
           </label>
-          <select
-            value={agentModel}
-            onChange={e => setAgentModel(e.target.value)}
-            className={inputCls}
-          >
-            {MODEL_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <ModelSelect value={agentModel} onChange={setAgentModel} />
         </div>
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Sub-agents (research, email, etc.)
           </label>
-          <select
-            value={subagentModel}
-            onChange={e => setSubagentModel(e.target.value)}
-            className={inputCls}
-          >
-            {MODEL_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <ModelSelect value={subagentModel} onChange={setSubagentModel} />
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5" htmlFor="prescreener-model-select">
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Pre-screener (message routing)
           </label>
-          <select
-            id="prescreener-model-select"
-            value={prescreenerModel}
-            onChange={e => setPrescreenerModel(e.target.value)}
-            className={inputCls}
-          >
-            {MODEL_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <ModelSelect value={prescreenerModel} onChange={setPrescreenerModel} />
         </div>
       </div>
 
