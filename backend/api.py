@@ -844,6 +844,7 @@ class WizardPlanRequest(BaseModel):
 async def generate_wizard_plan(body: WizardPlanRequest, _=Depends(_auth)):
     """Use the configured LLM provider to derive workstream/objective suggestions from user intent."""
     import json as _json
+    import logging as _logging
     from backend.db import get_agent_config as _gac
     from backend.provider import make_provider as _make_provider
     intent = body.intent.strip()
@@ -852,11 +853,17 @@ async def generate_wizard_plan(body: WizardPlanRequest, _=Depends(_auth)):
 
     _cfg = _gac()
     _model = _cfg.get("agent_model") or "claude-haiku-4-5-20251001"
-    _provider = _make_provider(_model)
-    message = await _provider.create(
-        model=_model,
-        max_tokens=1024,
-        system="""You are helping set up an AI agent system. Given a user's description of what they want the system to do, suggest workstreams, objectives, and required integrations.
+    _logging.getLogger(__name__).info("[wizard-plan] using model=%s", _model)
+    try:
+        _provider = _make_provider(_model)
+    except Exception as _e:
+        _logging.getLogger(__name__).error("[wizard-plan] make_provider failed: %s", _e)
+        raise HTTPException(status_code=500, detail=f"Provider error: {_e}")
+    try:
+        message = await _provider.create(
+            model=_model,
+            max_tokens=1024,
+            system="""You are helping set up an AI agent system. Given a user's description of what they want the system to do, suggest workstreams, objectives, and required integrations.
 
 Respond with ONLY valid JSON in this exact format, no explanation:
 {
@@ -870,11 +877,14 @@ Respond with ONLY valid JSON in this exact format, no explanation:
 }
 
 The required_integrations list must only contain values from: gmail, google_calendar, twitter, linkedin, facebook, instagram.""",
-        messages=[{
-            "role": "user",
-            "content": intent,
-        }],
-    )
+            messages=[{
+                "role": "user",
+                "content": intent,
+            }],
+        )
+    except Exception as _e:
+        _logging.getLogger(__name__).error("[wizard-plan] provider.create failed: %s", _e)
+        raise HTTPException(status_code=502, detail=f"LLM error: {_e}")
 
     try:
         raw = message.content[0].text.strip()
@@ -890,7 +900,8 @@ The required_integrations list must only contain values from: gmail, google_cale
                 if i in ALLOWED_INTEGRATIONS
             ]
         return result
-    except Exception:
+    except Exception as _e:
+        _logging.getLogger(__name__).error("[wizard-plan] parse failed: %s", _e)
         raise HTTPException(status_code=500, detail="Failed to parse AI response")
 
 
@@ -1357,18 +1368,14 @@ def _fetch_models_sync() -> dict:
         except Exception:
             pass
 
-    openai_token = cfg.get("openai_access_token", "")
-    openai_api_key = cfg.get("openai_api_key", "")
+    openai_key = cfg.get("openai_api_key", "") or cfg.get("openai_access_token", "")
     openai_models: list[str] = []
-    if openai_token:
-        if openai_api_key:
-            try:
-                import openai as _oai
-                page = _oai.OpenAI(api_key=openai_api_key).models.list()
-                openai_models = sorted(m.id for m in page.data if _is_chat_model(m.id))
-            except Exception:
-                openai_models = list(_OPENAI_FALLBACK)
-        else:
+    if openai_key:
+        try:
+            import openai as _oai
+            page = _oai.OpenAI(api_key=openai_key).models.list()
+            openai_models = sorted(m.id for m in page.data if _is_chat_model(m.id))
+        except Exception:
             openai_models = list(_OPENAI_FALLBACK)
 
     return {"anthropic": anthropic_models, "openai": openai_models}

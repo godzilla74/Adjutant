@@ -156,19 +156,20 @@ class _OAICreateResponse:
 # ── Provider selection ─────────────────────────────────────────────────────────
 
 def get_provider_name(model: str) -> str:
-    if model.startswith(("gpt-", "o1", "o3")):
+    if model.startswith(("gpt-", "o1", "o3", "o4")):
         return "openai"
     return "anthropic"
 
 
 def get_openai_client():
-    """Return an AsyncOpenAI client using the stored OAuth token. Raises RuntimeError if absent."""
+    """Return an AsyncOpenAI client. Checks direct API key first, then OAuth token."""
     from backend.db import get_agent_config
     from openai import AsyncOpenAI
-    token = get_agent_config().get("openai_access_token", "")
-    if not token:
-        raise RuntimeError("OpenAI access token not configured. Connect via Settings → Image Generation.")
-    return AsyncOpenAI(api_key=token)
+    cfg = get_agent_config()
+    key = cfg.get("openai_api_key", "") or cfg.get("openai_access_token", "")
+    if not key:
+        raise RuntimeError("OpenAI API key not configured. Add your key via Settings → AI Models.")
+    return AsyncOpenAI(api_key=key)
 
 
 # ── Provider implementations ───────────────────────────────────────────────────
