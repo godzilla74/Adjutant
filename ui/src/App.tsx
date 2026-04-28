@@ -248,6 +248,7 @@ export default function App() {
       if (msg.type === 'launch_started') {
         setActiveProductId(msg.product_id)
         setShowOverview(false)
+        localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: msg.product_id }))
         const pending = pendingWizardRef.current
         pendingWizardRef.current = null
         if (pending) {
