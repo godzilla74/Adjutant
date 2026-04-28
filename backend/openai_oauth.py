@@ -195,3 +195,23 @@ def _exchange_tokens(code: str, verifier: str) -> str | None:
     except Exception as exc:
         logger.exception("OpenAI token exchange error")
         return str(exc)
+
+
+def run_oauth_flow_blocking(timeout_seconds: int = 300) -> bool:
+    """For use in the install wizard. Starts the callback server, prints the
+    auth URL, and blocks until the token is stored or the timeout expires.
+    Returns True on success, False on timeout."""
+    import time
+    from backend.db import get_agent_config
+    auth_url = build_auth_url()
+    start_callback_server()
+    print(f"\nOpen this URL in your browser to connect OpenAI:\n\n  {auth_url}\n")
+    print("Waiting for authentication (timeout: 5 minutes)…")
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        time.sleep(2)
+        if get_agent_config().get("openai_access_token"):
+            print("✓ OpenAI connected successfully.")
+            return True
+    print("Timed out waiting for OpenAI authentication.")
+    return False

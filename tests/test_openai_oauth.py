@@ -123,3 +123,57 @@ def test_image_generation_settings_save_pexels_key(client):
     # Verify it's now configured
     resp2 = client.get("/api/settings/image-generation", headers=AUTH)
     assert resp2.json()["pexels_configured"] is True
+
+
+def test_run_oauth_flow_blocking_returns_false_on_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+
+    import backend.openai_oauth as oai_mod
+    importlib.reload(oai_mod)
+
+    monkeypatch.setattr(oai_mod, "build_auth_url", lambda: "https://fake-auth-url")
+    monkeypatch.setattr(oai_mod, "start_callback_server", lambda: None)
+
+    import time as time_mod
+    call_n = [0]
+    def fake_time():
+        call_n[0] += 1
+        # First call sets deadline (deadline = 0 + 1 = 1), subsequent calls return 9999
+        return 0.0 if call_n[0] == 1 else 9999.0
+    monkeypatch.setattr(time_mod, "sleep", lambda s: None)
+    monkeypatch.setattr(time_mod, "time", fake_time)
+
+    result = oai_mod.run_oauth_flow_blocking(timeout_seconds=1)
+    assert result is False
+
+
+def test_run_oauth_flow_blocking_returns_true_when_token_stored(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+
+    import backend.openai_oauth as oai_mod
+    importlib.reload(oai_mod)
+
+    monkeypatch.setattr(oai_mod, "build_auth_url", lambda: "https://fake-auth-url")
+    monkeypatch.setattr(oai_mod, "start_callback_server", lambda: None)
+
+    import time as time_mod
+    sleep_calls = [0]
+    def fake_sleep(s):
+        sleep_calls[0] += 1
+        if sleep_calls[0] == 1:
+            db_mod.set_agent_config("openai_access_token", "sk-openai-test")
+    monkeypatch.setattr(time_mod, "sleep", fake_sleep)
+
+    times = iter([0.0, 1.0, 2.0, 3.0, 4.0])
+    monkeypatch.setattr(time_mod, "time", lambda: next(times))
+
+    result = oai_mod.run_oauth_flow_blocking(timeout_seconds=300)
+    assert result is True
