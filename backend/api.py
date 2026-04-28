@@ -1209,3 +1209,42 @@ async def update_image_generation_settings(body: dict, _=Depends(_auth)):
     if "pexels_api_key" in body:
         set_agent_config("pexels_api_key", body["pexels_api_key"])
     return {"ok": True}
+
+
+# ── Anthropic API key settings ────────────────────────────────────────────────
+
+class AnthropicKeyUpdate(BaseModel):
+    key: str
+
+
+def _mask_key(key: str) -> str:
+    """Return last-4-char masked version of an API key."""
+    if not key:
+        return ""
+    suffix = key[-4:] if len(key) >= 4 else key
+    if key.startswith("sk-ant-"):
+        return f"sk-ant-...{suffix}"
+    return f"...{suffix}"
+
+
+@router.get("/settings/anthropic-key")
+def get_anthropic_key_settings(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    db_key = cfg.get("anthropic_api_key", "")
+    env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    active_key = db_key or env_key
+    return {
+        "configured": bool(active_key),
+        "masked": _mask_key(active_key),
+    }
+
+
+@router.put("/settings/anthropic-key")
+def update_anthropic_key_settings(body: AnthropicKeyUpdate, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    set_agent_config("anthropic_api_key", body.key)
+    return {
+        "configured": bool(body.key),
+        "masked": _mask_key(body.key),
+    }
