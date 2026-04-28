@@ -175,6 +175,22 @@ set_agent_config('agent_model', 'gpt-4o')
 set_agent_config('subagent_model', 'gpt-4o')
 set_agent_config('prescreener_model', 'gpt-4o-mini')
 "
+        echo ""
+        echo "Adjutant uses a separate OpenAI API key to fetch the latest list of available"
+        echo "models. This is different from your ChatGPT login — it's a standard API key"
+        echo "(sk-...) from platform.openai.com. It is only used to call /v1/models and is"
+        echo "never used to run your agent or incur usage charges beyond that one read."
+        echo "You can add or rotate this key any time from Settings → Agent Model."
+        echo ""
+        read -p "OpenAI API key for model listing (optional, press Enter to skip): " OPENAI_API_KEY_VALUE
+        if [ -n "$OPENAI_API_KEY_VALUE" ]; then
+            AGENT_DB="$DB_FILE" OPENAI_KEY_VALUE="$OPENAI_API_KEY_VALUE" \
+                "$ADJUTANT_DIR/.venv/bin/python" -c "
+import sys, os; sys.path.insert(0, '$ADJUTANT_DIR')
+from backend.db import set_agent_config
+set_agent_config('openai_api_key', os.environ['OPENAI_KEY_VALUE'])
+"
+        fi
     else
         echo -e "${YELLOW}OpenAI connection timed out. Anthropic defaults will be used.${NC}"
         echo "Connect OpenAI after startup via Settings → Agent Model."

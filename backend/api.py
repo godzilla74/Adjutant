@@ -1217,6 +1217,10 @@ class AnthropicKeyUpdate(BaseModel):
     key: str
 
 
+class OpenAIKeyUpdate(BaseModel):
+    key: str
+
+
 def _mask_key(key: str) -> str:
     """Return last-4-char masked version of an API key."""
     if not key:
@@ -1224,6 +1228,8 @@ def _mask_key(key: str) -> str:
     suffix = key[-4:] if len(key) >= 4 else key
     if key.startswith("sk-ant-"):
         return f"sk-ant-...{suffix}"
+    if key.startswith("sk-"):
+        return f"sk-...{suffix}"
     return f"...{suffix}"
 
 
@@ -1244,6 +1250,27 @@ def get_anthropic_key_settings(_=Depends(_auth)):
 def update_anthropic_key_settings(body: AnthropicKeyUpdate, _=Depends(_auth)):
     from backend.db import set_agent_config
     set_agent_config("anthropic_api_key", body.key)
+    return {
+        "configured": bool(body.key),
+        "masked": _mask_key(body.key),
+    }
+
+
+@router.get("/settings/openai-key")
+def get_openai_key_settings(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    key = cfg.get("openai_api_key", "")
+    return {
+        "configured": bool(key),
+        "masked": _mask_key(key),
+    }
+
+
+@router.put("/settings/openai-key")
+def update_openai_key_settings(body: OpenAIKeyUpdate, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    set_agent_config("openai_api_key", body.key)
     return {
         "configured": bool(body.key),
         "masked": _mask_key(body.key),
@@ -1284,15 +1311,19 @@ def _fetch_models_sync() -> dict:
         except Exception:
             pass
 
-    openai_models: list[str] = []
     openai_token = cfg.get("openai_access_token", "")
+    openai_api_key = cfg.get("openai_api_key", "")
+    openai_models: list[str] = []
     if openai_token:
-        try:
-            import openai as _oai
-            page = _oai.OpenAI(api_key=openai_token).models.list()
-            openai_models = sorted(m.id for m in page.data if _is_chat_model(m.id))
-        except Exception:
-            pass
+        if openai_api_key:
+            try:
+                import openai as _oai
+                page = _oai.OpenAI(api_key=openai_api_key).models.list()
+                openai_models = sorted(m.id for m in page.data if _is_chat_model(m.id))
+            except Exception:
+                openai_models = list(_OPENAI_FALLBACK)
+        else:
+            openai_models = list(_OPENAI_FALLBACK)
 
     return {"anthropic": anthropic_models, "openai": openai_models}
 

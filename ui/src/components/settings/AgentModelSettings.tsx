@@ -19,6 +19,8 @@ const MODEL_LABELS: Record<string, string> = {
 
 const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent transition-colors'
 
+const keyInputCls = 'flex-1 bg-adj-elevated border border-adj-border rounded px-2 py-1.5 text-xs text-adj-text-primary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent font-mono'
+
 const ModelSelect = ({
   value, onChange, models, hasOpenAI,
 }: {
@@ -57,12 +59,19 @@ export default function AgentModelSettings({ password }: Props) {
   const [anthropicConfigured, setAnthropicConfigured] = useState(false)
   const [anthropicMasked, setAnthropicMasked] = useState('')
   const [newAnthropicKey, setNewAnthropicKey] = useState('')
-  const [savingKey, setSavingKey] = useState(false)
-  const [keySaved, setKeySaved] = useState(false)
-  const [keyError, setKeyError] = useState<string | null>(null)
+  const [savingAnthropicKey, setSavingAnthropicKey] = useState(false)
+  const [anthropicKeySaved, setAnthropicKeySaved] = useState(false)
+  const [anthropicKeyError, setAnthropicKeyError] = useState<string | null>(null)
 
   const [openaiConnected, setOpenaiConnected] = useState(false)
   const [connecting, setConnecting] = useState(false)
+
+  const [openaiKeyConfigured, setOpenaiKeyConfigured] = useState(false)
+  const [openaiKeyMasked, setOpenaiKeyMasked] = useState('')
+  const [newOpenAIKey, setNewOpenAIKey] = useState('')
+  const [savingOpenAIKey, setSavingOpenAIKey] = useState(false)
+  const [openaiKeySaved, setOpenaiKeySaved] = useState(false)
+  const [openaiKeyError, setOpenaiKeyError] = useState<string | null>(null)
 
   const [availableModels, setAvailableModels] = useState<{ anthropic: string[]; openai: string[] }>(
     { anthropic: ANTHROPIC_FALLBACK, openai: OPENAI_FALLBACK }
@@ -101,9 +110,10 @@ export default function AgentModelSettings({ password }: Props) {
     Promise.all([
       api.getAgentConfig(password),
       api.getAnthropicKeyStatus(password),
+      api.getOpenAIKeyStatus(password),
       api.getAvailableModels(password),
     ])
-      .then(([cfg, keyStatus, models]) => {
+      .then(([cfg, anthKeyStatus, oaiKeyStatus, models]) => {
         setAgentModel(cfg.agent_model)
         setSubagentModel(cfg.subagent_model)
         setPrescreenerModel(cfg.prescreener_model)
@@ -111,9 +121,14 @@ export default function AgentModelSettings({ password }: Props) {
         const oai = Boolean(cfg.openai_access_token)
         setHasOpenAI(oai)
         setOpenaiConnected(oai)
-        setAnthropicConfigured(keyStatus.configured)
-        setAnthropicMasked(keyStatus.masked)
-        setAvailableModels(models)
+        setAnthropicConfigured(anthKeyStatus.configured)
+        setAnthropicMasked(anthKeyStatus.masked)
+        setOpenaiKeyConfigured(oaiKeyStatus.configured)
+        setOpenaiKeyMasked(oaiKeyStatus.masked)
+        setAvailableModels({
+          anthropic: models.anthropic.length > 0 ? models.anthropic : ANTHROPIC_FALLBACK,
+          openai: oai && models.openai.length === 0 ? OPENAI_FALLBACK : models.openai,
+        })
       })
       .catch(() => setError('Failed to load model settings.'))
       .finally(() => setLoading(false))
@@ -137,19 +152,37 @@ export default function AgentModelSettings({ password }: Props) {
 
   async function saveAnthropicKey() {
     if (!newAnthropicKey.trim()) return
-    setSavingKey(true)
-    setKeyError(null)
+    setSavingAnthropicKey(true)
+    setAnthropicKeyError(null)
     try {
       const result = await api.updateAnthropicKey(password, newAnthropicKey.trim())
       setAnthropicConfigured(result.configured)
       setAnthropicMasked(result.masked)
       setNewAnthropicKey('')
-      setKeySaved(true)
-      setTimeout(() => setKeySaved(false), 2000)
+      setAnthropicKeySaved(true)
+      setTimeout(() => setAnthropicKeySaved(false), 2000)
     } catch (e: unknown) {
-      setKeyError((e as Error).message || 'Failed to save key')
+      setAnthropicKeyError((e as Error).message || 'Failed to save key')
     } finally {
-      setSavingKey(false)
+      setSavingAnthropicKey(false)
+    }
+  }
+
+  async function saveOpenAIKey() {
+    if (!newOpenAIKey.trim()) return
+    setSavingOpenAIKey(true)
+    setOpenaiKeyError(null)
+    try {
+      const result = await api.updateOpenAIKey(password, newOpenAIKey.trim())
+      setOpenaiKeyConfigured(result.configured)
+      setOpenaiKeyMasked(result.masked)
+      setNewOpenAIKey('')
+      setOpenaiKeySaved(true)
+      setTimeout(() => setOpenaiKeySaved(false), 2000)
+    } catch (e: unknown) {
+      setOpenaiKeyError((e as Error).message || 'Failed to save key')
+    } finally {
+      setSavingOpenAIKey(false)
     }
   }
 
@@ -218,27 +251,24 @@ export default function AgentModelSettings({ password }: Props) {
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${anthropicConfigured ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-sm font-medium text-adj-text-secondary">Anthropic</span>
-            {anthropicConfigured && anthropicMasked && (
-              <span className="text-xs text-adj-text-faint font-mono ml-auto">{anthropicMasked}</span>
-            )}
           </div>
           <div className="flex gap-2">
             <input
               type="password"
-              placeholder={anthropicConfigured ? 'Enter new key to update' : 'Paste Anthropic API key'}
+              placeholder={anthropicConfigured ? anthropicMasked : 'Paste Anthropic API key'}
               value={newAnthropicKey}
               onChange={e => setNewAnthropicKey(e.target.value)}
-              className="flex-1 bg-adj-elevated border border-adj-border rounded px-2 py-1.5 text-xs text-adj-text-primary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent"
+              className={keyInputCls}
             />
             <button
               onClick={saveAnthropicKey}
-              disabled={!newAnthropicKey.trim() || savingKey}
+              disabled={!newAnthropicKey.trim() || savingAnthropicKey}
               className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
-              {keySaved ? '✓ Saved' : savingKey ? 'Saving…' : 'Save'}
+              {anthropicKeySaved ? '✓ Saved' : savingAnthropicKey ? 'Saving…' : 'Save'}
             </button>
           </div>
-          {keyError && <p className="text-xs text-red-400">{keyError}</p>}
+          {anthropicKeyError && <p className="text-xs text-red-400">{anthropicKeyError}</p>}
         </div>
 
         {/* OpenAI card */}
@@ -247,26 +277,40 @@ export default function AgentModelSettings({ password }: Props) {
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${openaiConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-sm font-medium text-adj-text-secondary">OpenAI</span>
             <span className="text-xs text-adj-text-faint ml-1">{openaiConnected ? 'Connected' : 'Not connected'}</span>
+            <div className="ml-auto">
+              {openaiConnected ? (
+                <button onClick={disconnectOpenAI} className="text-xs text-red-400 hover:text-red-300 hover:underline">
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={connectOpenAI}
+                  disabled={connecting}
+                  className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {connecting ? 'Connecting…' : 'Connect'}
+                </button>
+              )}
+            </div>
           </div>
-          <div>
-            {openaiConnected ? (
-              <button
-                onClick={disconnectOpenAI}
-                className="text-xs text-red-400 hover:text-red-300 hover:underline"
-              >
-                Disconnect
-              </button>
-            ) : (
-              <button
-                onClick={connectOpenAI}
-                disabled={connecting}
-                className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {connecting ? 'Connecting…' : 'Connect with OpenAI'}
-              </button>
-            )}
+          <div className="flex gap-2">
+            <input
+              type="password"
+              placeholder={openaiKeyConfigured ? openaiKeyMasked : 'Paste OpenAI API key'}
+              value={newOpenAIKey}
+              onChange={e => setNewOpenAIKey(e.target.value)}
+              className={keyInputCls}
+            />
+            <button
+              onClick={saveOpenAIKey}
+              disabled={!newOpenAIKey.trim() || savingOpenAIKey}
+              className="px-3 py-1.5 text-xs bg-adj-accent hover:bg-adj-accent-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {openaiKeySaved ? '✓ Saved' : savingOpenAIKey ? 'Saving…' : 'Save'}
+            </button>
           </div>
-          <p className="text-[10px] text-adj-text-faint">Uses your ChatGPT account via Codex OAuth.</p>
+          {openaiKeyError && <p className="text-xs text-red-400">{openaiKeyError}</p>}
+          <p className="text-[10px] text-adj-text-faint">ChatGPT login for running tasks · API key for listing models</p>
         </div>
       </div>
 

@@ -84,8 +84,12 @@ export default function ProductModelSettings({ password, productId }: Props) {
           subagent_model: globalCfg.subagent_model,
           prescreener_model: globalCfg.prescreener_model,
         })
-        setHasOpenAI(Boolean(globalCfg.openai_access_token))
-        setAvailableModels(models)
+        const oai = Boolean(globalCfg.openai_access_token)
+        setHasOpenAI(oai)
+        setAvailableModels({
+          anthropic: models.anthropic.length > 0 ? models.anthropic : ANTHROPIC_FALLBACK,
+          openai: oai && models.openai.length === 0 ? OPENAI_FALLBACK : models.openai,
+        })
       })
       .catch(() => { if (gen === genRef.current) setError('Failed to load model settings.') })
       .finally(() => { if (gen === genRef.current) setLoading(false) })

@@ -431,4 +431,13 @@ export const api = {
     apiFetch<{ anthropic: string[]; openai: string[] }>('/api/available-models/refresh', pw, {
       method: 'POST',
     }),
+
+  getOpenAIKeyStatus: (pw: string) =>
+    apiFetch<{ configured: boolean; masked: string }>('/api/settings/openai-key', pw),
+
+  updateOpenAIKey: (pw: string, key: string) =>
+    apiFetch<{ configured: boolean; masked: string }>('/api/settings/openai-key', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ key }),
+    }),
 }
