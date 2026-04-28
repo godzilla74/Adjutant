@@ -46,9 +46,9 @@ def _product_context(product_id: str) -> str:
     brand_section = "\n### Brand Configuration\n" + "\n".join(brand_parts) if brand_parts else ""
 
     return f"""
-## Active Product Context: {config['name']}
+## Active Product Context: {config['name']} (id: {product_id})
 
-{owner_name} is currently focused on **{config['name']}**. All work you do, all agents you spawn, and all context you maintain should be scoped to this product unless {owner_name} explicitly asks otherwise.
+{owner_name} is currently focused on **{config['name']}** (product_id: `{product_id}`). All work you do, all agents you spawn, and all context you maintain should be scoped to this product unless {owner_name} explicitly asks otherwise.
 
 ### Workstreams
 {ws_lines}

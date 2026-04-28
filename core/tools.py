@@ -375,7 +375,7 @@ TOOLS_DEFINITIONS = [
                 "url":        {"type": "string", "description": "SSE/HTTP endpoint URL (remote only)"},
                 "command":    {"type": "string", "description": "Executable command (stdio only)"},
                 "args":       {"type": "array", "items": {"type": "string"}, "description": "Command arguments (stdio only)"},
-                "env":        {"type": "object", "description": "Auth headers (remote) or env vars (stdio)"},
+                "env":        {"type": "object", "description": "For remote: pass {\"authorization\": {\"type\": \"bearer\", \"token\": \"...\"}} and optionally {\"headers\": {\"locationId\": \"...\"}} for extra headers. For stdio: environment variables dict."},
                 "scope":      {"type": "string", "enum": ["global", "product"], "description": "global or product-scoped"},
                 "product_id": {"type": "string", "description": "Required when scope is 'product'"},
                 "server_id":  {"type": "integer", "description": "Required for remove, enable, disable"},
