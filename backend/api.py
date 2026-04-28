@@ -1331,7 +1331,8 @@ def update_openai_key_settings(body: OpenAIKeyUpdate, _=Depends(_auth)):
 # --- Available models ---
 
 _ANTHROPIC_FALLBACK = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
-_OPENAI_FALLBACK = ["gpt-4o", "gpt-4o-mini", "o3-mini"]
+_OPENAI_FALLBACK = ["gpt-4o", "gpt-4o-mini", "o3-mini"]  # Platform API users
+_CODEX_FALLBACK = ["codex-mini-latest", "o4-mini", "o3-mini", "o3"]  # ChatGPT OAuth users
 _OPENAI_EXCLUDE = frozenset([
     "dall-e", "whisper", "tts", "embedding", "realtime", "audio",
     "davinci", "babbage", "ada", "curie",
@@ -1363,12 +1364,20 @@ def _fetch_models_sync() -> dict:
         except Exception:
             pass
 
-    openai_key = cfg.get("openai_api_key", "") or cfg.get("openai_access_token", "")
+    access_token = cfg.get("openai_access_token", "")
+    openai_api_key = cfg.get("openai_api_key", "")
     openai_models: list[str] = []
-    if openai_key:
+
+    from backend.provider import _is_chatgpt_jwt as _is_jwt
+    if access_token and _is_jwt(access_token):
+        # ChatGPT OAuth user — Codex backend only supports its own model set
+        openai_models = list(_CODEX_FALLBACK)
+    elif openai_api_key or access_token:
+        # Platform API user — fetch live model list
+        platform_key = openai_api_key or access_token
         try:
             import openai as _oai
-            page = _oai.OpenAI(api_key=openai_key).models.list()
+            page = _oai.OpenAI(api_key=platform_key).models.list()
             openai_models = sorted(m.id for m in page.data if _is_chat_model(m.id))
         except Exception:
             openai_models = list(_OPENAI_FALLBACK)

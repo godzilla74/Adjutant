@@ -404,6 +404,17 @@ class OpenAIProvider:
         return _OAICreateResponse(text, resp.usage)
 
 
+_CODEX_MODELS = ["codex-mini-latest", "o4-mini", "o3-mini", "o3"]
+
+# Models the chatgpt.com Codex endpoint does not support — map to the default.
+_CODEX_MODEL_REMAP = {
+    "gpt-4o":      "codex-mini-latest",
+    "gpt-4o-mini": "codex-mini-latest",
+    "gpt-4":       "codex-mini-latest",
+    "gpt-4-turbo": "codex-mini-latest",
+}
+
+
 class ChatGPTProvider:
     """Provider for ChatGPT Plus/Pro OAuth users.
 
@@ -418,6 +429,13 @@ class ChatGPTProvider:
     def __init__(self, access_token: str, account_id: str) -> None:
         self._token = access_token
         self._account_id = account_id
+
+    def _resolve_model(self, model: str) -> str:
+        remapped = _CODEX_MODEL_REMAP.get(model)
+        if remapped:
+            logger.info("ChatGPTProvider: %s is not supported by Codex backend, using %s", model, remapped)
+            return remapped
+        return model
 
     def _headers(self, stream: bool = False) -> dict:
         h = {
@@ -450,7 +468,7 @@ class ChatGPTProvider:
 
         system_text, input_items = _translate_messages_to_responses_api(messages, system)
         body: dict = {
-            "model": model,
+            "model": self._resolve_model(model),
             "store": False,
             "stream": True,
             "instructions": system_text,
@@ -554,7 +572,7 @@ class ChatGPTProvider:
 
         system_text, input_items = _translate_messages_to_responses_api(messages, system)
         body = {
-            "model": model,
+            "model": self._resolve_model(model),
             "store": False,
             "stream": False,
             "instructions": system_text,
