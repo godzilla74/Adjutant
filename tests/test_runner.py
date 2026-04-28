@@ -1,6 +1,7 @@
 import asyncio
 import json
 import pytest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -119,6 +120,48 @@ async def test_extension_agent_uses_bypass_permissions_when_claude_available():
 
 
 @pytest.mark.asyncio
+async def test_extension_agent_uses_codex_when_claude_missing(tmp_path):
+    from agents.runner import run_extension_agent
+    output_file = tmp_path / "result.txt"
+
+    async def _fake_exec(*args, **kwargs):
+        # Write result to the -o output file path from the command args
+        cmd = list(args)
+        o_idx = cmd.index("-o")
+        Path(cmd[o_idx + 1]).write_text("codex result")
+        return _make_proc("", returncode=0)
+
+    with patch("agents.runner.shutil.which", return_value=None), \
+         patch("agents.runner._find_codex", return_value="/usr/bin/codex"), \
+         patch("agents.runner.asyncio.create_subprocess_exec", side_effect=_fake_exec), \
+         patch("backend.db.get_agent_config", return_value={"subagent_model": "gpt-4o", "openai_access_token": "tok"}):
+        result = await run_extension_agent("do a task", "be helpful")
+    assert result == "codex result"
+
+
+@pytest.mark.asyncio
+async def test_codex_cli_prepends_system_prompt_to_task():
+    from agents.runner import run_extension_agent
+    captured_cmd = []
+
+    async def _fake_exec(*args, **kwargs):
+        captured_cmd.extend(args)
+        Path(args[list(args).index("-o") + 1]).write_text("ok")
+        return _make_proc("", returncode=0)
+
+    with patch("agents.runner.shutil.which", return_value=None), \
+         patch("agents.runner._find_codex", return_value="/usr/bin/codex"), \
+         patch("agents.runner.asyncio.create_subprocess_exec", side_effect=_fake_exec), \
+         patch("backend.db.get_agent_config", return_value={"subagent_model": "gpt-4o", "openai_access_token": ""}):
+        await run_extension_agent("the task", "the instructions")
+
+    # The final positional arg should contain both system prompt and task
+    prompt_arg = captured_cmd[-1]
+    assert "the instructions" in prompt_arg
+    assert "the task" in prompt_arg
+
+
+@pytest.mark.asyncio
 async def test_extension_agent_falls_back_to_provider_when_claude_missing():
     from agents.runner import run_extension_agent
     mock_response = MagicMock()
@@ -126,6 +169,7 @@ async def test_extension_agent_falls_back_to_provider_when_claude_missing():
     mock_provider = MagicMock()
     mock_provider.create = AsyncMock(return_value=mock_response)
     with patch("agents.runner.shutil.which", return_value=None), \
+         patch("agents.runner._find_codex", return_value=None), \
          patch("backend.provider.make_provider", return_value=mock_provider), \
          patch("backend.db.get_agent_config", return_value={"subagent_model": "gpt-4o"}):
         result = await run_extension_agent("do a task", "be helpful")
