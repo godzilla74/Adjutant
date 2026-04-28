@@ -28,7 +28,7 @@ conversational acknowledgments, or short replies requiring no tools.
 Route to sonnet for: anything requiring tool use, task execution, accessing email/calendar/notes, \
 managing objectives or workstreams, complex reasoning, or anything you are uncertain about.
 
-Always include "core" in tool_groups. Only include groups from the available list provided.\
+Always include "core" and "system" in tool_groups. Only include groups from the available list provided.\
 """
 
 
@@ -77,7 +77,7 @@ async def prescreen(
             if not isinstance(groups, list):
                 return _fallback(available_groups)
             valid = set(available_groups)
-            merged = list({"core"} | (set(groups) & valid))
+            merged = list({"core", "system"} | (set(groups) & valid))
             return PrescreerResult(route="sonnet", tool_groups=merged, usage=resp.usage)
 
         return _fallback(available_groups)
