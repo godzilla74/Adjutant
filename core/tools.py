@@ -1450,58 +1450,12 @@ _INSTRUCTIONS = """{safe_instructions}"""
 
 
 async def execute(inputs: dict) -> str:
-    import asyncio
-    import json
-    import os
-    from pathlib import Path
+    from agents.runner import run_extension_agent
 
     task = inputs.get("task", "")
     context = inputs.get("context", "")
     full_task = f"{{task}}\\n\\nContext: {{context}}" if context else task
-
-    model = os.environ.get("AGENT_SUBAGENT_MODEL", "claude-sonnet-4-6")
-    cmd = [
-        "claude", "-p", full_task,
-        "--output-format", "json",
-        "--system-prompt", _INSTRUCTIONS,
-        "--permission-mode", "bypassPermissions",
-        "--no-session-persistence",
-        "--model", model,
-    ]
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env={{**os.environ}},
-            cwd=str(Path.home()),
-        )
-    except FileNotFoundError:
-        return "Sub-agent failed: 'claude' executable not found on PATH."
-
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
-    except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
-        try:
-            await proc.communicate()
-        except (asyncio.TimeoutError, OSError):
-            pass
-        return "Sub-agent timed out after 900s."
-
-    raw = stdout.decode("utf-8", errors="replace").strip()
-    if proc.returncode != 0:
-        err = stderr.decode("utf-8", errors="replace").strip() if stderr else ""
-        return f"Sub-agent process failed (exit {{proc.returncode}}): {{err or raw}}"
-
-    try:
-        data = json.loads(raw)
-        return data.get("result", raw)
-    except json.JSONDecodeError:
-        return raw
+    return await run_extension_agent(full_task, _INSTRUCTIONS)
 '''
     (ext_dir / f"{tool_name}.py").write_text(code)
     from backend.db import add_extension_permission

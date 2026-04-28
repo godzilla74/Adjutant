@@ -99,6 +99,35 @@ async def test_claude_not_on_path_returns_friendly_error():
 
 
 def test_runner_importable():
-    from agents.runner import run_research_agent, run_general_agent
+    from agents.runner import run_research_agent, run_general_agent, run_extension_agent
     assert callable(run_research_agent)
     assert callable(run_general_agent)
+    assert callable(run_extension_agent)
+
+
+@pytest.mark.asyncio
+async def test_extension_agent_uses_bypass_permissions_when_claude_available():
+    from agents.runner import run_extension_agent
+    proc = _make_proc(_success_json("done"))
+    with patch("agents.runner.shutil.which", return_value="/usr/bin/claude"), \
+         patch("agents.runner.asyncio.create_subprocess_exec", AsyncMock(return_value=proc)) as mock_exec:
+        await run_extension_agent("do a task", "be helpful")
+    args = list(mock_exec.call_args[0])
+    assert "--permission-mode" in args
+    assert "bypassPermissions" in args
+    assert "--allowedTools" not in args
+
+
+@pytest.mark.asyncio
+async def test_extension_agent_falls_back_to_provider_when_claude_missing():
+    from agents.runner import run_extension_agent
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="provider result")]
+    mock_provider = MagicMock()
+    mock_provider.create = AsyncMock(return_value=mock_response)
+    with patch("agents.runner.shutil.which", return_value=None), \
+         patch("backend.provider.make_provider", return_value=mock_provider), \
+         patch("backend.db.get_agent_config", return_value={"subagent_model": "gpt-4o"}):
+        result = await run_extension_agent("do a task", "be helpful")
+    assert result == "provider result"
+    mock_provider.create.assert_called_once()

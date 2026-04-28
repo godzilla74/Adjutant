@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -53,15 +54,19 @@ async def _run_claude_cli(
     allowed_tools: str,
     system_prompt: str,
     timeout: int = AGENT_TIMEOUT,
+    bypass_permissions: bool = False,
 ) -> str:
     cmd = [
         "claude", "-p", task,
         "--output-format", "json",
-        "--allowedTools", allowed_tools,
         "--system-prompt", system_prompt,
         "--model", _get_subagent_model(),
         "--no-session-persistence",
     ]
+    if bypass_permissions:
+        cmd += ["--permission-mode", "bypassPermissions"]
+    else:
+        cmd += ["--allowedTools", allowed_tools]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -106,3 +111,30 @@ async def run_research_agent(task: str) -> str:
 async def run_general_agent(task: str) -> str:
     """Spawn a general-purpose sub-agent (15-minute hard cap)."""
     return await _run_claude_cli(task, _GENERAL_TOOLS, _GENERAL_SYSTEM)
+
+
+async def run_extension_agent(task: str, system_prompt: str) -> str:
+    """Run a generated tool extension's sub-task.
+
+    Prefers the claude CLI (full file-system access via bypassPermissions).
+    Falls back to the configured provider API when claude is not on PATH —
+    this makes self-extension work for OpenAI users who don't have Claude Code.
+    """
+    if shutil.which("claude"):
+        return await _run_claude_cli(
+            task, "", system_prompt, bypass_permissions=True
+        )
+
+    # Provider API fallback — no file-system tools, but tasks still complete.
+    from backend.db import get_agent_config
+    from backend.provider import make_provider
+    cfg = get_agent_config()
+    model = cfg.get("subagent_model", _SUBAGENT_MODEL_FALLBACK)
+    provider = make_provider(model)
+    response = await provider.create(
+        model=model,
+        system=system_prompt,
+        messages=[{"role": "user", "content": task}],
+        max_tokens=4096,
+    )
+    return response.content[0].text
