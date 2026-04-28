@@ -842,34 +842,20 @@ class WizardPlanRequest(BaseModel):
 
 @router.post("/wizard-plan")
 async def generate_wizard_plan(body: WizardPlanRequest, _=Depends(_auth)):
-    """Generate workstream/objective suggestions from user intent.
-
-    Uses whichever provider has a direct API key configured.
-    Anthropic takes priority; OpenAI Platform API is used only if an explicit
-    openai_api_key is set. Codex CLI users do not have OpenAI Platform credits —
-    their agent work runs through the CLI, not this path.
-    """
+    """Generate workstream/objective suggestions from user intent using the configured provider."""
     import json as _json
     from backend.db import get_agent_config as _gac
-    from backend.provider import AnthropicProvider as _AntProv, OpenAIProvider as _OAIProv
+    from backend.provider import make_provider as _make_provider
     intent = body.intent.strip()
     if not intent:
         raise HTTPException(status_code=422, detail="intent is required")
 
     _cfg = _gac()
-    _ant_key = _cfg.get("anthropic_api_key", "")
-    _oai_key = _cfg.get("openai_api_key", "")
-
-    if _ant_key:
-        import anthropic as _ant
-        _provider = _AntProv(_ant.AsyncAnthropic(api_key=_ant_key))
-        _model = "claude-haiku-4-5-20251001"
-    elif _oai_key:
-        from openai import AsyncOpenAI as _AsyncOpenAI
-        _provider = _OAIProv(_AsyncOpenAI(api_key=_oai_key))
-        _model = "gpt-4o-mini"
-    else:
-        raise HTTPException(status_code=400, detail="No API key configured. Add an Anthropic or OpenAI API key in Settings → Agent Model.")
+    _model = _cfg.get("agent_model") or "claude-haiku-4-5-20251001"
+    try:
+        _provider = _make_provider(_model)
+    except Exception as _e:
+        raise HTTPException(status_code=500, detail=f"Provider not configured: {_e}")
     try:
         message = await _provider.create(
             model=_model,
