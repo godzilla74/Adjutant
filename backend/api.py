@@ -298,7 +298,6 @@ def update_agent_config_api(body: AgentConfigUpdate, _=Depends(_auth)):
 
     if body.agent_model is not None:
         set_agent_config("agent_model", body.agent_model)
-        main_module.AGENT_MODEL = body.agent_model
 
     if body.subagent_model is not None:
         set_agent_config("subagent_model", body.subagent_model)

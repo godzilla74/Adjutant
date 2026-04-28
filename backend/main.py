@@ -896,6 +896,8 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
             final = await _run_stream(_stream_kwargs)
             _record_token_usage(product_id, "agent", _provider.name, _agent_model, final.usage)
         except anthropic.BadRequestError as e:
+            # Note: this only fires for Anthropic providers. OpenAI providers skip
+            # remote MCP headers with a warning in stream_agent() instead.
             if _remote_mcp and "mcp" in str(e).lower():
                 # One or more remote MCP servers are misconfigured; retry without them
                 print(f"[mcp] BadRequestError with remote MCP servers: {e}", flush=True)
