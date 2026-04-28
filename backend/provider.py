@@ -242,7 +242,7 @@ class _SimpleUsage:
 # ── Provider selection helpers ─────────────────────────────────────────────────
 
 def get_provider_name(model: str) -> str:
-    if model.startswith(("gpt-", "o1", "o3", "o4")):
+    if model.startswith(("gpt-", "o1", "o3", "o4", "codex-")):
         return "openai"
     return "anthropic"
 
@@ -404,14 +404,16 @@ class OpenAIProvider:
         return _OAICreateResponse(text, resp.usage)
 
 
-_CODEX_MODELS = ["codex-mini-latest", "o4-mini", "o3-mini", "o3"]
-
-# Models the chatgpt.com Codex endpoint does not support — map to the default.
+# Models the chatgpt.com Codex endpoint does not support — map to a supported equivalent.
 _CODEX_MODEL_REMAP = {
-    "gpt-4o":      "codex-mini-latest",
-    "gpt-4o-mini": "codex-mini-latest",
-    "gpt-4":       "codex-mini-latest",
-    "gpt-4-turbo": "codex-mini-latest",
+    "gpt-4o":           "gpt-5.5",
+    "gpt-4o-mini":      "gpt-5.4-mini",
+    "gpt-4":            "gpt-5.5",
+    "gpt-4-turbo":      "gpt-5.5",
+    "codex-mini-latest": "gpt-5.5",  # legacy alias
+    "o4-mini":          "gpt-5.4-mini",
+    "o3-mini":          "gpt-5.4-mini",
+    "o3":               "gpt-5.5",
 }
 
 

@@ -16,7 +16,13 @@ const MODEL_LABELS: Record<string, string> = {
   'gpt-4o':                    'GPT-4o',
   'gpt-4o-mini':               'GPT-4o mini',
   'o3-mini':                   'o3-mini',
-  'codex-mini-latest':         'Codex mini (latest)',
+  'gpt-5.5':                   'GPT-5.5 (flagship)',
+  'gpt-5.4':                   'GPT-5.4',
+  'gpt-5.4-mini':              'GPT-5.4 mini',
+  'gpt-5.3-codex':             'GPT-5.3 Codex',
+  'gpt-5.3-codex-spark':       'GPT-5.3 Codex Spark',
+  'gpt-5.2':                   'GPT-5.2',
+  'codex-mini-latest':         'Codex mini (legacy)',
   'o4-mini':                   'o4-mini',
   'o3':                        'o3',
 }
@@ -141,10 +147,10 @@ export default function ProductModelSettings({ password, productId }: Props) {
         </button>
         <button
           onClick={() => {
-            const isCodex = availableModels.openai.includes('codex-mini-latest')
-            setAgentModel(isCodex ? 'codex-mini-latest' : 'gpt-4o')
-            setSubagentModel(isCodex ? 'codex-mini-latest' : 'gpt-4o')
-            setPrescreenerModel(isCodex ? 'codex-mini-latest' : 'gpt-4o-mini')
+            const isCodex = availableModels.openai.includes('gpt-5.5')
+            setAgentModel(isCodex ? 'gpt-5.5' : 'gpt-4o')
+            setSubagentModel(isCodex ? 'gpt-5.5' : 'gpt-4o')
+            setPrescreenerModel(isCodex ? 'gpt-5.4-mini' : 'gpt-4o-mini')
           }}
           disabled={!hasOpenAI}
           className="px-3 py-1.5 text-xs border border-adj-border rounded hover:bg-adj-elevated text-adj-text-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

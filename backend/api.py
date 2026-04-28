@@ -1332,7 +1332,7 @@ def update_openai_key_settings(body: OpenAIKeyUpdate, _=Depends(_auth)):
 
 _ANTHROPIC_FALLBACK = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
 _OPENAI_FALLBACK = ["gpt-4o", "gpt-4o-mini", "o3-mini"]  # Platform API users
-_CODEX_FALLBACK = ["codex-mini-latest", "o4-mini", "o3-mini", "o3"]  # ChatGPT OAuth users
+_CODEX_FALLBACK = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2"]  # ChatGPT OAuth users
 _OPENAI_EXCLUDE = frozenset([
     "dall-e", "whisper", "tts", "embedding", "realtime", "audio",
     "davinci", "babbage", "ada", "curie",
