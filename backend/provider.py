@@ -316,4 +316,6 @@ def make_provider(model: str) -> "AnthropicProvider | OpenAIProvider":
     if get_provider_name(model) == "openai":
         return OpenAIProvider(get_openai_client())
     import anthropic as _anthropic
-    return AnthropicProvider(_anthropic.AsyncAnthropic())
+    from backend.db import get_agent_config as _gac
+    _key = _gac().get("anthropic_api_key") or None  # None → SDK reads env var
+    return AnthropicProvider(_anthropic.AsyncAnthropic(api_key=_key))

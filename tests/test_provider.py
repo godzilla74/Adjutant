@@ -233,3 +233,47 @@ async def test_openai_provider_stream_agent_warns_on_mcp_headers():
             extra_headers={"anthropic-beta": "mcp-client-1.0"},
         )
         mock_log.warning.assert_called_once()
+
+
+def test_make_provider_passes_db_key_to_anthropic(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    db_mod.set_agent_config("anthropic_api_key", "sk-ant-db-key")
+
+    captured = {}
+
+    class FakeAnthropic:
+        def __init__(self, api_key=None):
+            captured["api_key"] = api_key
+
+    import backend.provider as prov
+    importlib.reload(prov)
+    monkeypatch.setattr("anthropic.AsyncAnthropic", FakeAnthropic)
+
+    prov.make_provider("claude-sonnet-4-6")
+    assert captured["api_key"] == "sk-ant-db-key"
+
+
+def test_make_provider_passes_none_when_no_db_key(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import importlib
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    # anthropic_api_key is empty string in DB by default
+
+    captured = {}
+
+    class FakeAnthropic:
+        def __init__(self, api_key=None):
+            captured["api_key"] = api_key
+
+    import backend.provider as prov
+    importlib.reload(prov)
+    monkeypatch.setattr("anthropic.AsyncAnthropic", FakeAnthropic)
+
+    prov.make_provider("claude-sonnet-4-6")
+    assert captured["api_key"] is None  # SDK reads ANTHROPIC_API_KEY env var
