@@ -21,6 +21,13 @@ def _auth(x_agent_password: str | None = Header(None, alias="X-Agent-Password"))
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
+class ProductCreate(BaseModel):
+    id:         str
+    name:       str
+    icon_label: str
+    color:      str
+
+
 class ProductConfigUpdate(BaseModel):
     name:            str | None = None
     icon_label:      str | None = None
@@ -105,6 +112,13 @@ class CapabilitySlotBody(BaseModel):
 
 
 # ── Product config ────────────────────────────────────────────────────────────
+
+@router.post("/products", status_code=201)
+def create_product_api(body: ProductCreate, _=Depends(_auth)):
+    from backend.db import create_product, get_product_config
+    create_product(body.id, body.name, body.icon_label, body.color)
+    return get_product_config(body.id)
+
 
 @router.get("/products/{product_id}/config")
 def get_config(product_id: str, _=Depends(_auth)):
@@ -245,11 +259,16 @@ class AgentConfigUpdate(BaseModel):
     subagent_model:    str | None = None
     prescreener_model: str | None = None
     agent_name:        str | None = None
+    product_id:        str | None = None  # when set, writes per-product override
 
 
 @router.get("/agent-config")
-def get_agent_config_api(_=Depends(_auth)):
-    from backend.db import get_agent_config
+def get_agent_config_api(product_id: str | None = None, _=Depends(_auth)):
+    from backend.db import get_agent_config, get_product_model_config
+    if product_id:
+        global_cfg = get_agent_config()
+        model_cfg = get_product_model_config(product_id)
+        return {**global_cfg, **model_cfg}
     return get_agent_config()
 
 
@@ -262,9 +281,18 @@ def get_token_usage_endpoint(days: int = 30, _=Depends(_auth)):
 
 @router.put("/agent-config")
 def update_agent_config_api(body: AgentConfigUpdate, _=Depends(_auth)):
-    from backend.db import set_agent_config, get_agent_config
+    from backend.db import set_agent_config, get_agent_config, get_product_model_config, set_product_model_config
     import agents.runner as runner
     import backend.main as main_module
+
+    if body.product_id:
+        set_product_model_config(
+            body.product_id,
+            **({} if body.agent_model is None else {"agent_model": body.agent_model}),
+            **({} if body.subagent_model is None else {"subagent_model": body.subagent_model}),
+            **({} if body.prescreener_model is None else {"prescreener_model": body.prescreener_model}),
+        )
+        return get_product_model_config(body.product_id)
 
     if body.agent_model is not None:
         set_agent_config("agent_model", body.agent_model)

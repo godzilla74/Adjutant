@@ -136,3 +136,39 @@ def test_token_usage_endpoint_returns_summary(api_client):
 def test_token_usage_endpoint_requires_auth(api_client):
     resp = api_client.get("/api/token-usage")
     assert resp.status_code == 401
+
+
+def test_agent_config_per_product(api_client, tmp_path, monkeypatch):
+    """GET /api/agent-config?product_id= returns per-product resolved config."""
+    # Create a product first
+    resp = api_client.post(
+        "/api/products",
+        json={"id": "test-p1", "name": "Test", "icon_label": "T", "color": "#fff"},
+        headers={"X-Agent-Password": "testpw"},
+    )
+    # GET per-product config — should return global defaults
+    resp = api_client.get(
+        "/api/agent-config?product_id=test-p1",
+        headers={"X-Agent-Password": "testpw"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "agent_model" in body
+    assert "subagent_model" in body
+    assert "prescreener_model" in body
+
+    # PUT per-product override
+    resp = api_client.put(
+        "/api/agent-config",
+        json={"product_id": "test-p1", "agent_model": "gpt-4o"},
+        headers={"X-Agent-Password": "testpw"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["agent_model"] == "gpt-4o"
+
+    # GET again — should reflect the override
+    resp = api_client.get(
+        "/api/agent-config?product_id=test-p1",
+        headers={"X-Agent-Password": "testpw"},
+    )
+    assert resp.json()["agent_model"] == "gpt-4o"
