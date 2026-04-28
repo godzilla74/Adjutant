@@ -34,6 +34,7 @@ interface Props {
   onWorkstreamUpdated: (wsId: number, patch: Partial<Workstream>) => void
   onObjectiveUpdated: (objId: number, patch: Partial<Objective>) => void
   onProductUpdated: (productId: string, updates: { name?: string; icon_label?: string; color?: string }) => void
+  onProductDeleted: (productId: string) => void
 }
 
 const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
@@ -61,7 +62,7 @@ export default function SettingsPage({
   products, activeProductId, productStates, password,
   initialTab = 'overview',
   onClose, onSwitchProduct, onNewProduct, onRefreshData,
-  onWorkstreamUpdated, onObjectiveUpdated, onProductUpdated,
+  onWorkstreamUpdated, onObjectiveUpdated, onProductUpdated, onProductDeleted,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [settingsProductId, setSettingsProductId] = useState(activeProductId)
@@ -93,7 +94,7 @@ export default function SettingsPage({
     const common = { password }
     const productCommon = { ...common, productId: settingsProductId }
     switch (tab) {
-      case 'overview':      return <OverviewSettings product={activeProduct} onRefresh={() => onRefreshData(settingsProductId)} onProductUpdated={updates => onProductUpdated(settingsProductId, updates)} {...common} />
+      case 'overview':      return <OverviewSettings product={activeProduct} onRefresh={() => onRefreshData(settingsProductId)} onProductUpdated={updates => onProductUpdated(settingsProductId, updates)} onProductDeleted={() => onProductDeleted(settingsProductId)} {...common} />
       case 'workstreams':   return <WorkstreamsSettings workstreams={activeState?.workstreams ?? []} onWorkstreamUpdated={onWorkstreamUpdated} onRefresh={() => onRefreshData(settingsProductId)} {...productCommon} />
       case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
       case 'autonomy':      return <AutonomySettings {...productCommon} />

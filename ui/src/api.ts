@@ -21,6 +21,9 @@ async function apiFetch<T>(
 }
 
 export const api = {
+  deleteProduct: (pw: string, productId: string) =>
+    apiFetch<void>(`/api/products/${productId}`, pw, { method: 'DELETE' }),
+
   getProductConfig: (pw: string, productId: string) =>
     apiFetch<ProductConfig>(`/api/products/${productId}/config`, pw),
 

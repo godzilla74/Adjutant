@@ -113,6 +113,14 @@ class CapabilitySlotBody(BaseModel):
 
 # ── Product config ────────────────────────────────────────────────────────────
 
+@router.delete("/products/{product_id}", status_code=204)
+def delete_product_api(product_id: str, _=Depends(_auth)):
+    from backend.db import delete_product
+    result = delete_product(product_id)
+    if "not found" in result:
+        raise HTTPException(status_code=404, detail=result)
+
+
 @router.post("/products", status_code=201)
 def create_product_api(body: ProductCreate, _=Depends(_auth)):
     from backend.db import create_product, get_product_config

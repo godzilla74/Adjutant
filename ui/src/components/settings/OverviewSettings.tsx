@@ -7,14 +7,17 @@ interface Props {
   password: string
   onRefresh: () => void
   onProductUpdated: (updates: { name?: string; icon_label?: string; color?: string }) => void
+  onProductDeleted: () => void
 }
 
 const COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#06b6d4']
 
-export default function OverviewSettings({ product, password, onRefresh, onProductUpdated }: Props) {
+export default function OverviewSettings({ product, password, onRefresh, onProductUpdated, onProductDeleted }: Props) {
   const [config, setConfig] = useState<Partial<ProductConfig>>({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!product) return
@@ -118,6 +121,45 @@ export default function OverviewSettings({ product, password, onRefresh, onProdu
       >
         {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Changes'}
       </button>
+
+      {/* Danger Zone */}
+      <div className="mt-10 pt-6 border-t border-red-900/40">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-red-500 mb-3">Danger Zone</h3>
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="px-4 py-2 border border-red-800 text-red-400 rounded-md text-sm hover:bg-red-950/40 transition-colors"
+          >
+            Delete product…
+          </button>
+        ) : (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-red-400">Delete <strong>{product.name}</strong> and all its data? This cannot be undone.</span>
+            <button
+              onClick={async () => {
+                setDeleting(true)
+                try {
+                  await api.deleteProduct(password, product.id)
+                  onProductDeleted()
+                } finally {
+                  setDeleting(false)
+                  setConfirmDelete(false)
+                }
+              }}
+              disabled={deleting}
+              className="px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              {deleting ? 'Deleting…' : 'Yes, delete'}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="px-3 py-1.5 text-xs text-adj-text-muted hover:text-adj-text-secondary transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

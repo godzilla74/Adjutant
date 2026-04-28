@@ -628,6 +628,13 @@ export default function App() {
             onProductUpdated={(productId, updates) =>
               setProducts(prev => prev.map(p => p.id === productId ? { ...p, ...updates } : p))
             }
+            onProductDeleted={(productId) => {
+              setProducts(prev => prev.filter(p => p.id !== productId))
+              setProductStates(prev => { const next = { ...prev }; delete next[productId]; return next })
+              if (activeProductId === productId) setActiveProductId('')
+              setSettingsOpen(false)
+              setShowOverview(true)
+            }}
           />
         ) : showOverview ? (
           <div className="flex flex-1 overflow-hidden">
