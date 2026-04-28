@@ -322,7 +322,6 @@ init_db()
 
 # Model config is read fresh per invocation in _agent_loop so settings changes
 # take effect without a restart. These imports are needed at module level.
-from backend.db import get_agent_config as _get_agent_config
 import agents.runner as _runner
 
 # ── WebSocket connection registry ─────────────────────────────────────────────
@@ -726,9 +725,8 @@ async def _maybe_compact(product_id: str | None) -> None:
 
     from backend.db import get_agent_config as _gac
     from backend.provider import make_provider as _make_provider_compact
-    from backend.db import get_product_model_config as _get_pmc
     _agent_name = _gac()["agent_name"]
-    _compact_cfg = _get_pmc(product_id)
+    _compact_cfg = _get_product_model_config(product_id)
     _compact_model = _compact_cfg["prescreener_model"]
     _compact_provider = _make_provider_compact(_compact_model)
     resp = await _compact_provider.create(

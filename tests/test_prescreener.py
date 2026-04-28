@@ -46,6 +46,7 @@ async def test_prescreen_sonnet_route():
     assert "core" in result.tool_groups
     assert "email" in result.tool_groups
     assert "calendar" not in result.tool_groups
+    assert result.response is None  # sonnet route never carries a direct response
 
 
 @pytest.mark.asyncio
