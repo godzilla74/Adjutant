@@ -119,19 +119,67 @@ while true; do
     echo -e "${RED}Passwords don't match. Try again.${NC}"
 done
 
+echo ""
+echo "Which AI provider would you like to use?"
+echo "  1) Anthropic (Claude) — requires an Anthropic API key"
+echo "  2) OpenAI (GPT) — requires a ChatGPT Plus or Team account"
+echo ""
 while true; do
-    read -p "Your Anthropic API key (from console.anthropic.com): " ANTHROPIC_API_KEY
-    echo -n "Testing your API key..."
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-        -H "x-api-key: $ANTHROPIC_API_KEY" \
-        -H "anthropic-version: 2023-06-01" \
-        "https://api.anthropic.com/v1/models")
-    if [ "$HTTP_STATUS" = "200" ]; then
-        echo -e " ${GREEN}✓${NC}"; break
-    else
-        echo -e " ${RED}That key doesn't seem to work — double-check and try again.${NC}"
-    fi
+    read -p "Enter 1 or 2: " PROVIDER_CHOICE
+    [[ "$PROVIDER_CHOICE" == "1" || "$PROVIDER_CHOICE" == "2" ]] && break
+    echo "Please enter 1 or 2."
 done
+
+if [ "$PROVIDER_CHOICE" = "1" ]; then
+    while true; do
+        read -p "Your Anthropic API key (from console.anthropic.com): " ANTHROPIC_API_KEY
+        echo -n "Testing your API key..."
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            "https://api.anthropic.com/v1/models")
+        if [ "$HTTP_STATUS" = "200" ]; then
+            echo -e " ${GREEN}✓${NC}"; break
+        else
+            echo -e " ${RED}That key doesn't seem to work — double-check and try again.${NC}"
+        fi
+    done
+    echo "Saving API key..."
+    AGENT_DB="$DB_FILE" ANTHROPIC_KEY_VALUE="$ANTHROPIC_API_KEY" \
+        "$ADJUTANT_DIR/.venv/bin/python" -c "
+import sys, os; sys.path.insert(0, '$ADJUTANT_DIR')
+from backend.db import init_db, set_agent_config
+init_db()
+set_agent_config('anthropic_api_key', os.environ['ANTHROPIC_KEY_VALUE'])
+"
+elif [ "$PROVIDER_CHOICE" = "2" ]; then
+    echo "Initializing database..."
+    AGENT_DB="$DB_FILE" "$ADJUTANT_DIR/.venv/bin/python" -c "
+import sys; sys.path.insert(0, '$ADJUTANT_DIR')
+from backend.db import init_db
+init_db()
+"
+    echo ""
+    AGENT_DB="$DB_FILE" "$ADJUTANT_DIR/.venv/bin/python" -c "
+import sys; sys.path.insert(0, '$ADJUTANT_DIR')
+from backend.openai_oauth import run_oauth_flow_blocking
+success = run_oauth_flow_blocking()
+sys.exit(0 if success else 1)
+"
+    if [ $? -eq 0 ]; then
+        echo "Setting OpenAI as default models..."
+        AGENT_DB="$DB_FILE" "$ADJUTANT_DIR/.venv/bin/python" -c "
+import sys; sys.path.insert(0, '$ADJUTANT_DIR')
+from backend.db import set_agent_config
+set_agent_config('agent_model', 'gpt-4o')
+set_agent_config('subagent_model', 'gpt-4o')
+set_agent_config('prescreener_model', 'gpt-4o-mini')
+"
+    else
+        echo -e "${YELLOW}OpenAI connection timed out. Anthropic defaults will be used.${NC}"
+        echo "Connect OpenAI after startup via Settings → Agent Model."
+    fi
+fi
 
 echo ""
 echo "Now let's help $AGENT_NAME get to know you."
@@ -148,7 +196,6 @@ PRODUCT_ID=$(echo "$PRODUCT_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr
 
 # Write config
 cat > "$CONFIG_FILE" << ENVEOF
-ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 AGENT_PASSWORD=$AGENT_PASSWORD
 AGENT_NAME=$AGENT_NAME
 AGENT_OWNER_NAME=$AGENT_OWNER_NAME
