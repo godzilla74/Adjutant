@@ -16,6 +16,9 @@ const MODEL_LABELS: Record<string, string> = {
   'gpt-4o':                    'GPT-4o',
   'gpt-4o-mini':               'GPT-4o mini',
   'o3-mini':                   'o3-mini',
+  'codex-mini-latest':         'Codex mini (latest)',
+  'o4-mini':                   'o4-mini',
+  'o3':                        'o3',
 }
 
 const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent transition-colors'
@@ -137,7 +140,12 @@ export default function ProductModelSettings({ password, productId }: Props) {
           Use Anthropic defaults
         </button>
         <button
-          onClick={() => { setAgentModel('gpt-4o'); setSubagentModel('gpt-4o'); setPrescreenerModel('gpt-4o-mini') }}
+          onClick={() => {
+            const isCodex = availableModels.openai.includes('codex-mini-latest')
+            setAgentModel(isCodex ? 'codex-mini-latest' : 'gpt-4o')
+            setSubagentModel(isCodex ? 'codex-mini-latest' : 'gpt-4o')
+            setPrescreenerModel(isCodex ? 'codex-mini-latest' : 'gpt-4o-mini')
+          }}
           disabled={!hasOpenAI}
           className="px-3 py-1.5 text-xs border border-adj-border rounded hover:bg-adj-elevated text-adj-text-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
