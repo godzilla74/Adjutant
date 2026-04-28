@@ -10,7 +10,28 @@ logger = logging.getLogger(__name__)
 
 AGENT_TIMEOUT = 900  # seconds
 
-SUBAGENT_MODEL: str = os.environ.get("AGENT_SUBAGENT_MODEL", "claude-sonnet-4-6")
+_SUBAGENT_MODEL_FALLBACK = "claude-sonnet-4-6"
+_OPENAI_PREFIXES = ("gpt-", "o1", "o3", "o4")
+
+
+def _get_subagent_model() -> str:
+    """Return the Claude model to use for sub-agents.
+
+    Reads from env var first, then DB.  Always returns a Claude model —
+    sub-agents run via the claude CLI and cannot use OpenAI models.
+    """
+    env_override = os.environ.get("AGENT_SUBAGENT_MODEL", "")
+    if env_override and not env_override.startswith(_OPENAI_PREFIXES):
+        return env_override
+    try:
+        from backend.db import get_agent_config
+        model = get_agent_config().get("subagent_model", "")
+        if model and not model.startswith(_OPENAI_PREFIXES):
+            return model
+    except Exception:
+        pass
+    return _SUBAGENT_MODEL_FALLBACK
+
 
 _RESEARCH_SYSTEM = (
     "You are a specialized sub-agent. Complete your assigned task thoroughly "
@@ -38,7 +59,7 @@ async def _run_claude_cli(
         "--output-format", "json",
         "--allowedTools", allowed_tools,
         "--system-prompt", system_prompt,
-        "--model", SUBAGENT_MODEL,
+        "--model", _get_subagent_model(),
         "--no-session-persistence",
     ]
     try:

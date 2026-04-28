@@ -1191,6 +1191,44 @@ async def openai_oauth_disconnect(_=Depends(_auth)):
     return {"ok": True}
 
 
+@router.get("/openai-oauth/callback")
+async def openai_oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    import asyncio
+    from fastapi.responses import HTMLResponse
+    from backend.openai_oauth import pop_verifier, _exchange_tokens
+
+    def _err(msg: str) -> HTMLResponse:
+        safe = msg.replace("'", "").replace('"', "")[:200]
+        return HTMLResponse(
+            "<html><body><script>"
+            f"window.opener&&window.opener.postMessage({{type:'oauth_error',message:'{safe}'}},'*');"
+            "setTimeout(()=>window.close(),4000)"
+            "</script></body></html>"
+        )
+
+    if error:
+        return _err(error)
+    if not code:
+        return _err("Missing authorization code")
+    if not state:
+        return _err("Missing state parameter")
+    verifier = pop_verifier(state)
+    if not verifier:
+        return _err("OAuth session expired — please try again")
+    err = await asyncio.to_thread(_exchange_tokens, code, verifier)
+    if err:
+        return _err(err)
+    return HTMLResponse(
+        "<html><body><script>setTimeout(()=>window.close(),2000)</script>"
+        "<p style='font-family:sans-serif;padding:20px'>Connected! You can close this window.</p>"
+        "</body></html>"
+    )
+
+
 # --- Image Generation settings ---
 
 @router.get("/settings/image-generation")

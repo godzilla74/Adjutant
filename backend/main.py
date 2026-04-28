@@ -390,10 +390,18 @@ async def _bootstrap_product_workspace() -> None:
         return  # already bootstrapped
 
     try:
-        ai = anthropic.AsyncAnthropic()
-        response = await ai.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=600,
+        from backend.provider import make_provider, get_provider_name
+        from backend.db import get_agent_config
+        _cfg = get_agent_config()
+        _agent_model = _cfg.get("agent_model", "claude-haiku-4-5-20251001")
+        _bootstrap_model = (
+            "gpt-4o-mini" if get_provider_name(_agent_model) == "openai"
+            else "claude-haiku-4-5-20251001"
+        )
+        _provider = make_provider(_bootstrap_model)
+        response = await _provider.create(
+            model=_bootstrap_model,
+            system="",
             messages=[{
                 "role": "user",
                 "content": (
