@@ -138,7 +138,7 @@ def test_token_usage_endpoint_requires_auth(api_client):
     assert resp.status_code == 401
 
 
-def test_agent_config_per_product(api_client, tmp_path, monkeypatch):
+def test_agent_config_per_product(api_client):
     """GET /api/agent-config?product_id= returns per-product resolved config."""
     # Create a product first
     resp = api_client.post(

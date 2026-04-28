@@ -116,7 +116,9 @@ class CapabilitySlotBody(BaseModel):
 @router.post("/products", status_code=201)
 def create_product_api(body: ProductCreate, _=Depends(_auth)):
     from backend.db import create_product, get_product_config
-    create_product(body.id, body.name, body.icon_label, body.color)
+    msg = create_product(body.id, body.name, body.icon_label, body.color)
+    if isinstance(msg, str) and "already exists" in msg:
+        raise HTTPException(status_code=409, detail=msg)
     return get_product_config(body.id)
 
 
