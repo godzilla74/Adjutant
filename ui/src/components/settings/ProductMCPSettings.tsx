@@ -54,8 +54,8 @@ export default function ProductMCPSettings({ productId, password }: Props) {
   }, [password, productId])
 
   const productServers = allServers.filter(s => s.scope === 'product' && s.product_id === productId)
-  // All enabled servers (global + this product) for the capability override picker
-  const enabledServersForPicker = allServers.filter(s => s.enabled)
+  // Only global servers + this product's own servers for the capability override picker
+  const enabledServersForPicker = allServers.filter(s => s.enabled && (s.scope === 'global' || s.product_id === productId))
 
   const handleToggle = async (id: number, enabled: boolean) => {
     await api.updateMcpServer(password, id, { enabled: !enabled }).catch(() => null)

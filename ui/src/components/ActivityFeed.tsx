@@ -174,7 +174,7 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
-            {filteredEvents.map(event => (
+            {[...filteredEvents].reverse().map(event => (
               <ActivityCard key={event.id} event={event} />
             ))}
             {filteredEvents.length === 0 && (
