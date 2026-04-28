@@ -161,6 +161,11 @@ export default function AgentModelSettings({ password }: Props) {
       setNewAnthropicKey('')
       setAnthropicKeySaved(true)
       setTimeout(() => setAnthropicKeySaved(false), 2000)
+      const models = await api.getAvailableModels(password)
+      setAvailableModels({
+        anthropic: models.anthropic.length > 0 ? models.anthropic : ANTHROPIC_FALLBACK,
+        openai: hasOpenAI && models.openai.length === 0 ? OPENAI_FALLBACK : models.openai,
+      })
     } catch (e: unknown) {
       setAnthropicKeyError((e as Error).message || 'Failed to save key')
     } finally {
@@ -179,6 +184,11 @@ export default function AgentModelSettings({ password }: Props) {
       setNewOpenAIKey('')
       setOpenaiKeySaved(true)
       setTimeout(() => setOpenaiKeySaved(false), 2000)
+      const models = await api.getAvailableModels(password)
+      setAvailableModels({
+        anthropic: models.anthropic.length > 0 ? models.anthropic : ANTHROPIC_FALLBACK,
+        openai: hasOpenAI && models.openai.length === 0 ? OPENAI_FALLBACK : models.openai,
+      })
     } catch (e: unknown) {
       setOpenaiKeyError((e as Error).message || 'Failed to save key')
     } finally {

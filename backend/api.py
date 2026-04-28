@@ -1250,6 +1250,8 @@ def get_anthropic_key_settings(_=Depends(_auth)):
 def update_anthropic_key_settings(body: AnthropicKeyUpdate, _=Depends(_auth)):
     from backend.db import set_agent_config
     set_agent_config("anthropic_api_key", body.key)
+    set_agent_config("available_models_cache", "")
+    set_agent_config("available_models_cache_updated_at", "")
     return {
         "configured": bool(body.key),
         "masked": _mask_key(body.key),
@@ -1271,6 +1273,8 @@ def get_openai_key_settings(_=Depends(_auth)):
 def update_openai_key_settings(body: OpenAIKeyUpdate, _=Depends(_auth)):
     from backend.db import set_agent_config
     set_agent_config("openai_api_key", body.key)
+    set_agent_config("available_models_cache", "")
+    set_agent_config("available_models_cache_updated_at", "")
     return {
         "configured": bool(body.key),
         "masked": _mask_key(body.key),
