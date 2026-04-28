@@ -288,6 +288,13 @@ def init_db() -> None:
             except Exception:
                 pass  # column already exists
 
+        # Add per-product model override columns (idempotent)
+        for col_name in ("agent_model", "subagent_model", "prescreener_model"):
+            try:
+                conn.execute(f"ALTER TABLE products ADD COLUMN {col_name} TEXT")
+            except Exception:
+                pass  # column already exists
+
         # Add trust tier columns to review_items (idempotent)
         for col_name, col_def in [
             ("action_type",    "TEXT"),
@@ -1470,6 +1477,56 @@ def set_agent_config(key: str, value: str) -> None:
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
             (key, value),
         )
+
+def get_product_model_config(product_id: str | None) -> dict:
+    """Return resolved {agent_model, subagent_model, prescreener_model} for a product.
+    Per-product values override global model_config defaults."""
+    global_cfg = get_agent_config()
+    defaults = {
+        "agent_model":       global_cfg["agent_model"],
+        "subagent_model":    global_cfg["subagent_model"],
+        "prescreener_model": global_cfg["prescreener_model"],
+    }
+    if not product_id:
+        return defaults
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT agent_model, subagent_model, prescreener_model FROM products WHERE id = ?",
+            (product_id,),
+        ).fetchone()
+    if not row:
+        return defaults
+    return {
+        "agent_model":       row["agent_model"]       or defaults["agent_model"],
+        "subagent_model":    row["subagent_model"]    or defaults["subagent_model"],
+        "prescreener_model": row["prescreener_model"] or defaults["prescreener_model"],
+    }
+
+
+def set_product_model_config(
+    product_id: str,
+    agent_model: str | None = ...,
+    subagent_model: str | None = ...,
+    prescreener_model: str | None = ...,
+) -> None:
+    """Write per-product model overrides. Pass None to clear (revert to global default).
+    Omit a parameter entirely to leave it unchanged (uses sentinel ... default)."""
+    updates: dict[str, str | None] = {}
+    if agent_model is not ...:
+        updates["agent_model"] = agent_model or None
+    if subagent_model is not ...:
+        updates["subagent_model"] = subagent_model or None
+    if prescreener_model is not ...:
+        updates["prescreener_model"] = prescreener_model or None
+    if not updates:
+        return
+    sets = ", ".join(f"{k} = ?" for k in updates)
+    with _conn() as conn:
+        conn.execute(
+            f"UPDATE products SET {sets} WHERE id = ?",
+            (*updates.values(), product_id),
+        )
+
 
 # ── Notes ─────────────────────────────────────────────────────────────────────
 
