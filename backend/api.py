@@ -842,16 +842,19 @@ class WizardPlanRequest(BaseModel):
 
 @router.post("/wizard-plan")
 async def generate_wizard_plan(body: WizardPlanRequest, _=Depends(_auth)):
-    """Use Claude to derive workstream/objective suggestions from user intent."""
-    import anthropic
+    """Use the configured LLM provider to derive workstream/objective suggestions from user intent."""
     import json as _json
+    from backend.db import get_agent_config as _gac
+    from backend.provider import make_provider as _make_provider
     intent = body.intent.strip()
     if not intent:
         raise HTTPException(status_code=422, detail="intent is required")
 
-    client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
+    _cfg = _gac()
+    _model = _cfg.get("agent_model") or "claude-haiku-4-5-20251001"
+    _provider = _make_provider(_model)
+    message = await _provider.create(
+        model=_model,
         max_tokens=1024,
         system="""You are helping set up an AI agent system. Given a user's description of what they want the system to do, suggest workstreams, objectives, and required integrations.
 
@@ -1322,6 +1325,7 @@ def update_openai_key_settings(body: OpenAIKeyUpdate, _=Depends(_auth)):
 # --- Available models ---
 
 _ANTHROPIC_FALLBACK = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+_OPENAI_FALLBACK = ["gpt-4o", "gpt-4o-mini", "o3-mini"]
 _OPENAI_EXCLUDE = frozenset([
     "dall-e", "whisper", "tts", "embedding", "realtime", "audio",
     "davinci", "babbage", "ada", "curie",

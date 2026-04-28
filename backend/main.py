@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-import anthropic
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
@@ -507,7 +506,6 @@ app.include_router(api_router)
 UI_DIST = Path(__file__).parent.parent / "ui" / "dist"
 
 AGENT_PASSWORD = os.environ.get("AGENT_PASSWORD", "")
-client = anthropic.AsyncAnthropic()
 
 
 def _ts() -> str:
@@ -900,10 +898,11 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 extra_body=kwargs.get("extra_body"),
             )
 
+        import anthropic as _anthropic
         try:
             final = await _run_stream(_stream_kwargs)
             _record_token_usage(product_id, "agent", _provider.name, _agent_model, final.usage)
-        except anthropic.BadRequestError as e:
+        except _anthropic.BadRequestError as e:
             # Note: this only fires for Anthropic providers. OpenAI providers skip
             # remote MCP headers with a warning in stream_agent() instead.
             if _remote_mcp and "mcp" in str(e).lower():
