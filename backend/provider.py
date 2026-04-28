@@ -576,33 +576,50 @@ class ChatGPTProvider:
         body = {
             "model": self._resolve_model(model),
             "store": False,
-            "stream": False,
+            "stream": True,  # Codex endpoint requires streaming
             "instructions": system_text,
             "input": input_items,
+            "text": {"verbosity": "low"},
         }
 
         logger.debug("[ChatGPTProvider] create body: %s", json.dumps(body)[:1000])
+        accumulated_text = ""
+        final_usage = None
+
         async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(
+            async with client.stream(
+                "POST",
                 self._BASE_URL,
                 json=body,
-                headers=self._headers(stream=False),
-            )
-            if response.status_code >= 400:
-                raise RuntimeError(f"ChatGPT API {response.status_code}: {response.text[:500]}")
-            data = response.json()
+                headers=self._headers(stream=True),
+            ) as response:
+                if response.status_code >= 400:
+                    body_text = await response.aread()
+                    raise RuntimeError(f"ChatGPT API {response.status_code}: {body_text.decode()[:500]}")
+                async for raw_line in response.aiter_lines():
+                    if not raw_line or raw_line.startswith(":"):
+                        continue
+                    if raw_line.startswith("data: "):
+                        data_str = raw_line[6:].strip()
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            event = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        etype = event.get("type", "")
+                        if etype == "response.output_text.delta":
+                            accumulated_text += event.get("delta", "")
+                        elif etype == "response.completed":
+                            usage_raw = event.get("response", {}).get("usage", {})
+                            final_usage = _SimpleUsage(
+                                usage_raw.get("input_tokens", 0),
+                                usage_raw.get("output_tokens", 0),
+                            )
 
-        text = ""
-        for item in data.get("output", []):
-            if item.get("type") == "message":
-                for part in item.get("content", []):
-                    if part.get("type") == "output_text":
-                        text += part.get("text", "")
-
-        usage_raw = data.get("usage", {})
         return _OAICreateResponse(
-            text,
-            _SimpleUsage(usage_raw.get("input_tokens", 0), usage_raw.get("output_tokens", 0)),
+            accumulated_text,
+            final_usage or _SimpleUsage(0, 0),
         )
 
 
