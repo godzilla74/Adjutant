@@ -55,6 +55,7 @@ from backend.db import (
     create_product as _create_product_db,
     list_oauth_connections,
     record_token_usage as _record_token_usage,
+    get_product_model_config as _get_product_model_config,
 )
 from backend.api import router as api_router
 
@@ -724,10 +725,15 @@ async def _maybe_compact(product_id: str | None) -> None:
     )
 
     from backend.db import get_agent_config as _gac
+    from backend.provider import make_provider as _make_provider_compact
+    from backend.db import get_product_model_config as _get_pmc
     _agent_name = _gac()["agent_name"]
-    resp = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
+    _compact_cfg = _get_pmc(product_id)
+    _compact_model = _compact_cfg["prescreener_model"]
+    _compact_provider = _make_provider_compact(_compact_model)
+    resp = await _compact_provider.create(
+        model=_compact_model,
+        system="",
         messages=[{
             "role": "user",
             "content": (
@@ -738,8 +744,9 @@ async def _maybe_compact(product_id: str | None) -> None:
                 f"{context_block}{transcript}"
             ),
         }],
+        max_tokens=1024,
     )
-    _record_token_usage(product_id, "compaction", "anthropic", "claude-haiku-4-5-20251001", resp.usage)
+    _record_token_usage(product_id, "compaction", _compact_provider.name, _compact_model, resp.usage)
     new_summary = resp.content[0].text.strip()
     save_conversation_summary(product_id, new_summary)
     delete_messages_by_ids(product_id, ids_to_remove)
@@ -806,9 +813,13 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     _preflight = _build_preflight_interceptor(_disconnected_overrides)
 
     # Read model config fresh so Settings changes take effect without restart
-    _live_cfg = _get_agent_config()
-    _agent_model = os.environ.get("AGENT_MODEL", _live_cfg["agent_model"])
-    _runner.SUBAGENT_MODEL = os.environ.get("AGENT_SUBAGENT_MODEL", _live_cfg["subagent_model"])
+    from backend.provider import make_provider as _make_provider
+    _model_cfg = _get_product_model_config(product_id)
+    _agent_model = os.environ.get("AGENT_MODEL", _model_cfg["agent_model"])
+    _runner.SUBAGENT_MODEL = os.environ.get("AGENT_SUBAGENT_MODEL", _model_cfg["subagent_model"])
+    _prescreener_model = os.environ.get("AGENT_PRESCREENER_MODEL", _model_cfg["prescreener_model"])
+    _provider = _make_provider(_agent_model)
+    _pre_provider = _make_provider(_prescreener_model)
 
     # Extract last user message for prescreener BEFORE datetime injection
     _last_user_msg_for_prescreener = next(
@@ -823,12 +834,8 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     if product_id is not None:
         _available_groups = _compute_available_groups(product_id)
         if _last_user_msg_for_prescreener:
-            _prescreener_model = os.environ.get(
-                "AGENT_PRESCREENER_MODEL",
-                _live_cfg.get("prescreener_model", "claude-haiku-4-5-20251001")
-            )
-            _pre = await _prescreen(_last_user_msg_for_prescreener, _available_groups, client, _prescreener_model)
-            _record_token_usage(product_id, "prescreener", "anthropic", _prescreener_model, _pre.usage)
+            _pre = await _prescreen(_last_user_msg_for_prescreener, _available_groups, _pre_provider, _prescreener_model)
+            _record_token_usage(product_id, "prescreener", _pre_provider.name, _prescreener_model, _pre.usage)
 
             if _pre.route == "haiku":
                 _ts_val = _ts()
@@ -870,19 +877,26 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
 
         async def _run_stream(kwargs: dict) -> object:
             nonlocal accumulated_text
-            async with client.messages.stream(**kwargs) as stream:
-                async for event in stream:
-                    if (
-                        event.type == "content_block_delta"
-                        and event.delta.type == "text_delta"
-                    ):
-                        await send_fn({"type": "agent_token", "product_id": product_id, "content": event.delta.text})
-                        accumulated_text += event.delta.text
-                return await stream.get_final_message()
+
+            async def _on_text(text: str) -> None:
+                nonlocal accumulated_text
+                await send_fn({"type": "agent_token", "product_id": product_id, "content": text})
+                accumulated_text += text
+
+            return await _provider.stream_agent(
+                model=kwargs["model"],
+                system=kwargs["system"],
+                messages=kwargs["messages"],
+                tools=kwargs.get("tools", []),
+                max_tokens=kwargs["max_tokens"],
+                on_text=_on_text,
+                extra_headers=kwargs.get("extra_headers"),
+                extra_body=kwargs.get("extra_body"),
+            )
 
         try:
             final = await _run_stream(_stream_kwargs)
-            _record_token_usage(product_id, "agent", "anthropic", _agent_model, final.usage)
+            _record_token_usage(product_id, "agent", _provider.name, _agent_model, final.usage)
         except anthropic.BadRequestError as e:
             if _remote_mcp and "mcp" in str(e).lower():
                 # One or more remote MCP servers are misconfigured; retry without them
@@ -894,7 +908,7 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 fallback = {k: v for k, v in _stream_kwargs.items() if k not in ("extra_body", "extra_headers")}
                 accumulated_text = ""
                 final = await _run_stream(fallback)
-                _record_token_usage(product_id, "agent", "anthropic", _agent_model, final.usage)
+                _record_token_usage(product_id, "agent", _provider.name, _agent_model, final.usage)
             else:
                 raise
 

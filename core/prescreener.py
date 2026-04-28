@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    import anthropic
+    from backend.provider import AnthropicProvider, OpenAIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def _fallback(available_groups: list[str]) -> PrescreerResult:
 async def prescreen(
     message: str,
     available_groups: list[str],
-    client: "anthropic.AsyncAnthropic",
+    provider: "AnthropicProvider | OpenAIProvider",
     model: str,
 ) -> PrescreerResult:
     """Classify a user message and return routing + tool group selection.
@@ -57,11 +57,11 @@ async def prescreen(
     """
     system = _SYSTEM_PROMPT + f"\n\nAvailable tool groups: {available_groups}"
     try:
-        resp = await client.messages.create(
+        resp = await provider.create(
             model=model,
-            max_tokens=512,
             system=system,
             messages=[{"role": "user", "content": message}],
+            max_tokens=512,
         )
         data = json.loads(resp.content[0].text.strip())
         route = data.get("route")
