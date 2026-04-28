@@ -414,4 +414,21 @@ export const api = {
       by_call_type: Record<string, { input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>
       by_day: Array<{ date: string; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_creation_tokens: number }>
     }>(`/api/token-usage?days=${days}`, pw),
+
+  getAnthropicKeyStatus: (pw: string) =>
+    apiFetch<{ configured: boolean; masked: string }>('/api/settings/anthropic-key', pw),
+
+  updateAnthropicKey: (pw: string, key: string) =>
+    apiFetch<{ configured: boolean; masked: string }>('/api/settings/anthropic-key', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ key }),
+    }),
+
+  getAvailableModels: (pw: string) =>
+    apiFetch<{ anthropic: string[]; openai: string[] }>('/api/available-models', pw),
+
+  refreshAvailableModels: (pw: string) =>
+    apiFetch<{ anthropic: string[]; openai: string[] }>('/api/available-models/refresh', pw, {
+      method: 'POST',
+    }),
 }
