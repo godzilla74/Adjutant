@@ -842,23 +842,34 @@ class WizardPlanRequest(BaseModel):
 
 @router.post("/wizard-plan")
 async def generate_wizard_plan(body: WizardPlanRequest, _=Depends(_auth)):
-    """Use the configured LLM provider to derive workstream/objective suggestions from user intent."""
+    """Generate workstream/objective suggestions from user intent.
+
+    Uses whichever provider has a direct API key configured.
+    Anthropic takes priority; OpenAI Platform API is used only if an explicit
+    openai_api_key is set. Codex CLI users do not have OpenAI Platform credits —
+    their agent work runs through the CLI, not this path.
+    """
     import json as _json
-    import logging as _logging
     from backend.db import get_agent_config as _gac
-    from backend.provider import make_provider as _make_provider
+    from backend.provider import AnthropicProvider as _AntProv, OpenAIProvider as _OAIProv
     intent = body.intent.strip()
     if not intent:
         raise HTTPException(status_code=422, detail="intent is required")
 
     _cfg = _gac()
-    _model = _cfg.get("agent_model") or "claude-haiku-4-5-20251001"
-    _logging.getLogger(__name__).info("[wizard-plan] using model=%s", _model)
-    try:
-        _provider = _make_provider(_model)
-    except Exception as _e:
-        _logging.getLogger(__name__).error("[wizard-plan] make_provider failed: %s", _e)
-        raise HTTPException(status_code=500, detail=f"Provider error: {_e}")
+    _ant_key = _cfg.get("anthropic_api_key", "")
+    _oai_key = _cfg.get("openai_api_key", "")
+
+    if _ant_key:
+        import anthropic as _ant
+        _provider = _AntProv(_ant.AsyncAnthropic(api_key=_ant_key))
+        _model = "claude-haiku-4-5-20251001"
+    elif _oai_key:
+        from openai import AsyncOpenAI as _AsyncOpenAI
+        _provider = _OAIProv(_AsyncOpenAI(api_key=_oai_key))
+        _model = "gpt-4o-mini"
+    else:
+        raise HTTPException(status_code=400, detail="No API key configured. Add an Anthropic or OpenAI API key in Settings → Agent Model.")
     try:
         message = await _provider.create(
             model=_model,
@@ -883,7 +894,6 @@ The required_integrations list must only contain values from: gmail, google_cale
             }],
         )
     except Exception as _e:
-        _logging.getLogger(__name__).error("[wizard-plan] provider.create failed: %s", _e)
         raise HTTPException(status_code=502, detail=f"LLM error: {_e}")
 
     try:
@@ -900,8 +910,7 @@ The required_integrations list must only contain values from: gmail, google_cale
                 if i in ALLOWED_INTEGRATIONS
             ]
         return result
-    except Exception as _e:
-        _logging.getLogger(__name__).error("[wizard-plan] parse failed: %s", _e)
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to parse AI response")
 
 

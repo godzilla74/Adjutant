@@ -162,13 +162,14 @@ def get_provider_name(model: str) -> str:
 
 
 def get_openai_client():
-    """Return an AsyncOpenAI client. Checks direct API key first, then OAuth token."""
+    """Return an AsyncOpenAI client using the OAuth token (same credential Codex CLI uses).
+    Falls back to a direct Platform API key for users who have one but skipped OAuth."""
     from backend.db import get_agent_config
     from openai import AsyncOpenAI
     cfg = get_agent_config()
-    key = cfg.get("openai_api_key", "") or cfg.get("openai_access_token", "")
+    key = cfg.get("openai_access_token", "") or cfg.get("openai_api_key", "")
     if not key:
-        raise RuntimeError("OpenAI API key not configured. Add your key via Settings → AI Models.")
+        raise RuntimeError("OpenAI not connected. Connect via Settings → Agent Model.")
     return AsyncOpenAI(api_key=key)
 
 
