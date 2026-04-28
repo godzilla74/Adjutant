@@ -59,6 +59,10 @@ export default function App() {
   const [globalViewMode,  setGlobalViewMode]  = useState<'chat' | 'overview'>('overview')
   const [errorBanner,     setErrorBanner]     = useState<string | null>(null)
 
+  type PendingWizardItem = { name: string; mission: string; schedule: string }
+  type PendingWizardObj  = { text: string; progress_target: number | null }
+  const pendingWizardRef = useRef<{ workstreams: PendingWizardItem[]; objectives: PendingWizardObj[] } | null>(null)
+
   const { requestPermission, notify } = useNotifications()
 
   const wsRef    = useRef<WebSocket | null>(null)
@@ -244,6 +248,27 @@ export default function App() {
       if (msg.type === 'launch_started') {
         setActiveProductId(msg.product_id)
         setShowOverview(false)
+        const pending = pendingWizardRef.current
+        pendingWizardRef.current = null
+        if (pending) {
+          const savedPw = sessionStorage.getItem('agent_pw') ?? ''
+          const pid: string = msg.product_id
+          ;(async () => {
+            for (const ws of pending.workstreams) {
+              try {
+                const created = await api.createWorkstream(savedPw, pid, ws.name)
+                if (ws.mission || ws.schedule) {
+                  await api.updateWorkstream(savedPw, created.id, { mission: ws.mission, schedule: ws.schedule })
+                }
+              } catch { /* best-effort */ }
+            }
+            for (const obj of pending.objectives) {
+              try {
+                await api.createObjective(savedPw, pid, obj.text, 0, obj.progress_target ?? undefined)
+              } catch { /* best-effort */ }
+            }
+          })()
+        }
         return
       }
 
@@ -752,8 +777,11 @@ export default function App() {
       {wizardOpen && (
         <ProductWizard
           password={pw}
-          onComplete={({ name, intent }) => {
-            // icon/color/workstreams/objectives not yet consumed by backend launch_product
+          onComplete={({ name, intent, workstreams, objectives }) => {
+            pendingWizardRef.current = {
+              workstreams: workstreams.map(w => ({ name: w.name, mission: w.mission, schedule: w.schedule })),
+              objectives:  objectives.map(o => ({ text: o.text, progress_target: o.progress_target })),
+            }
             setWizardOpen(false)
             launchProduct(name, intent, intent)
           }}
