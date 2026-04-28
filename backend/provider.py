@@ -462,6 +462,7 @@ class ChatGPTProvider:
             body["tool_choice"] = "auto"
             body["parallel_tool_calls"] = True
 
+        logger.debug("[ChatGPTProvider] stream_agent body: %s", json.dumps(body)[:1000])
         accumulated_text = ""
         function_calls: dict[str, dict] = {}  # call_id → {id, name, arguments}
         finish_reason = "stop"
@@ -474,7 +475,9 @@ class ChatGPTProvider:
                 json=body,
                 headers=self._headers(stream=True),
             ) as response:
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    body_text = await response.aread()
+                    raise RuntimeError(f"ChatGPT API {response.status_code}: {body_text.decode()[:500]}")
                 async for raw_line in response.aiter_lines():
                     if not raw_line or raw_line.startswith(":"):
                         continue
@@ -558,13 +561,15 @@ class ChatGPTProvider:
             "input": input_items,
         }
 
+        logger.debug("[ChatGPTProvider] create body: %s", json.dumps(body)[:1000])
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
                 self._BASE_URL,
                 json=body,
                 headers=self._headers(stream=False),
             )
-            response.raise_for_status()
+            if response.status_code >= 400:
+                raise RuntimeError(f"ChatGPT API {response.status_code}: {response.text[:500]}")
             data = response.json()
 
         text = ""
