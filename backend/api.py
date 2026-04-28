@@ -1253,7 +1253,6 @@ def update_anthropic_key_settings(body: AnthropicKeyUpdate, _=Depends(_auth)):
 # --- Available models ---
 
 _ANTHROPIC_FALLBACK = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
-_OPENAI_FALLBACK = ["gpt-4o", "gpt-4o-mini", "o3-mini"]
 _OPENAI_EXCLUDE = frozenset([
     "dall-e", "whisper", "tts", "embedding", "realtime", "audio",
     "davinci", "babbage", "ada", "curie",
