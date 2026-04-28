@@ -1,8 +1,8 @@
 # Adjutant
 
-**A self-hosted AI executive assistant that runs on your machine, manages your work, and asks before it acts.**
+**A self-hosted AI chief of staff that runs on your machine, manages your businesses, and asks before it acts.**
 
-Adjutant gives you a named AI assistant — think Chief of Staff, not chatbot. You tell it what to work on. It delegates to specialized sub-agents, handles research and email, drafts content with your brand voice, and queues anything consequential for your approval before it goes out.
+Adjutant gives you a named AI chief of staff — not a chatbot. You tell it what to work on. It delegates to specialized sub-agents, handles research and email, drafts content with your brand voice, and queues anything consequential for your approval before it goes out.
 
 Everything runs locally. Your data stays on your machine. No SaaS accounts, no monthly fees beyond API usage.
 

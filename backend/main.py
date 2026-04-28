@@ -404,7 +404,7 @@ async def _bootstrap_product_workspace() -> None:
             messages=[{
                 "role": "user",
                 "content": (
-                    f"You are setting up a business workspace for an AI executive assistant.\n\n"
+                    f"You are setting up a business workspace for an AI chief of staff.\n\n"
                     f"Business: {product_name}\n"
                     f"Description: {product_desc or 'No description provided'}\n\n"
                     "Generate 3-5 relevant workstreams (ongoing operational areas) and "
@@ -741,7 +741,7 @@ async def _maybe_compact(product_id: str | None) -> None:
         messages=[{
             "role": "user",
             "content": (
-                f"You are summarizing a conversation between a user and {_agent_name}, an AI executive assistant. "
+                f"You are summarizing a conversation between a user and {_agent_name}, an AI chief of staff. "
                 "Produce a compact context block covering: decisions made, tasks assigned or completed, "
                 "key facts shared about products/workstreams/goals, ongoing work, and any user preferences. "
                 "Be concise but comprehensive — this summary replaces the full history.\n\n"

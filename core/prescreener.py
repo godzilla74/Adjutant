@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = """\
-You are a routing agent for an AI executive assistant. Given a user message, decide how to handle it.
+You are a routing agent for an AI chief of staff. Given a user message, decide how to handle it.
 
 Return JSON only — no prose, no markdown. One of two shapes:
 

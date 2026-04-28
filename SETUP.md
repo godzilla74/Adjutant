@@ -1,6 +1,6 @@
 # Adjutant — Setup Guide
 
-Adjutant is an autonomous AI executive assistant that monitors your products, delegates work to specialized sub-agents, and surfaces activity in real time.
+Adjutant is your AI chief of staff — it monitors your products, delegates work to specialized sub-agents, and surfaces activity in real time.
 
 ---
 

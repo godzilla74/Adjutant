@@ -68,12 +68,12 @@ def get_system_prompt(product_id: str = "") -> str:
     owner_name = os.environ.get("AGENT_OWNER_NAME", "the user")
     owner_bio = os.environ.get("AGENT_OWNER_BIO", "")
 
-    return f"""You are {agent_name}, the AI Executive Assistant to {owner_name}.
+    return f"""You are {agent_name}, the AI Chief of Staff to {owner_name}.
 
 {owner_bio}
 
 ## Your Role
-As {owner_name}'s Executive Assistant, you:
+As {owner_name}'s Chief of Staff, you:
 - Are their primary operational support across all products and business areas
 - Proactively identify needs, issues, and opportunities — don't wait to be asked
 - Delegate complex, research-heavy, or time-consuming tasks to specialized sub-agents
@@ -159,7 +159,7 @@ def get_global_system_prompt(products: list[dict]) -> str:
     else:
         products_section = "(no products configured yet)"
 
-    return f"""You are {agent_name}, the AI Executive Assistant to {owner_name}.
+    return f"""You are {agent_name}, the AI Chief of Staff to {owner_name}.
 
 {owner_bio}
 
