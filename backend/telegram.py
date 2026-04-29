@@ -180,9 +180,15 @@ class TelegramBot:
                     await self.send_long_message(content)
 
         elif event_type == "activity_done":
-            summary = event.get("summary", "")
-            if summary:
-                await self.send_message(f"✅ Agent finished: {summary[:400]}")
+            workstream_name = event.get("workstream_name", "")
+            if workstream_name:
+                await self.send_message(
+                    f"✅ {workstream_name} complete. View the full report in Adjutant under Reports."
+                )
+            else:
+                summary = event.get("summary", "")
+                if summary:
+                    await self.send_message(f"✅ Agent finished: {summary[:400]}")
 
         elif event_type == "review_item_added":
             item = event.get("item", {})
