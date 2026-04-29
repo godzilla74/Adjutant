@@ -228,7 +228,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS run_reports (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 product_id       TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-                workstream_id    INTEGER NOT NULL,
+                workstream_id    INTEGER NOT NULL,  -- snapshot ref, no FK (survives workstream deletion)
                 workstream_name  TEXT NOT NULL,
                 full_output      TEXT NOT NULL DEFAULT '',
                 created_at       TEXT NOT NULL DEFAULT (datetime('now'))
