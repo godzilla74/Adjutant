@@ -1012,7 +1012,7 @@ def create_run_report(
 def get_run_reports(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            """SELECT id, workstream_id, workstream_name, full_output, created_at
+            """SELECT id, product_id, workstream_id, workstream_name, full_output, created_at
                FROM run_reports WHERE product_id = ?
                ORDER BY created_at DESC, id DESC""",
             (product_id,),

@@ -785,6 +785,12 @@ def test_delete_run_report_removes_it(db):
     assert db.get_run_report(report_id) is None
 
 
+def test_delete_run_report_is_idempotent(db):
+    report_id = db.create_run_report("test-product", 1, "Brief", "Output")
+    db.delete_run_report(report_id)
+    db.delete_run_report(report_id)  # should not raise
+
+
 def test_update_activity_event_with_report_id(db):
     event_id = db.save_activity_event("test-product", "general", "Test", "Rationale")
     report_id = db.create_run_report("test-product", 1, "Brief", "Output")
