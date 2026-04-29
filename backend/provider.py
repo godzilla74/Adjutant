@@ -589,10 +589,17 @@ class ChatGPTProvider:
         extra_body: dict | None = None,
         openai_mcp_tools: list | None = None,
     ) -> object:
+        # The ChatGPT Codex endpoint does not support type:mcp tool entries.
+        # Silently skip them — the agent falls back to research rather than showing an error.
+        if openai_mcp_tools:
+            logger.warning(
+                "[ChatGPTProvider] Codex endpoint does not support remote MCP tools; "
+                "skipping %d server(s). Use an Anthropic model or OpenAI Platform API key for MCP.",
+                len(openai_mcp_tools),
+            )
+
         system_text, input_items = _translate_messages_to_responses_api(messages, system)
         oai_tools = _translate_tools_to_responses_api(tools)
-        if openai_mcp_tools:
-            oai_tools = oai_tools + openai_mcp_tools
 
         body: dict = {
             "model": self._resolve_model(model),
@@ -607,8 +614,7 @@ class ChatGPTProvider:
             body["tool_choice"] = "auto"
             body["parallel_tool_calls"] = True
 
-        mcp_count = sum(1 for t in oai_tools if isinstance(t, dict) and t.get("type") == "mcp")
-        logger.info("[ChatGPTProvider] stream_agent model=%s tools=%d mcp=%d", body["model"], len(oai_tools), mcp_count)
+        logger.info("[ChatGPTProvider] stream_agent model=%s tools=%d (mcp skipped)", body["model"], len(oai_tools))
         logger.debug("[ChatGPTProvider] stream_agent body: %s", json.dumps(body)[:1000])
         return await _stream_responses_sse(self._BASE_URL, self._headers(stream=True), body, on_text)
 
