@@ -50,7 +50,7 @@ export default function App() {
   const [agentName,       setAgentName]       = useState<string>('Adjutant')
   const [settingsOpen,    setSettingsOpen]    = useState(false)
   const [settingsTab,     setSettingsTab]     = useState<SettingsTab>('overview')
-  const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
+
   const [wizardOpen,      setWizardOpen]      = useState(false)
   const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
@@ -495,10 +495,6 @@ export default function App() {
     localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, settingsOpen: true, settingsTab: tab }))
   }, [])
 
-  const handleViewReport = useCallback((reportId: number) => {
-    setSelectedReportId(reportId)
-    openSettings('reports')
-  }, [openSettings])
 
   if (connState === 'auth' || connState === 'connecting') {
     return <PasswordGate onSubmit={sendAuth} connecting={connState === 'connecting'} />
@@ -610,10 +606,9 @@ export default function App() {
             productStates={productStates}
             password={pw}
             initialTab={settingsTab}
-            initialReportId={selectedReportId}
+
             onClose={() => {
               setSettingsOpen(false)
-              setSelectedReportId(null)
               const current = (() => { try { return JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch { return null } })()
               localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, settingsOpen: false, settingsTab: undefined }))
             }}
@@ -697,12 +692,13 @@ export default function App() {
                   agentName={agentName}
                 />
                 <ActivityFeed
+                  productId="__global__"
+                  password={pw}
                   events={productStates['__global__']?.events ?? []}
                   directives={directives['__global__'] ?? []}
                   agentMessages={agentMessages['__global__'] ?? []}
                   agentDraft={agentDraftByProduct['__global__'] ?? ''}
                   agentName={agentName}
-                  onViewReport={handleViewReport}
                 />
                 <DirectiveBar
                   onSend={sendDirective}
@@ -747,12 +743,13 @@ export default function App() {
                 agentName={agentName}
               />
               <ActivityFeed
+                productId={activeProductId}
+                password={pw}
                 events={activeState.events}
                 directives={directives[activeProductId] ?? []}
                 agentMessages={agentMessages[activeProductId] ?? []}
                 agentDraft={agentDraftByProduct[activeProductId] ?? ''}
                 agentName={agentName}
-                onViewReport={handleViewReport}
               />
               <DirectiveTemplates
                 productId={activeProductId}

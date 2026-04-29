@@ -49,55 +49,55 @@ const BASE_PROPS = {
 
 describe('ActivityFeed — Chat tab (default)', () => {
   it('shows directive bubbles', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     expect(screen.getByText('Draft a content plan')).toBeInTheDocument()
   })
 
   it('shows agent message bubbles', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     expect(screen.getByText('On it!')).toBeInTheDocument()
   })
 
   it('does NOT show activity event headlines on chat tab', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     expect(screen.queryByText('Researching competitor pricing')).not.toBeInTheDocument()
   })
 
   it('renders agentName as byline on agent messages', () => {
-    render(<ActivityFeed {...BASE_PROPS} agentName="Aria" />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} agentName="Aria" />)
     expect(screen.getByText('Aria')).toBeInTheDocument()
     expect(screen.getByText('On it!')).toBeInTheDocument()
   })
 
   it('shows empty state when no chat entries', () => {
-    render(<ActivityFeed {...BASE_PROPS} directives={[]} agentMessages={[]} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} directives={[]} agentMessages={[]} />)
     expect(screen.getByText('No activity yet')).toBeInTheDocument()
     expect(screen.getByText('Give Adjutant a directive below to get started.')).toBeInTheDocument()
   })
 
   it('shows agentDraft with cursor on chat tab', () => {
-    render(<ActivityFeed {...BASE_PROPS} agentDraft="Thinking about this..." />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} agentDraft="Thinking about this..." />)
     expect(screen.getByText(/Thinking about this\.\.\./)).toBeInTheDocument()
   })
 })
 
 describe('ActivityFeed — Activity tab', () => {
   it('shows events after switching to Activity tab', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     expect(screen.getByText('Researching competitor pricing')).toBeInTheDocument()
     expect(screen.getByText('Drafting quarterly goals')).toBeInTheDocument()
   })
 
   it('does NOT show directives or agent messages on activity tab', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     expect(screen.queryByText('Draft a content plan')).not.toBeInTheDocument()
     expect(screen.queryByText('On it!')).not.toBeInTheDocument()
   })
 
   it('filters by search text', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     fireEvent.change(screen.getByPlaceholderText('Search activity…'), { target: { value: 'competitor' } })
     expect(screen.getByText('Researching competitor pricing')).toBeInTheDocument()
@@ -105,7 +105,7 @@ describe('ActivityFeed — Activity tab', () => {
   })
 
   it('filters by agent type chip', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     fireEvent.click(screen.getByText('Research'))
     expect(screen.getByText('Researching competitor pricing')).toBeInTheDocument()
@@ -114,13 +114,13 @@ describe('ActivityFeed — Activity tab', () => {
   })
 
   it('shows empty state when events array is empty', () => {
-    render(<ActivityFeed {...BASE_PROPS} events={[]} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} events={[]} />)
     fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     expect(screen.getByText('No agent activity yet.')).toBeInTheDocument()
   })
 
   it('clears filter chip on second click', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: /activity/i }))
     fireEvent.click(screen.getByText('Research'))
     fireEvent.click(screen.getByText('Research'))
@@ -131,12 +131,12 @@ describe('ActivityFeed — Activity tab', () => {
 describe('ActivityFeed — tab badge', () => {
   it('shows running count badge when agents are running', () => {
     const running = makeEvent(99, 'research', 'Running task', 'running')
-    render(<ActivityFeed {...BASE_PROPS} events={[...EVENTS, running]} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} events={[...EVENTS, running]} />)
     expect(screen.getByText('(1)')).toBeInTheDocument()
   })
 
   it('shows no badge when no agents are running', () => {
-    render(<ActivityFeed {...BASE_PROPS} />)
+    render(<ActivityFeed productId="test-product" password="test" {...BASE_PROPS} />)
     expect(screen.queryByText(/\(\d+\)/)).not.toBeInTheDocument()
   })
 })

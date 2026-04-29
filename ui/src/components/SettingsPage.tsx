@@ -15,10 +15,8 @@ import ProductMCPSettings from './settings/ProductMCPSettings'
 import ImageGenerationSettings from './settings/ImageGenerationSettings'
 import TokenUsageSettings from './settings/TokenUsageSettings'
 import ProductModelSettings from './settings/ProductModelSettings'
-import ReportsTab from './ReportsTab'
-
 export type Tab =
-  | 'overview' | 'workstreams' | 'objectives' | 'autonomy' | 'reports'
+  | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp' | 'product-model'
   | 'agent-model' | 'google-oauth' | 'remote-access' | 'mcp' | 'image-generation' | 'usage'
 
@@ -28,7 +26,6 @@ interface Props {
   productStates: Record<string, ProductState>
   password: string
   initialTab?: Tab
-  initialReportId?: number | null
   onClose: () => void
   onSwitchProduct: (id: string) => void
   onNewProduct: () => void
@@ -45,7 +42,6 @@ const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'objectives',    label: 'Objectives',  icon: '◎' },
   { key: 'autonomy',      label: 'Autonomy',    icon: '🛡' },
   { key: 'product-model', label: 'Model',       icon: '🤖' },
-  { key: 'reports',       label: 'Reports',     icon: '📋' },
 ]
 const INTEGRATION_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'connections', label: 'Connections', icon: '🔗' },
@@ -63,7 +59,7 @@ const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
 
 export default function SettingsPage({
   products, activeProductId, productStates, password,
-  initialTab = 'overview', initialReportId,
+  initialTab = 'overview',
   onClose, onSwitchProduct, onNewProduct, onRefreshData,
   onWorkstreamUpdated, onObjectiveUpdated, onProductUpdated, onProductDeleted,
 }: Props) {
@@ -102,7 +98,7 @@ export default function SettingsPage({
       case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
       case 'autonomy':      return <AutonomySettings {...productCommon} />
       case 'product-model': return <ProductModelSettings {...productCommon} />
-      case 'reports':       return <ReportsTab productId={settingsProductId} password={password} initialReportId={initialReportId} />
+
       case 'connections':   return <ConnectionsSettings {...productCommon} onOpenSettings={tab => { setTab(tab as Tab) }} />
       case 'social':        return <SocialSettings {...common} />
       case 'agent-model':   return <AgentModelSettings {...common} />
