@@ -909,12 +909,14 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     while True:
         accumulated_text = ""
 
-        # Strip any thinking blocks from history — they require the thinking param
-        # and would cause API errors without it
+        # Strip block types that are invalid as API inputs.
+        # - thinking: requires the thinking param which we don't set
+        # - mcp_tool_use / mcp_tool_result: valid in responses but not accepted as history input
+        _STRIP_TYPES = {"thinking", "mcp_tool_use", "mcp_tool_result"}
         clean_messages = []
         for msg in messages:
-            if msg["role"] == "assistant" and isinstance(msg.get("content"), list):
-                content = [b for b in msg["content"] if not (isinstance(b, dict) and b.get("type") == "thinking")]
+            if isinstance(msg.get("content"), list):
+                content = [b for b in msg["content"] if not (isinstance(b, dict) and b.get("type") in _STRIP_TYPES)]
                 if content:
                     clean_messages.append({**msg, "content": content})
             else:
@@ -987,24 +989,30 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
             "text":     {"type", "text"},
             "tool_use": {"type", "id", "name", "input"},
         }
+        _DROP_TYPES = {"thinking", "mcp_tool_use", "mcp_tool_result"}
         content_serializable = []
         for b in final.content:
             if hasattr(b, "model_dump"):
                 d = b.model_dump()
-                if d.get("type") == "thinking":
-                    continue  # drop thinking blocks from history
+                if d.get("type") in _DROP_TYPES:
+                    continue
                 allowed = _BLOCK_KEYS.get(d.get("type", ""), set(d.keys()))
                 content_serializable.append({k: v for k, v in d.items() if k in allowed})
             else:
                 content_serializable.append(b)
-        messages.append({"role": "assistant", "content": content_serializable})
-        save_message(product_id, "assistant", content_serializable, session_id)
+        if content_serializable:
+            messages.append({"role": "assistant", "content": content_serializable})
+            save_message(product_id, "assistant", content_serializable, session_id)
 
         if final.stop_reason != "tool_use":
             break
 
         # ── Execute all tool calls in parallel ───────────────────────────────
+        # mcp_tool_use blocks are handled server-side by Anthropic; only dispatch
+        # regular tool_use blocks ourselves.
         tool_blocks = [b for b in final.content if b.type == "tool_use"]
+        if not tool_blocks:
+            break  # stop_reason was tool_use but all calls were MCP (server-side)
 
         async def _run_one_tool(block) -> dict:
             """Execute one tool call and handle activity events / side-effects."""
