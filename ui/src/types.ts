@@ -51,7 +51,17 @@ export interface ActivityEvent {
   status: 'running' | 'done' | 'needs_review'
   output_preview?: string | null
   summary?: string | null
+  report_id?: number | null
   created_at: string
+}
+
+export interface RunReport {
+  id: number
+  workstream_id: number
+  workstream_name: string
+  created_at: string
+  preview?: string        // list view only
+  full_output?: string    // detail view only
 }
 
 export interface ReviewItem {
@@ -93,7 +103,7 @@ export type ServerMessage =
   | { type: 'session_deleted'; session_id: string; next_session_id: string }
   | { type: 'directive_echo'; product_id: string; content: string; ts: string }
   | { type: 'activity_started'; product_id: string; id: number; agent_type: AgentType; headline: string; rationale: string; ts: string }
-  | { type: 'activity_done'; product_id: string; id: number; summary: string; ts: string }
+  | { type: 'activity_done'; product_id: string; id: number; summary: string; report_id?: number | null; workstream_name?: string; ts: string }
   | { type: 'review_item_added'; product_id: string; item: ReviewItem }
   | { type: 'review_resolved'; review_item_id: number; action: string }
   | { type: 'review_item_updated'; product_id: string; item: ReviewItem }
