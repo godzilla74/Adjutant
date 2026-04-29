@@ -836,10 +836,10 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
         if isinstance(raw, dict):
             raw = raw.get("token", "")
         if raw:
-            # Anthropic sends authorization_token as-is in the Authorization header,
-            # so normalise to include the Bearer prefix.
-            if not raw.lower().startswith("bearer "):
-                raw = f"Bearer {raw}"
+            # Anthropic constructs "Authorization: Bearer <authorization_token>" itself,
+            # so provide only the raw token — strip any Bearer prefix already present.
+            if raw.lower().startswith("bearer "):
+                raw = raw[7:]
             entry["authorization_token"] = raw
         return entry
 
