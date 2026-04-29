@@ -45,6 +45,30 @@ def _product_context(product_id: str) -> str:
 
     brand_section = "\n### Brand Configuration\n" + "\n".join(brand_parts) if brand_parts else ""
 
+    # MCP context: inject parameter values (e.g. locationId) that tools may require
+    mcp_section = ""
+    try:
+        import json as _json
+        from backend.db import list_mcp_servers as _list_mcp
+        _mcp_servers = [s for s in _list_mcp(product_id) if s["enabled"] and s["type"] == "remote"]
+        _mcp_lines = []
+        for s in _mcp_servers:
+            env = _json.loads(s["env"] or "{}")
+            # Collect non-auth env keys that tools may need as call parameters
+            _skip = {"authorization_token", "authorization", "headers"}
+            params = {k: v for k, v in env.items() if k not in _skip}
+            # Also surface keys nested inside "headers" (e.g. locationId stored by OpenAI MCP UI)
+            for k, v in (env.get("headers") or {}).items():
+                if k not in params:
+                    params[k] = v
+            if params:
+                param_str = ", ".join(f"`{k}`: {v}" for k, v in params.items())
+                _mcp_lines.append(f"  - **{s['name']}**: {param_str}")
+        if _mcp_lines:
+            mcp_section = "\n### MCP Server Parameters\nUse these values when calling the corresponding MCP tools:\n" + "\n".join(_mcp_lines)
+    except Exception:
+        pass
+
     return f"""
 ## Active Product Context: {config['name']} (id: {product_id})
 
@@ -55,7 +79,7 @@ def _product_context(product_id: str) -> str:
 
 ### Active Objectives
 {obj_lines}
-{brand_section}
+{brand_section}{mcp_section}
 
 When delegating tasks, include a `context` parameter explaining WHY you are doing this — this becomes the rationale shown to {owner_name} in the activity feed.
 When drafting social content, always apply the brand configuration above.
