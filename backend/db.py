@@ -224,6 +224,17 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_token_usage_created_at
                 ON token_usage(created_at);
+
+            CREATE TABLE IF NOT EXISTS run_reports (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id       TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                workstream_id    INTEGER NOT NULL,
+                workstream_name  TEXT NOT NULL,
+                full_output      TEXT NOT NULL DEFAULT '',
+                created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_run_reports_product
+                ON run_reports(product_id, created_at DESC);
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -304,6 +315,12 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE review_items ADD COLUMN {col_name} {col_def}")
             except Exception:
                 pass  # column already exists
+
+        # Add report_id to activity_events (idempotent)
+        try:
+            conn.execute("ALTER TABLE activity_events ADD COLUMN report_id INTEGER")
+        except Exception:
+            pass  # column already exists
 
         # Add oauth_connections table (idempotent)
         conn.execute("""
