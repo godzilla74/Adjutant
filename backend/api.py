@@ -9,6 +9,11 @@ from typing import Literal
 from pydantic import BaseModel
 
 from backend.uploads import save_uploaded_file
+from backend.db import (
+    get_run_reports as _get_run_reports,
+    get_run_report as _get_run_report,
+    delete_run_report as _delete_run_report,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -1433,3 +1438,39 @@ def get_available_models(_=Depends(_auth)):
 @router.post("/available-models/refresh")
 def refresh_available_models(_=Depends(_auth)):
     return _get_cached_models(force=True)
+
+
+# ── Run reports ───────────────────────────────────────────────────────────────
+
+@router.get("/products/{product_id}/reports")
+def list_reports(product_id: str, _: None = Depends(_auth)):
+    reports = _get_run_reports(product_id)
+    result = []
+    for r in reports:
+        preview = r["full_output"][:150].rstrip()
+        if len(r["full_output"]) > 150:
+            preview += "…"
+        result.append({
+            "id":               r["id"],
+            "workstream_id":    r["workstream_id"],
+            "workstream_name":  r["workstream_name"],
+            "created_at":       r["created_at"],
+            "preview":          preview,
+        })
+    return result
+
+
+@router.get("/products/{product_id}/reports/{report_id}")
+def get_report(product_id: str, report_id: int, _: None = Depends(_auth)):
+    report = _get_run_report(report_id)
+    if report is None or report["product_id"] != product_id:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+
+@router.delete("/products/{product_id}/reports/{report_id}", status_code=204)
+def delete_report(product_id: str, report_id: int, _: None = Depends(_auth)):
+    report = _get_run_report(report_id)
+    if report is None or report["product_id"] != product_id:
+        raise HTTPException(status_code=404, detail="Report not found")
+    _delete_run_report(report_id)

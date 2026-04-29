@@ -203,6 +203,7 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
             update_workstream_fields, get_product_config,
             get_workstreams, get_objectives,
             load_activity_events, load_review_items,
+            create_run_report,
         )
 
         config = get_product_config(product_id)
@@ -236,7 +237,19 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
         summary_text = result.replace("STATUS:OK", "").replace("STATUS:WARN", "").strip()
         summary = summary_text[:300].rstrip() + ("…" if len(summary_text) > 300 else "")
 
-        update_activity_event(event_id, status="done", summary=summary)
+        # Save the full output as a report (best-effort)
+        report_id: int | None = None
+        try:
+            report_id = create_run_report(
+                product_id=product_id,
+                workstream_id=ws_id,
+                workstream_name=ws["name"],
+                full_output=summary_text,
+            )
+        except Exception as report_exc:
+            log.error("Failed to save run report for workstream %s: %s", ws_id, report_exc)
+
+        update_activity_event(event_id, status="done", summary=summary, report_id=report_id)
 
         now = datetime.now()
         next_run = calc_next_run(ws["schedule"], now)
@@ -256,6 +269,8 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
             "product_id": product_id,
             "id": event_id,
             "summary": summary,
+            "report_id": report_id,
+            "workstream_name": ws["name"],
             "ts": done_ts,
         })
 

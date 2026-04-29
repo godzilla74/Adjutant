@@ -228,7 +228,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS run_reports (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 product_id       TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-                workstream_id    INTEGER NOT NULL,
+                workstream_id    INTEGER NOT NULL,  -- snapshot ref, no FK (survives workstream deletion)
                 workstream_name  TEXT NOT NULL,
                 full_output      TEXT NOT NULL DEFAULT '',
                 created_at       TEXT NOT NULL DEFAULT (datetime('now'))
@@ -950,11 +950,16 @@ def update_activity_event(
     status: str,
     summary: Optional[str] = None,
     output_preview: Optional[str] = None,
+    report_id: Optional[int] = None,
 ) -> None:
     with _conn() as conn:
         conn.execute(
-            "UPDATE activity_events SET status = ?, summary = ?, output_preview = COALESCE(?, output_preview) WHERE id = ?",
-            (status, summary, output_preview, event_id),
+            """UPDATE activity_events
+               SET status = ?, summary = ?,
+                   output_preview = COALESCE(?, output_preview),
+                   report_id = COALESCE(?, report_id)
+               WHERE id = ?""",
+            (status, summary, output_preview, report_id, event_id),
         )
 
 
@@ -978,12 +983,55 @@ def cancel_running_events(product_id: str) -> list[int]:
 def load_activity_events(product_id: str, limit: int = 100) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            """SELECT id, agent_type, headline, rationale, status, output_preview, summary, created_at
+            """SELECT id, agent_type, headline, rationale, status,
+                      output_preview, summary, report_id, created_at
                FROM activity_events WHERE product_id = ?
                ORDER BY created_at DESC LIMIT ?""",
             (product_id, limit),
         ).fetchall()
     return [dict(r) for r in reversed(rows)]
+
+
+# ── Run reports ───────────────────────────────────────────────────────────────
+
+def create_run_report(
+    product_id: str,
+    workstream_id: int,
+    workstream_name: str,
+    full_output: str,
+) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO run_reports (product_id, workstream_id, workstream_name, full_output)
+               VALUES (?, ?, ?, ?)""",
+            (product_id, workstream_id, workstream_name, full_output),
+        )
+        return cur.lastrowid
+
+
+def get_run_reports(product_id: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, product_id, workstream_id, workstream_name, full_output, created_at
+               FROM run_reports WHERE product_id = ?
+               ORDER BY created_at DESC, id DESC""",
+            (product_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_run_report(report_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, product_id, workstream_id, workstream_name, full_output, created_at FROM run_reports WHERE id = ?",
+            (report_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_run_report(report_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM run_reports WHERE id = ?", (report_id,))
 
 
 # ── Review items ──────────────────────────────────────────────────────────────

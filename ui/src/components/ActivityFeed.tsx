@@ -13,6 +13,7 @@ interface Props {
   agentMessages: AgentEntry[]
   agentDraft:    string
   agentName:     string
+  onViewReport?: (reportId: number) => void
 }
 
 const FILTER_TYPES: { label: string; value: AgentType }[] = [
@@ -25,7 +26,7 @@ const FILTER_TYPES: { label: string; value: AgentType }[] = [
 
 const parseTs = (ts: string) => new Date(ts.replace(' ', 'T')).getTime()
 
-export default function ActivityFeed({ events, directives, agentMessages, agentDraft, agentName }: Props) {
+export default function ActivityFeed({ events, directives, agentMessages, agentDraft, agentName, onViewReport }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const [activeTab,  setActiveTab]  = useState<'chat' | 'activity'>('chat')
   const [search,     setSearch]     = useState('')
@@ -175,7 +176,7 @@ export default function ActivityFeed({ events, directives, agentMessages, agentD
 
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
             {[...filteredEvents].reverse().map(event => (
-              <ActivityCard key={event.id} event={event} />
+              <ActivityCard key={event.id} event={event} onViewReport={onViewReport} />
             ))}
             {filteredEvents.length === 0 && (
               <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm py-20">

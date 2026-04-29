@@ -31,9 +31,10 @@ const AGENT_COLOR: Record<AgentType, string> = {
 
 interface Props {
   event: ActivityEvent
+  onViewReport?: (reportId: number) => void
 }
 
-export default function ActivityCard({ event }: Props) {
+export default function ActivityCard({ event, onViewReport }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const isRunning    = event.status === 'running'
@@ -109,6 +110,15 @@ export default function ActivityCard({ event }: Props) {
             </button>
           )}
         </div>
+      )}
+
+      {isDone && event.report_id != null && onViewReport && (
+        <button
+          onClick={() => onViewReport(event.report_id!)}
+          className="text-xs text-sky-600 hover:text-sky-400 transition-colors self-start"
+        >
+          View Report →
+        </button>
       )}
     </div>
   )

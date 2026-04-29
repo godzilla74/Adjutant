@@ -740,3 +740,67 @@ def test_list_browser_credentials_omits_password(tmp_path, monkeypatch):
         assert "password" not in r
     services = {r["service"] for r in results}
     assert services == {"twitter", "linkedin"}
+
+
+# ── run_reports ───────────────────────────────────────────────────────────────
+
+def test_create_run_report_returns_id(db):
+    report_id = db.create_run_report("test-product", 1, "Daily Brief", "Full output here")
+    assert isinstance(report_id, int)
+    assert report_id > 0
+
+
+def test_get_run_reports_returns_most_recent_first(db):
+    db.create_run_report("test-product", 1, "Brief A", "Output A")
+    db.create_run_report("test-product", 2, "Brief B", "Output B")
+    reports = db.get_run_reports("test-product")
+    assert len(reports) == 2
+    assert reports[0]["workstream_name"] == "Brief B"
+    assert reports[1]["workstream_name"] == "Brief A"
+
+
+def test_get_run_reports_scoped_to_product(db):
+    db.create_run_report("test-product", 1, "Brief A", "Output A")
+    db.create_run_report("test-product-2", 2, "Brief B", "Output B")
+    reports = db.get_run_reports("test-product")
+    assert len(reports) == 1
+    assert reports[0]["workstream_name"] == "Brief A"
+
+
+def test_get_run_report_returns_single(db):
+    report_id = db.create_run_report("test-product", 1, "Brief", "Full content")
+    report = db.get_run_report(report_id)
+    assert report is not None
+    assert report["full_output"] == "Full content"
+    assert report["workstream_name"] == "Brief"
+
+
+def test_get_run_report_returns_none_for_missing(db):
+    assert db.get_run_report(99999) is None
+
+
+def test_delete_run_report_removes_it(db):
+    report_id = db.create_run_report("test-product", 1, "Brief", "Output")
+    db.delete_run_report(report_id)
+    assert db.get_run_report(report_id) is None
+
+
+def test_delete_run_report_is_idempotent(db):
+    report_id = db.create_run_report("test-product", 1, "Brief", "Output")
+    db.delete_run_report(report_id)
+    db.delete_run_report(report_id)  # should not raise
+
+
+def test_update_activity_event_with_report_id(db):
+    event_id = db.save_activity_event("test-product", "general", "Test", "Rationale")
+    report_id = db.create_run_report("test-product", 1, "Brief", "Output")
+    db.update_activity_event(event_id, status="done", summary="done", report_id=report_id)
+    events = db.load_activity_events("test-product")
+    assert events[0]["report_id"] == report_id
+
+
+def test_load_activity_events_includes_report_id(db):
+    event_id = db.save_activity_event("test-product", "general", "Test", "Rationale")
+    events = db.load_activity_events("test-product")
+    assert "report_id" in events[0]
+    assert events[0]["report_id"] is None
