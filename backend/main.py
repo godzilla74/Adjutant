@@ -836,6 +836,10 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
         if isinstance(raw, dict):
             raw = raw.get("token", "")
         if raw:
+            # Anthropic sends authorization_token as-is in the Authorization header,
+            # so normalise to include the Bearer prefix.
+            if not raw.lower().startswith("bearer "):
+                raw = f"Bearer {raw}"
             entry["authorization_token"] = raw
         return entry
 
@@ -866,9 +870,13 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     _openai_mcp_tools: list = []
     for _s, _env in _enabled_remote_servers:
         if _provider.name == "anthropic":
-            _remote_mcp.append(_build_anthropic_mcp_entry(_s, _env))
+            _entry = _build_anthropic_mcp_entry(_s, _env)
+            _remote_mcp.append(_entry)
+            print(f"[mcp] anthropic entry: name={_entry['name']} url={_entry['url']} has_token={'authorization_token' in _entry}", flush=True)
         else:
-            _openai_mcp_tools.append(_build_openai_mcp_entry(_s, _env))
+            _entry = _build_openai_mcp_entry(_s, _env)
+            _openai_mcp_tools.append(_entry)
+            print(f"[mcp] openai entry: label={_entry['server_label']} url={_entry['server_url']} headers={list(_entry.get('headers', {}).keys())}", flush=True)
 
     # Extract last user message for prescreener BEFORE datetime injection
     _last_user_msg_for_prescreener = next(

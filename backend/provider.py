@@ -458,6 +458,8 @@ class OpenAIProvider:
             body["tool_choice"] = "auto"
             body["parallel_tool_calls"] = True
 
+        mcp_count = sum(1 for t in oai_tools if isinstance(t, dict) and t.get("type") == "mcp")
+        logger.info("[OpenAIProvider] stream_agent model=%s tools=%d mcp=%d", model, len(oai_tools), mcp_count)
         return await _stream_responses_sse(self._BASE_URL, self._headers(), body, on_text)
 
     async def create(
@@ -605,6 +607,8 @@ class ChatGPTProvider:
             body["tool_choice"] = "auto"
             body["parallel_tool_calls"] = True
 
+        mcp_count = sum(1 for t in oai_tools if isinstance(t, dict) and t.get("type") == "mcp")
+        logger.info("[ChatGPTProvider] stream_agent model=%s tools=%d mcp=%d", body["model"], len(oai_tools), mcp_count)
         logger.debug("[ChatGPTProvider] stream_agent body: %s", json.dumps(body)[:1000])
         return await _stream_responses_sse(self._BASE_URL, self._headers(stream=True), body, on_text)
 
