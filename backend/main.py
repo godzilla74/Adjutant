@@ -793,16 +793,9 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     from backend.db import list_mcp_servers as _list_mcp_servers
     import json as _json_mcp
     _all_servers = _list_mcp_servers(product_id)
-    _enabled_servers = [s for s in _all_servers if s["enabled"]]
-
-    _remote_mcp = [
-        {
-            "type": "url",
-            "url": s["url"],
-            "name": s["name"],
-            **(_json_mcp.loads(s["env"] or "{}")),
-        }
-        for s in _enabled_servers if s["type"] == "remote"
+    _enabled_remote_servers = [
+        (s, _json_mcp.loads(s["env"] or "{}"))
+        for s in _all_servers if s["enabled"] and s["type"] == "remote"
     ]
     _stdio_tools = _mcp_manager.get_tools() if _mcp_manager else []
     if product_id is None:
@@ -824,6 +817,58 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
     _prescreener_model = os.environ.get("AGENT_PRESCREENER_MODEL", _model_cfg["prescreener_model"])
     _provider = _make_provider(_agent_model)
     _pre_provider = _make_provider(_prescreener_model)
+
+    # Build provider-appropriate remote MCP entries
+    def _build_anthropic_mcp_entry(s: dict, env: dict) -> dict:
+        url = s["url"]
+        # Embed extra headers as query params — Anthropic only supports authorization_token
+        extra_hdrs: dict = env.get("headers") or {}
+        if extra_hdrs:
+            from urllib.parse import urlparse, urlunparse, parse_qs, urlencode as _ue
+            parsed = urlparse(url)
+            existing = parse_qs(parsed.query, keep_blank_values=True)
+            for k, v in extra_hdrs.items():
+                if k not in existing:
+                    existing[k] = [v]
+            url = urlunparse(parsed._replace(query=_ue({k: v[0] for k, v in existing.items()})))
+        entry: dict = {"type": "url", "url": url, "name": s["name"]}
+        raw = env.get("authorization_token") or env.get("authorization")
+        if isinstance(raw, dict):
+            raw = raw.get("token", "")
+        if raw:
+            entry["authorization_token"] = raw
+        return entry
+
+    def _build_openai_mcp_entry(s: dict, env: dict) -> dict:
+        import re as _re
+        headers: dict = {}
+        raw = env.get("authorization_token") or env.get("authorization")
+        if isinstance(raw, dict):
+            raw = raw.get("token", "")
+        if raw:
+            token = raw if raw.lower().startswith("bearer ") else f"Bearer {raw}"
+            headers["Authorization"] = token
+        # Pass extra headers (locationId, etc.) natively — OpenAI MCP supports arbitrary headers
+        extra_hdrs: dict = env.get("headers") or {}
+        headers.update(extra_hdrs)
+        # Also pick up top-level env keys that aren't auth/headers (e.g. locationId stored flat)
+        skip = {"authorization_token", "authorization", "headers"}
+        for k, v in env.items():
+            if k not in skip and k not in headers:
+                headers[k] = v
+        label = _re.sub(r"[^a-z0-9_-]", "_", s["name"].lower())[:64]
+        entry: dict = {"type": "mcp", "server_label": label, "server_url": s["url"], "require_approval": "never"}
+        if headers:
+            entry["headers"] = headers
+        return entry
+
+    _remote_mcp: list = []
+    _openai_mcp_tools: list = []
+    for _s, _env in _enabled_remote_servers:
+        if _provider.name == "anthropic":
+            _remote_mcp.append(_build_anthropic_mcp_entry(_s, _env))
+        else:
+            _openai_mcp_tools.append(_build_openai_mcp_entry(_s, _env))
 
     # Extract last user message for prescreener BEFORE datetime injection
     _last_user_msg_for_prescreener = next(
@@ -878,6 +923,8 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
         if _remote_mcp:
             _stream_kwargs["extra_headers"] = {"anthropic-beta": "mcp-client-2025-04-04"}
             _stream_kwargs["extra_body"] = {"mcp_servers": _remote_mcp}
+        if _openai_mcp_tools:
+            _stream_kwargs["openai_mcp_tools"] = _openai_mcp_tools
 
         async def _run_stream(kwargs: dict) -> object:
             nonlocal accumulated_text
@@ -896,23 +943,23 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                 on_text=_on_text,
                 extra_headers=kwargs.get("extra_headers"),
                 extra_body=kwargs.get("extra_body"),
+                openai_mcp_tools=kwargs.get("openai_mcp_tools"),
             )
 
         import anthropic as _anthropic
+        _has_mcp = bool(_remote_mcp or _openai_mcp_tools)
         try:
             final = await _run_stream(_stream_kwargs)
             _record_token_usage(product_id, "agent", _provider.name, _agent_model, final.usage)
-        except _anthropic.BadRequestError as e:
-            # Note: this only fires for Anthropic providers. OpenAI providers skip
-            # remote MCP headers with a warning in stream_agent() instead.
-            if _remote_mcp and "mcp" in str(e).lower():
-                # One or more remote MCP servers are misconfigured; retry without them
-                print(f"[mcp] BadRequestError with remote MCP servers: {e}", flush=True)
+        except (_anthropic.BadRequestError, RuntimeError) as e:
+            if _has_mcp and ("mcp" in str(e).lower() or "400" in str(e)):
+                print(f"[mcp] Error with remote MCP servers: {e}", flush=True)
                 await send_fn({
                     "type": "error",
                     "message": f"⚠ One or more remote MCP servers failed: {e}. Continuing without them.",
                 })
-                fallback = {k: v for k, v in _stream_kwargs.items() if k not in ("extra_body", "extra_headers")}
+                fallback = {k: v for k, v in _stream_kwargs.items()
+                            if k not in ("extra_body", "extra_headers", "openai_mcp_tools")}
                 accumulated_text = ""
                 final = await _run_stream(fallback)
                 _record_token_usage(product_id, "agent", _provider.name, _agent_model, final.usage)

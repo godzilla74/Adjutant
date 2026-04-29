@@ -9,6 +9,96 @@ from typing import Callable
 logger = logging.getLogger(__name__)
 
 
+# ── Shared Responses API SSE streaming ────────────────────────────────────────
+
+async def _stream_responses_sse(
+    url: str,
+    headers: dict,
+    body: dict,
+    on_text: Callable,
+) -> "_OAIMessage":
+    """Stream from any OpenAI Responses API endpoint (api.openai.com or chatgpt.com/backend-api/codex).
+
+    Handles text deltas, function call streaming, and usage reporting.
+    Calls on_text for each streamed text chunk; returns a normalised _OAIMessage.
+    """
+    import httpx
+
+    accumulated_text = ""
+    function_calls: dict[str, dict] = {}
+    finish_reason = "stop"
+    final_usage = None
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        async with client.stream("POST", url, json=body, headers=headers) as response:
+            if response.status_code >= 400:
+                raw = await response.aread()
+                raise RuntimeError(f"API {response.status_code}: {raw.decode()[:500]}")
+            async for raw_line in response.aiter_lines():
+                if not raw_line or raw_line.startswith(":"):
+                    continue
+                if not raw_line.startswith("data: "):
+                    continue
+                data_str = raw_line[6:].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    event = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+                etype = event.get("type", "")
+
+                if etype == "response.output_text.delta":
+                    delta = event.get("delta", "")
+                    if delta:
+                        await on_text(delta)
+                        accumulated_text += delta
+
+                elif etype == "response.output_item.added":
+                    item = event.get("item", {})
+                    if item.get("type") == "function_call":
+                        call_id = item.get("id") or item.get("call_id", "")
+                        function_calls[call_id] = {
+                            "id": call_id,
+                            "name": item.get("name", ""),
+                            "arguments": "",
+                        }
+
+                elif etype == "response.function_call_arguments.delta":
+                    item_id = event.get("item_id", "")
+                    if item_id in function_calls:
+                        function_calls[item_id]["arguments"] += event.get("delta", "")
+
+                elif etype == "response.output_item.done":
+                    item = event.get("item", {})
+                    if item.get("type") == "function_call":
+                        call_id = item.get("id") or item.get("call_id", "")
+                        if call_id in function_calls:
+                            function_calls[call_id]["arguments"] = item.get(
+                                "arguments", function_calls[call_id]["arguments"]
+                            )
+
+                elif etype == "response.completed":
+                    resp_obj = event.get("response", {})
+                    usage_raw = resp_obj.get("usage", {})
+                    final_usage = _SimpleUsage(
+                        usage_raw.get("input_tokens", 0),
+                        usage_raw.get("output_tokens", 0),
+                    )
+                    if function_calls:
+                        finish_reason = "tool_calls"
+
+    tool_call_list = [
+        {
+            "id": fc["id"],
+            "type": "function",
+            "function": {"name": fc["name"], "arguments": fc["arguments"]},
+        }
+        for fc in function_calls.values()
+    ]
+    return _OAIMessage(accumulated_text, tool_call_list, final_usage, finish_reason)
+
+
 # ── Format translation helpers ─────────────────────────────────────────────────
 
 def _extract_system_text(system: str | list) -> str:
@@ -283,6 +373,7 @@ class AnthropicProvider:
         on_text: Callable,
         extra_headers: dict | None = None,
         extra_body: dict | None = None,
+        openai_mcp_tools: list | None = None,  # unused by Anthropic
     ) -> object:
         kwargs: dict = dict(
             model=model,
@@ -324,9 +415,18 @@ class AnthropicProvider:
 class OpenAIProvider:
     """Provider for OpenAI Platform API (api.openai.com) — requires Platform API credits."""
     name = "openai"
+    _BASE_URL = "https://api.openai.com/v1/responses"
 
-    def __init__(self, client) -> None:
-        self._client = client
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    def _headers(self) -> dict:
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "content-type": "application/json",
+            "accept": "text/event-stream",
+            "OpenAI-Beta": "responses=experimental",
+        }
 
     async def stream_agent(
         self,
@@ -338,54 +438,77 @@ class OpenAIProvider:
         on_text: Callable,
         extra_headers: dict | None = None,
         extra_body: dict | None = None,
+        openai_mcp_tools: list | None = None,
     ) -> object:
-        if extra_headers or extra_body:
-            logger.warning("OpenAIProvider: remote MCP (extra_headers/extra_body) is not supported; skipping")
+        system_text, input_items = _translate_messages_to_responses_api(messages, system)
+        oai_tools = _translate_tools_to_responses_api(tools)
+        if openai_mcp_tools:
+            oai_tools = oai_tools + openai_mcp_tools
 
-        oai_messages = _translate_messages_to_openai(messages, system)
-        oai_tools = _translate_tools_to_openai(tools)
-
-        accumulated_text = ""
-        tool_calls_acc: dict[int, dict] = {}
-        finish_reason = "stop"
-        final_usage = None
-
-        kwargs: dict = dict(
-            model=model,
-            max_tokens=max_tokens,
-            messages=oai_messages,
-            stream=True,
-            stream_options={"include_usage": True},
-        )
+        body: dict = {
+            "model": model,
+            "store": False,
+            "stream": True,
+            "instructions": system_text,
+            "input": input_items,
+            "text": {"verbosity": "low"},
+        }
         if oai_tools:
-            kwargs["tools"] = oai_tools
+            body["tools"] = oai_tools
+            body["tool_choice"] = "auto"
+            body["parallel_tool_calls"] = True
 
-        async with await self._client.chat.completions.create(**kwargs) as stream:
-            async for chunk in stream:
-                choice = chunk.choices[0] if chunk.choices else None
-                if choice:
-                    delta = choice.delta
-                    if delta.content:
-                        await on_text(delta.content)
-                        accumulated_text += delta.content
-                    if delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            idx = tc.index
-                            if idx not in tool_calls_acc:
-                                tool_calls_acc[idx] = {
-                                    "id": tc.id or "",
-                                    "type": "function",
-                                    "function": {"name": tc.function.name or "", "arguments": ""},
-                                }
-                            if tc.function.arguments:
-                                tool_calls_acc[idx]["function"]["arguments"] += tc.function.arguments
-                    if choice.finish_reason:
-                        finish_reason = choice.finish_reason
-                if chunk.usage:
-                    final_usage = chunk.usage
+        return await _stream_responses_sse(self._BASE_URL, self._headers(), body, on_text)
 
-        tool_calls = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
-        return _OAIMessage(accumulated_text, tool_calls, final_usage, finish_reason)
+    async def create(
+        self,
+        model: str,
+        system: str,
+        messages: list,
+        max_tokens: int,
+    ) -> object:
+        import httpx
+        system_text, input_items = _translate_messages_to_responses_api(messages, system)
+        body = {
+            "model": model,
+            "store": False,
+            "stream": True,
+            "instructions": system_text,
+            "input": input_items,
+            "text": {"verbosity": "low"},
+        }
+        accumulated_text = ""
+        final_usage = None
+        async with httpx.AsyncClient(timeout=60) as client:
+            async with client.stream(
+                "POST", self._BASE_URL, json=body,
+                headers={**self._headers(), "accept": "text/event-stream"},
+            ) as response:
+                if response.status_code >= 400:
+                    raw = await response.aread()
+                    raise RuntimeError(f"OpenAI API {response.status_code}: {raw.decode()[:500]}")
+                async for raw_line in response.aiter_lines():
+                    if not raw_line or raw_line.startswith(":"):
+                        continue
+                    if not raw_line.startswith("data: "):
+                        continue
+                    data_str = raw_line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+                    etype = event.get("type", "")
+                    if etype == "response.output_text.delta":
+                        accumulated_text += event.get("delta", "")
+                    elif etype == "response.completed":
+                        usage_raw = event.get("response", {}).get("usage", {})
+                        final_usage = _SimpleUsage(
+                            usage_raw.get("input_tokens", 0),
+                            usage_raw.get("output_tokens", 0),
+                        )
+        return _OAICreateResponse(accumulated_text, final_usage or _SimpleUsage(0, 0))
 
     async def create(
         self,
@@ -462,13 +585,13 @@ class ChatGPTProvider:
         on_text: Callable,
         extra_headers: dict | None = None,
         extra_body: dict | None = None,
+        openai_mcp_tools: list | None = None,
     ) -> object:
-        import httpx
-
-        if extra_headers or extra_body:
-            logger.warning("ChatGPTProvider: remote MCP (extra_headers/extra_body) is not supported; skipping")
-
         system_text, input_items = _translate_messages_to_responses_api(messages, system)
+        oai_tools = _translate_tools_to_responses_api(tools)
+        if openai_mcp_tools:
+            oai_tools = oai_tools + openai_mcp_tools
+
         body: dict = {
             "model": self._resolve_model(model),
             "store": False,
@@ -477,91 +600,13 @@ class ChatGPTProvider:
             "input": input_items,
             "text": {"verbosity": "low"},
         }
-        if tools:
-            body["tools"] = _translate_tools_to_responses_api(tools)
+        if oai_tools:
+            body["tools"] = oai_tools
             body["tool_choice"] = "auto"
             body["parallel_tool_calls"] = True
 
         logger.debug("[ChatGPTProvider] stream_agent body: %s", json.dumps(body)[:1000])
-        accumulated_text = ""
-        function_calls: dict[str, dict] = {}  # call_id → {id, name, arguments}
-        finish_reason = "stop"
-        final_usage = None
-
-        async with httpx.AsyncClient(timeout=120) as client:
-            async with client.stream(
-                "POST",
-                self._BASE_URL,
-                json=body,
-                headers=self._headers(stream=True),
-            ) as response:
-                if response.status_code >= 400:
-                    body_text = await response.aread()
-                    raise RuntimeError(f"ChatGPT API {response.status_code}: {body_text.decode()[:500]}")
-                async for raw_line in response.aiter_lines():
-                    if not raw_line or raw_line.startswith(":"):
-                        continue
-                    if raw_line.startswith("data: "):
-                        data_str = raw_line[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            event = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            continue
-
-                        etype = event.get("type", "")
-
-                        if etype == "response.output_text.delta":
-                            delta = event.get("delta", "")
-                            if delta:
-                                await on_text(delta)
-                                accumulated_text += delta
-
-                        elif etype == "response.output_item.added":
-                            item = event.get("item", {})
-                            if item.get("type") == "function_call":
-                                call_id = item.get("id") or item.get("call_id", "")
-                                function_calls[call_id] = {
-                                    "id": call_id,
-                                    "name": item.get("name", ""),
-                                    "arguments": "",
-                                }
-
-                        elif etype == "response.function_call_arguments.delta":
-                            item_id = event.get("item_id", "")
-                            if item_id in function_calls:
-                                function_calls[item_id]["arguments"] += event.get("delta", "")
-
-                        elif etype == "response.output_item.done":
-                            item = event.get("item", {})
-                            if item.get("type") == "function_call":
-                                call_id = item.get("id") or item.get("call_id", "")
-                                if call_id in function_calls:
-                                    function_calls[call_id]["arguments"] = item.get(
-                                        "arguments",
-                                        function_calls[call_id]["arguments"],
-                                    )
-
-                        elif etype == "response.completed":
-                            resp = event.get("response", {})
-                            usage_raw = resp.get("usage", {})
-                            final_usage = _SimpleUsage(
-                                usage_raw.get("input_tokens", 0),
-                                usage_raw.get("output_tokens", 0),
-                            )
-                            if function_calls:
-                                finish_reason = "tool_calls"
-
-        tool_call_list = [
-            {
-                "id": fc["id"],
-                "type": "function",
-                "function": {"name": fc["name"], "arguments": fc["arguments"]},
-            }
-            for fc in function_calls.values()
-        ]
-        return _OAIMessage(accumulated_text, tool_call_list, final_usage, finish_reason)
+        return await _stream_responses_sse(self._BASE_URL, self._headers(stream=True), body, on_text)
 
     async def create(
         self,
@@ -625,16 +670,14 @@ class ChatGPTProvider:
 
 # ── Factory ────────────────────────────────────────────────────────────────────
 
-def get_openai_client():
-    """Return an AsyncOpenAI client for Platform API users (sk-... key required).
-    Only used when openai_access_token is a real Platform API key, not a ChatGPT JWT."""
+def get_openai_api_key() -> str:
+    """Return the OpenAI Platform API key (sk-... required)."""
     from backend.db import get_agent_config
-    from openai import AsyncOpenAI
     cfg = get_agent_config()
     key = cfg.get("openai_access_token", "") or cfg.get("openai_api_key", "")
     if not key:
         raise RuntimeError("OpenAI not connected. Connect via Settings → Agent Model.")
-    return AsyncOpenAI(api_key=key)
+    return key
 
 
 def make_provider(model: str) -> "AnthropicProvider | OpenAIProvider | ChatGPTProvider":
@@ -657,13 +700,11 @@ def make_provider(model: str) -> "AnthropicProvider | OpenAIProvider | ChatGPTPr
 
         # access_token is a real sk-... key (Platform OAuth exchange succeeded)
         if access_token:
-            from openai import AsyncOpenAI
-            return OpenAIProvider(AsyncOpenAI(api_key=access_token))
+            return OpenAIProvider(access_token)
 
         # Direct Platform API key, no OAuth
         if api_key:
-            from openai import AsyncOpenAI
-            return OpenAIProvider(AsyncOpenAI(api_key=api_key))
+            return OpenAIProvider(api_key)
 
         raise RuntimeError("OpenAI not connected. Connect via Settings → Agent Model.")
 
