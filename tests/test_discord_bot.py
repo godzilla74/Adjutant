@@ -51,11 +51,7 @@ def _make_interaction(custom_id="approve:42"):
 def test_on_message_routes_to_global_agent():
     bot = _make_bot()
     bot._client = MagicMock()
-    bot._client.user.id = 12345
     msg, thread = _make_message("<@12345> hello world")
-    # Simulate mentioned_in returning True
-    bot._client.user = MagicMock()
-
     asyncio.run(bot._on_message(msg))
     bot._directive_callback.assert_awaited_once()
     args = bot._directive_callback.call_args[0]
@@ -114,6 +110,8 @@ def test_on_interaction_reject():
     interaction = _make_interaction("reject:42")
     asyncio.run(bot._on_interaction(interaction))
     bot.resolve_review_fn.assert_called_once_with(42, "skipped")
+    bot.broadcast_fn.assert_awaited_once()
+    interaction.edit_original_response.assert_awaited_once()
 
 
 def test_on_interaction_invalid_custom_id_ignored():
@@ -131,14 +129,14 @@ def test_notify_agent_done_sends_to_pending_thread():
     thread.send = AsyncMock()
     bot._pending_products[None] = thread
     asyncio.run(bot.notify({"type": "agent_done", "product_id": None, "content": "Done!"}))
-    thread.send.assert_awaited()
+    thread.send.assert_awaited_once_with("Done!")
     assert None not in bot._pending_products
 
 
 def test_notify_agent_done_ignores_non_pending():
     bot = _make_bot()
     asyncio.run(bot.notify({"type": "agent_done", "product_id": None, "content": "Done!"}))
-    # No error, nothing sent
+    assert bot._pending_products == {}
 
 
 def test_notify_review_item_skips_if_no_notification_channel():
