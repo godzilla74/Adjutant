@@ -9,7 +9,7 @@ import ConnectionsSettings from './settings/ConnectionsSettings'
 import SocialSettings from './settings/SocialSettings'
 import AgentModelSettings from './settings/AgentModelSettings'
 import GoogleOAuthSettings from './settings/GoogleOAuthSettings'
-import RemoteAccessSettings from './settings/RemoteAccessSettings'
+import IntegrationsSettings from './settings/IntegrationsSettings'
 import GlobalMCPSettings from './settings/GlobalMCPSettings'
 import ProductMCPSettings from './settings/ProductMCPSettings'
 import ImageGenerationSettings from './settings/ImageGenerationSettings'
@@ -18,7 +18,7 @@ import ProductModelSettings from './settings/ProductModelSettings'
 export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp' | 'product-model'
-  | 'agent-model' | 'google-oauth' | 'remote-access' | 'mcp' | 'image-generation' | 'usage'
+  | 'agent-model' | 'google-oauth' | 'integrations' | 'mcp' | 'image-generation' | 'usage'
 
 interface Props {
   products: Product[]
@@ -51,7 +51,7 @@ const INTEGRATION_TABS: { key: Tab; label: string; icon: string }[] = [
 const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'agent-model',       label: 'Agent Model',       icon: '🤖' },
   { key: 'google-oauth',      label: 'Google OAuth',      icon: '🔑' },
-  { key: 'remote-access',     label: 'Remote Access',     icon: '📡' },
+  { key: 'integrations',      label: 'Integrations',      icon: '🔗' },
   { key: 'mcp',               label: 'MCP Servers',       icon: '⚡' },
   { key: 'image-generation',  label: 'Image Generation',  icon: '🖼' },
   { key: 'usage',             label: 'Usage',             icon: '📊' },
@@ -103,7 +103,7 @@ export default function SettingsPage({
       case 'social':        return <SocialSettings {...common} />
       case 'agent-model':   return <AgentModelSettings {...common} />
       case 'google-oauth':  return <GoogleOAuthSettings {...common} />
-      case 'remote-access': return <RemoteAccessSettings {...common} />
+      case 'integrations': return <IntegrationsSettings {...common} />
       case 'product-mcp':      return <ProductMCPSettings {...productCommon} />
       case 'mcp':              return <GlobalMCPSettings {...common} />
       case 'image-generation': return <ImageGenerationSettings {...common} />
