@@ -477,12 +477,10 @@ async def _run_approved_review_task(product_id: str, review: dict) -> None:
     try:
         from backend.db import (
             save_activity_event, update_activity_event,
-            create_session, get_workstreams, get_objectives,
+            get_workstreams, get_objectives,
             load_activity_events, load_review_items,
         )
-        from backend.main import _build_context, _agent_loop
-
-        session_id = create_session(f"Approved: {review['title'][:40]}", product_id)
+        from backend.main import _agent_loop
 
         event_id = save_activity_event(
             product_id=product_id,
@@ -503,8 +501,7 @@ async def _run_approved_review_task(product_id: str, review: dict) -> None:
                 "ts": now_ts,
             })
 
-        messages = _build_context(product_id, session_id=session_id)
-        messages.append({
+        messages = [{
             "role": "user",
             "content": (
                 f"The following was reviewed and approved by the user:\n\n"
@@ -515,9 +512,9 @@ async def _run_approved_review_task(product_id: str, review: dict) -> None:
                 "create_review_item or queue anything for further approval. "
                 "Execute directly and report what you did."
             ),
-        })
+        }]
 
-        await _agent_loop(_broadcast_fn, product_id, messages, session_id=session_id)
+        await _agent_loop(_broadcast_fn, product_id, messages, session_id=None)
         summary = f"Completed: {review['title']}"
         update_activity_event(event_id, status="done", summary=summary)
         done_ts = datetime.now().isoformat(timespec="seconds")
