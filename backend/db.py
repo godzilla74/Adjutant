@@ -1072,7 +1072,7 @@ def load_review_items(product_id: str, status: str = "pending") -> list[dict]:
         rows = conn.execute(
             """SELECT ri.id, ri.activity_event_id, ri.title, ri.description, ri.risk_label,
                       ri.status, ri.created_at, ri.action_type, ri.auto_approve_at,
-                      sd.scheduled_for
+                      ri.payload, sd.scheduled_for
                FROM review_items ri
                LEFT JOIN social_drafts sd ON sd.review_item_id = ri.id
                WHERE ri.product_id = ? AND ri.status = ?

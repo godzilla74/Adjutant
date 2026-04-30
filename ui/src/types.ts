@@ -74,6 +74,7 @@ export interface ReviewItem {
   action_type?: string | null
   auto_approve_at?: string | null
   scheduled_for?: string | null
+  payload?: string | null
 }
 
 export interface ProductState {
