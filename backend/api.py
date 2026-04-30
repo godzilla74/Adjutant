@@ -637,9 +637,8 @@ async def list_slack_channels(_=Depends(_auth)):
     except Exception:
         raise HTTPException(502, detail="Could not reach Slack API")
     channels = [
-        {"id": c["id"], "name": c["name"]}
+        {"id": c["id"], "name": c["name"], "is_member": bool(c.get("is_member"))}
         for c in data.get("channels", [])
-        if c.get("is_member")
     ]
     return {"channels": channels}
 
@@ -650,6 +649,17 @@ async def save_slack_notification_channel(body: SlackChannelRequest, _=Depends(_
     from backend import slack_state
     set_agent_config("slack_notification_channel_id", body.channel_id)
     bot_token, app_token, _ = _get_slack_creds()
+    # Auto-join the channel so the bot can post notifications (works for public channels).
+    if bot_token and body.channel_id:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    "https://slack.com/api/conversations.join",
+                    headers={"Authorization": f"Bearer {bot_token}"},
+                    json={"channel": body.channel_id},
+                )
+        except Exception:
+            pass
     await slack_state.restart(bot_token, app_token)
     return {"channel_id": body.channel_id}
 
