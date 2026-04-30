@@ -172,8 +172,8 @@ class SlackBot:
                     local_path, mime = await self._download_slack_file(url)
                     file_ref = f"[Attached file: {local_path} ({mime})]"
                     break
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to download Slack attachment: %s", e)
 
         if not text and not file_ref:
             return
@@ -208,8 +208,8 @@ class SlackBot:
                     await self._web_client.chat_update(
                         channel=channel_id, ts=msg_ts, text="✅ Approved", blocks=[]
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Slack chat_update failed: %s", e)
             if self._on_review_approved_fn:
                 await self._on_review_approved_fn(item_id)
         elif action_str == "reject":
@@ -220,8 +220,8 @@ class SlackBot:
                     await self._web_client.chat_update(
                         channel=channel_id, ts=msg_ts, text="❌ Rejected", blocks=[]
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Slack chat_update failed: %s", e)
 
     async def _download_slack_file(self, url: str) -> tuple[str, str]:
         from backend.uploads import save_uploaded_file
@@ -261,23 +261,23 @@ class SlackBot:
             except Exception as exc:
                 logger.warning("Slack event handler error: %s", exc)
 
-        sm_client = SocketModeClient(
-            app_token=self.app_token,
-            web_client=self._web_client,
-        )
-        sm_client.socket_mode_request_listeners.append(_handler)
-
-        try:
-            await sm_client.connect()
-            logger.info("Slack Socket Mode connected as %s", self._bot_user_id)
-            while True:
-                await asyncio.sleep(1)
-        except asyncio.CancelledError:
+        while True:
+            sm_client = SocketModeClient(
+                app_token=self.app_token,
+                web_client=self._web_client,
+            )
+            sm_client.socket_mode_request_listeners.append(_handler)
             try:
-                await sm_client.disconnect()
-            except Exception:
-                pass
-            raise
-        except Exception as e:
-            logger.warning("Slack Socket Mode error: %s", e)
-            await asyncio.sleep(5)
+                await sm_client.connect()
+                logger.info("Slack Socket Mode connected as %s", self._bot_user_id)
+                while True:
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                try:
+                    await sm_client.disconnect()
+                except Exception:
+                    pass
+                raise
+            except Exception as e:
+                logger.warning("Slack Socket Mode error: %s — reconnecting in 5s", e)
+                await asyncio.sleep(5)
