@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discord Setup Guide — Adjutant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #c9d1d9;
+      line-height: 1.7;
+      padding: 48px 24px 96px;
+    }
+
+    .container { max-width: 700px; margin: 0 auto; }
+
+    .back { display: inline-block; font-size: 0.8rem; color: #8b949e; margin-bottom: 36px; cursor: pointer; }
+    .back:hover { color: #58a6ff; }
+
+    h1 { font-size: 1.5rem; font-weight: 700; color: #e6edf3; margin-bottom: 6px; }
+    .subtitle { font-size: 0.875rem; color: #8b949e; margin-bottom: 48px; }
+
+    .platform {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 32px;
+    }
+
+    .platform-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .platform-icon { font-size: 1.5rem; line-height: 1; }
+    .platform-name { font-size: 1.05rem; font-weight: 700; color: #e6edf3; }
+
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #58a6ff;
+      margin-bottom: 12px;
+      margin-top: 24px;
+    }
+
+    .section-title:first-of-type { margin-top: 0; }
+
+    .steps { list-style: none; padding: 0; margin-bottom: 0; }
+
+    .steps li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      font-size: 0.875rem;
+      margin-bottom: 10px;
+    }
+
+    .steps li:last-child { margin-bottom: 0; }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #21262d;
+      border: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #8b949e;
+      margin-top: 1px;
+    }
+
+    .steps li p { margin: 0; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #21262d;
+      margin: 20px 0;
+    }
+
+    .field-map { display: flex; flex-direction: column; gap: 6px; margin-bottom: 0; }
+
+    .field-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    .field-key {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.78rem;
+      color: #79c0ff;
+      white-space: nowrap;
+    }
+
+    .field-arrow { color: #484f58; font-size: 0.8rem; }
+    .field-dest { color: #c9d1d9; }
+
+    code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.8rem;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 1px 5px;
+      color: #d2a8ff;
+    }
+
+    .tip {
+      margin-top: 18px;
+      padding: 12px 16px;
+      background: transparent;
+      border: 1px solid #30363d;
+      border-left: 3px solid #388bfd;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: #8b949e;
+    }
+
+    .tip strong { color: #79c0ff; }
+
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <a class="back" onclick="history.back()">← Back to Settings</a>
+
+    <h1>Discord Setup Guide</h1>
+    <p class="subtitle">How to create a Discord bot and connect it to Adjutant so you can @mention it in any server channel.</p>
+
+    <div class="platform">
+      <div class="platform-header">
+        <span class="platform-icon">🎮</span>
+        <span class="platform-name">Discord</span>
+      </div>
+
+      <p class="section-title">Step 1 — Create a Discord Application</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>Go to <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer">discord.com/developers/applications</a> and sign in.</p></li>
+        <li><span class="step-num">2</span><p>Click <strong>New Application</strong>, name it (e.g. <em>Adjutant</em>), and click <strong>Create</strong>.</p></li>
+      </ol>
+
+      <p class="section-title">Step 2 — Configure the Bot</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, click <strong>Bot</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Under <strong>Privileged Gateway Intents</strong>, enable <strong>Message Content Intent</strong> — this is required for the bot to read message text.</p></li>
+        <li><span class="step-num">3</span><p>Click <strong>Save Changes</strong>.</p></li>
+        <li><span class="step-num">4</span><p>Click <strong>Reset Token</strong>, confirm, and copy your bot token.</p></li>
+      </ol>
+
+      <p class="section-title">Step 3 — Generate an Invite URL</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, expand <strong>OAuth2</strong> and click <strong>URL Generator</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Under <strong>Scopes</strong>, check <strong>bot</strong>.</p></li>
+        <li><span class="step-num">3</span><p>Under <strong>Bot Permissions</strong>, check:
+          <ul style="margin:8px 0 0 16px;font-size:0.875rem;color:#8b949e;list-style:disc">
+            <li>View Channels</li>
+            <li>Send Messages</li>
+            <li>Read Message History</li>
+            <li>Use Slash Commands</li>
+          </ul>
+        </p></li>
+        <li><span class="step-num">4</span><p>Copy the generated URL and open it in your browser to invite the bot to your server.</p></li>
+      </ol>
+
+      <p class="section-title">Step 4 — Create a Notification Channel</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In your Discord server, create a text channel (e.g. <em>#adjutant-notifications</em>).</p></li>
+        <li><span class="step-num">2</span><p>Make sure the bot has access: right-click the channel → <strong>Edit Channel</strong> → <strong>Permissions</strong> → add your bot with Send Messages permission.</p></li>
+      </ol>
+
+      <hr class="divider">
+
+      <p class="section-title">Step 5 — Connect in Adjutant</p>
+      <div class="field-map">
+        <div class="field-row"><span class="field-key">Bot Token</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Bot Token</strong> field</span></div>
+      </div>
+      <div class="tip" style="margin-top:14px;"><strong>Then:</strong> click <strong>Connect Discord</strong>, and once connected select your <strong>Notification Channel</strong> from the dropdown. @mention your bot in any channel to start sending directives.</div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -1678,9 +1678,5 @@ async def websocket_endpoint(ws: WebSocket):
 from backend.uploads import get_uploads_dir as _get_uploads_dir
 app.mount("/uploads", StaticFiles(directory=str(_get_uploads_dir())), name="uploads")
 
-_DOCS_DIR = Path(__file__).parent.parent / "docs"
-if _DOCS_DIR.exists():
-    app.mount("/docs", StaticFiles(directory=str(_DOCS_DIR)), name="docs")
-
 if UI_DIST.exists():
     app.mount("/", StaticFiles(directory=UI_DIST, html=True), name="ui")

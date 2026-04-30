@@ -220,7 +220,7 @@ export default function DiscordCard({ password }: Props) {
           </div>
         )}
         <a
-          href="/docs/discord-setup.md"
+          href="/discord-setup-guide.html"
           target="_blank"
           rel="noopener noreferrer"
           className="block text-xs text-adj-accent hover:underline"

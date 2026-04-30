@@ -237,7 +237,7 @@ export default function SlackCard({ password }: Props) {
           </div>
         )}
         <a
-          href="/docs/slack-setup.md"
+          href="/slack-setup-guide.html"
           target="_blank"
           rel="noopener noreferrer"
           className="block text-xs text-adj-accent hover:underline"
