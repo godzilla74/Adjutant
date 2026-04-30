@@ -753,9 +753,11 @@ async def list_discord_channels(_=Depends(_auth)):
                 "https://discord.com/api/v10/users/@me/guilds",
                 headers={"Authorization": f"Bot {token}"},
             )
-            guilds = guilds_resp.json()
     except Exception:
         raise HTTPException(502, detail="Could not reach Discord API")
+    if guilds_resp.status_code != 200:
+        raise HTTPException(502, detail="Discord API error fetching guilds")
+    guilds = guilds_resp.json()
     channels = []
     for guild in guilds[:10]:
         try:
@@ -764,13 +766,15 @@ async def list_discord_channels(_=Depends(_auth)):
                     f"https://discord.com/api/v10/guilds/{guild['id']}/channels",
                     headers={"Authorization": f"Bot {token}"},
                 )
-                for ch in ch_resp.json():
-                    if ch.get("type") == 0:  # GUILD_TEXT
-                        channels.append({
-                            "id": ch["id"],
-                            "name": ch["name"],
-                            "guild": guild.get("name", ""),
-                        })
+                ch_data = ch_resp.json()
+                if isinstance(ch_data, list):
+                    for ch in ch_data:
+                        if ch.get("type") == 0:  # GUILD_TEXT
+                            channels.append({
+                                "id": ch["id"],
+                                "name": ch["name"],
+                                "guild": guild.get("name", ""),
+                            })
         except Exception:
             continue
     return {"channels": channels}

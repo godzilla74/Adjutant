@@ -16,7 +16,7 @@ Socket Mode lets your app connect to Slack without a public URL.
 1. In the left sidebar, click **Socket Mode**
 2. Toggle **Enable Socket Mode** to ON
 3. Click **Generate** to create an App-Level Token
-4. Name it (e.g. "adjutant-socket") and click **Generate**
+4. Name it (e.g. "adjutant-socket"), add the `connections:write` scope, and click **Generate**
 5. Copy the token — it starts with `xapp-`
 
 ## Step 3 — Add Bot Scopes

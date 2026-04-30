@@ -163,6 +163,8 @@ class DiscordBot:
         except Exception:
             thread = message.channel
 
+        # Single-slot: only one pending reply at a time. Concurrent @mentions
+        # overwrite this entry; the earlier requester won't receive a reply.
         self._pending_products[None] = thread
 
         parts = [p for p in [file_ref, text] if p]

@@ -8,21 +8,20 @@ This guide walks you through creating a Discord bot and connecting it to Adjutan
 2. Click **New Application**
 3. Name your application (e.g. "Adjutant") and click **Create**
 
-## Step 2 — Add a Bot
+## Step 2 — Configure the Bot
 
 1. In the left sidebar, click **Bot**
-2. Click **Add Bot** and confirm
-3. Under **Privileged Gateway Intents**, enable:
+2. Under **Privileged Gateway Intents**, enable:
    - **Message Content Intent** — required to read message text
-   - **Server Members Intent** — optional, for member lookups
-4. Click **Save Changes**
-5. Click **Reset Token**, confirm, and copy your bot token
+3. Click **Save Changes**
+4. Click **Reset Token**, confirm, and copy your bot token
 
 ## Step 3 — Generate an Invite URL
 
-1. In the left sidebar, click **OAuth2 → URL Generator**
+1. In the left sidebar, expand **OAuth2** and click **URL Generator**
 2. Under **Scopes**, check **bot**
 3. Under **Bot Permissions**, check:
+   - View Channels
    - Send Messages
    - Read Message History
    - Use Slash Commands
