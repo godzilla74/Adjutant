@@ -640,8 +640,10 @@ async def lifespan(app: FastAPI):
 
     await _mcp_manager.stop()
     tasks_to_cancel = [
-        scheduler_task, _telegram_task, _slack_task, _discord_task,
-        *_worker_tasks.values()
+        t for t in [
+            scheduler_task, _telegram_task, _slack_task, _discord_task,
+            *_worker_tasks.values()
+        ] if t is not None
     ]
     for t in tasks_to_cancel:
         t.cancel()
