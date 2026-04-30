@@ -33,9 +33,7 @@ class SlackBot:
         self._on_review_approved_fn = on_review_approved_fn
         self._pending_products: dict[str | None, tuple[str, str]] = {}
         self._bot_user_id: str | None = None
-
-        from slack_sdk.web.async_client import AsyncWebClient
-        self._web_client = AsyncWebClient(token=bot_token)
+        self._web_client = None  # initialised in start() after token guard
 
     async def send_long_message(self, channel: str, text: str, thread_ts: str | None = None) -> None:
         """Send text as Block Kit blocks in a single chat_postMessage call."""
@@ -181,6 +179,8 @@ class SlackBot:
         parts = [p for p in [file_ref, text] if p]
         directive_text = "\n\n".join(parts)
 
+        # Single-slot: only one pending reply at a time. Concurrent @mentions
+        # overwrite this entry; the earlier requester won't receive a reply.
         self._pending_products[None] = (channel, thread_ts)
         await self._directive_callback(None, directive_text)
 
@@ -241,9 +241,12 @@ class SlackBot:
             logger.info("Slack not configured — disabled")
             return
 
+        from slack_sdk.web.async_client import AsyncWebClient
         from slack_sdk.socket_mode.websockets import SocketModeClient
         from slack_sdk.socket_mode.request import SocketModeRequest
         from slack_sdk.socket_mode.response import SocketModeResponse
+
+        self._web_client = AsyncWebClient(token=self.bot_token)
 
         try:
             auth = await self._web_client.auth_test()

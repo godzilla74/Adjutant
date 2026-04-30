@@ -1178,9 +1178,14 @@ async def _agent_loop(send_fn, product_id: str | None, messages: list, session_i
                     directive_id = uuid.uuid4().hex[:8]
                     _directive_queues[target_id].append({"id": directive_id, "content": msg})
                     _worker_events[target_id].set()
-                    # Must register before _broadcast so notify() sees it when agent_done fires
-                    if _telegram_bot:
+                    # Register on whichever platform originated this conversation,
+                    # so agent_done for the product routes back to the right place.
+                    if _telegram_bot and None in _telegram_bot._pending_products:
                         _telegram_bot._pending_products.add(target_id)
+                    if _slack_bot and None in _slack_bot._pending_products:
+                        _slack_bot._pending_products[target_id] = _slack_bot._pending_products[None]
+                    if _discord_bot and None in _discord_bot._pending_products:
+                        _discord_bot._pending_products[target_id] = _discord_bot._pending_products[None]
                     await _broadcast(_queue_payload(target_id))
                     out = f"Dispatched to {known[target_id]['name']}"
                 return {"type": "tool_result", "tool_use_id": block.id, "content": out}
