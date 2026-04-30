@@ -153,10 +153,10 @@ async def execute(inputs: dict) -> str:
 def _get_browser_model() -> str:
     """Return the configured sub-agent model, falling back to sonnet."""
     try:
-        from agents.runner import SUBAGENT_MODEL
-        return SUBAGENT_MODEL
+        from agents.runner import _get_subagent_model
+        return _get_subagent_model()
     except Exception:
-        return os.environ.get("AGENT_SUBAGENT_MODEL", "claude-sonnet-4-6")
+        return "claude-sonnet-4-6"
 
 
 def _make_llm(api_key: str):
