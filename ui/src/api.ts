@@ -176,7 +176,7 @@ export const api = {
     apiFetch<{ queued: boolean }>('/api/digest', pw, { method: 'POST' }),
 
   getTelegramStatus: (pw: string) =>
-    apiFetch<{ configured: boolean; connected: boolean; bot_username: string | null }>(
+    apiFetch<{ configured: boolean; connected: boolean; bot_username: string | null; enabled: boolean }>(
       '/api/telegram/status', pw,
     ),
 

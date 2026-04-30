@@ -23,6 +23,7 @@ export default function SlackCard({ password }: Props) {
   const [showReconfigure, setShowReconfigure] = useState(false)
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([])
   const [loadingChannels, setLoadingChannels] = useState(false)
+  const [channelLoadError, setChannelLoadError] = useState(false)
   const [savingChannel, setSavingChannel] = useState(false)
   const [toggling, setToggling] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -36,9 +37,10 @@ export default function SlackCard({ password }: Props) {
 
   const loadChannels = () => {
     setLoadingChannels(true)
+    setChannelLoadError(false)
     api.getSlackChannels(password)
       .then(r => setChannels(r.channels))
-      .catch(() => {})
+      .catch(() => setChannelLoadError(true))
       .finally(() => setLoadingChannels(false))
   }
 
@@ -62,6 +64,7 @@ export default function SlackCard({ password }: Props) {
   }
 
   async function handleSelectChannel(channelId: string) {
+    if (!channelId) return
     setSavingChannel(true)
     try {
       await api.saveSlackNotificationChannel(password, channelId)
@@ -151,6 +154,8 @@ export default function SlackCard({ password }: Props) {
               </label>
               {loadingChannels ? (
                 <p className="text-xs text-adj-text-faint">Loading channels…</p>
+              ) : channelLoadError ? (
+                <p className="text-xs text-amber-400">Could not load channels — check your bot token and try again.</p>
               ) : (
                 <select
                   value={status.notification_channel_id || ''}

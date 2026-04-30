@@ -25,7 +25,7 @@ export default function TelegramCard({ password }: Props) {
   const [deleting, setDeleting] = useState(false)
 
   const reload = () => {
-    api.getTelegramStatus(password).then(s => setStatus({ ...s, enabled: (s as any).enabled ?? true })).catch(() => {})
+    api.getTelegramStatus(password).then(s => setStatus(s)).catch(() => {})
   }
 
   useEffect(() => { reload() }, [password])

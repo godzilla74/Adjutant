@@ -452,9 +452,12 @@ def _get_telegram_creds() -> tuple[str, str]:
 @router.get("/telegram/status")
 async def get_telegram_status(_=Depends(_auth)):
     """Return Telegram configuration and connectivity status."""
+    from backend.db import get_agent_config
     token, chat_id = _get_telegram_creds()
+    cfg = get_agent_config()
+    enabled = cfg.get("telegram_enabled", "true") != "false"
     if not token:
-        return {"configured": False, "connected": False, "bot_username": None}
+        return {"configured": False, "connected": False, "bot_username": None, "enabled": enabled}
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
@@ -464,10 +467,11 @@ async def get_telegram_status(_=Depends(_auth)):
                     "configured": True,
                     "connected": bool(chat_id),
                     "bot_username": data["result"].get("username"),
+                    "enabled": enabled,
                 }
     except Exception:
         pass
-    return {"configured": True, "connected": False, "bot_username": None}
+    return {"configured": True, "connected": False, "bot_username": None, "enabled": enabled}
 
 
 @router.put("/telegram/token")
