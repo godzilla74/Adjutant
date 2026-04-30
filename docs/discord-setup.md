@@ -25,8 +25,7 @@ This guide walks you through creating a Discord bot and connecting it to Adjutan
 3. Under **Bot Permissions**, check:
    - Send Messages
    - Read Message History
-   - Create Public Threads
-   - Use Application Commands
+   - Use Slash Commands
 4. Copy the generated URL and open it in your browser to invite the bot to your server
 
 ## Step 4 — Create a Notification Channel
