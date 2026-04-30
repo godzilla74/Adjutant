@@ -189,6 +189,77 @@ export const api = {
   discoverTelegramChat: (pw: string) =>
     apiFetch<{ chat_id: string | null }>('/api/telegram/discover-chat', pw),
 
+  setTelegramEnabled: (pw: string, enabled: boolean) =>
+    apiFetch<{ enabled: boolean }>('/api/telegram/enabled', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    }),
+
+  deleteTelegram: (pw: string) =>
+    apiFetch<{ ok: boolean }>('/api/telegram', pw, { method: 'DELETE' }),
+
+  getSlackStatus: (pw: string) =>
+    apiFetch<{
+      configured: boolean; connected: boolean; bot_username: string | null;
+      enabled: boolean; notification_channel_id: string;
+    }>('/api/slack/status', pw),
+
+  saveSlackTokens: (pw: string, bot_token: string, app_token: string) =>
+    apiFetch<{ bot_username: string; bot_id: string }>('/api/slack/tokens', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ bot_token, app_token }),
+    }),
+
+  getSlackChannels: (pw: string) =>
+    apiFetch<{ channels: { id: string; name: string }[] }>('/api/slack/channels', pw),
+
+  saveSlackNotificationChannel: (pw: string, channel_id: string) =>
+    apiFetch<{ channel_id: string }>('/api/slack/notification-channel', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ channel_id }),
+    }),
+
+  setSlackEnabled: (pw: string, enabled: boolean) =>
+    apiFetch<{ enabled: boolean }>('/api/slack/enabled', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    }),
+
+  deleteSlack: (pw: string) =>
+    apiFetch<{ ok: boolean }>('/api/slack', pw, { method: 'DELETE' }),
+
+  getDiscordStatus: (pw: string) =>
+    apiFetch<{
+      configured: boolean; connected: boolean; bot_username: string | null;
+      enabled: boolean; notification_channel_id: string;
+    }>('/api/discord/status', pw),
+
+  saveDiscordToken: (pw: string, token: string) =>
+    apiFetch<{ bot_username: string }>('/api/discord/token', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ token }),
+    }),
+
+  getDiscordChannels: (pw: string) =>
+    apiFetch<{ channels: { id: string; name: string; guild: string }[] }>(
+      '/api/discord/channels', pw,
+    ),
+
+  saveDiscordNotificationChannel: (pw: string, channel_id: string) =>
+    apiFetch<{ channel_id: string }>('/api/discord/notification-channel', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ channel_id }),
+    }),
+
+  setDiscordEnabled: (pw: string, enabled: boolean) =>
+    apiFetch<{ enabled: boolean }>('/api/discord/enabled', pw, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    }),
+
+  deleteDiscord: (pw: string) =>
+    apiFetch<{ ok: boolean }>('/api/discord', pw, { method: 'DELETE' }),
+
   getMcpServers: (pw: string, productId?: string) =>
     apiFetch<{
       id: number; name: string; type: string; url: string | null;
