@@ -631,11 +631,13 @@ async def list_slack_channels(_=Depends(_auth)):
             resp = await client.get(
                 "https://slack.com/api/conversations.list",
                 headers={"Authorization": f"Bearer {bot_token}"},
-                params={"types": "public_channel,private_channel", "exclude_archived": "true", "limit": "200"},
+                params={"types": "public_channel", "exclude_archived": "true", "limit": "200"},
             )
             data = resp.json()
     except Exception:
         raise HTTPException(502, detail="Could not reach Slack API")
+    if not data.get("ok"):
+        raise HTTPException(502, detail=f"Slack API error: {data.get('error', 'unknown')}")
     channels = [
         {"id": c["id"], "name": c["name"], "is_member": bool(c.get("is_member"))}
         for c in data.get("channels", [])
