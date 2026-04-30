@@ -400,6 +400,10 @@ _worker_tasks:     dict[str | None, asyncio.Task] = {}
 
 _telegram_bot  = None  # set in lifespan; module-level so _broadcast can reach it
 _telegram_task = None  # module-level so hot-reload can cancel it
+_slack_bot     = None
+_slack_task    = None
+_discord_bot   = None
+_discord_task  = None
 _mcp_manager = None  # set in lifespan; module-level so manage_mcp_server tool can reach it
 
 
@@ -412,15 +416,16 @@ async def _broadcast(event: dict) -> None:
         except Exception:
             dead.add(ws)
     _connections.difference_update(dead)
-    if _telegram_bot is not None:
-        try:
-            await _telegram_bot.notify(event)
-        except Exception:
-            pass
+    for _bot in (_telegram_bot, _slack_bot, _discord_bot):
+        if _bot is not None:
+            try:
+                await _bot.notify(event)
+            except Exception:
+                pass
 
 
-async def _handle_telegram_directive(product_id: str | None, content: str) -> None:
-    """Inject a Telegram message into the directive queue, same as the web UI."""
+async def _handle_messaging_directive(product_id: str | None, content: str) -> None:
+    """Inject a message from any messaging platform into the directive queue."""
     _ensure_worker(product_id)
     directive_id = uuid.uuid4().hex[:8]
     _directive_queues[product_id].append({"id": directive_id, "content": content})
@@ -505,11 +510,14 @@ async def _bootstrap_product_workspace() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _telegram_bot, _mcp_manager, _telegram_task
+    global _slack_bot, _slack_task, _discord_bot, _discord_task
     from backend.scheduler import scheduler_loop, register_broadcast
     from backend.telegram import TelegramBot
+    from backend.slack_bot import SlackBot
+    from backend.discord_bot import DiscordBot
     from backend.mcp_manager import MCPManager
     from backend.db import list_all_mcp_servers, get_agent_config
-    from backend import telegram_state
+    from backend import telegram_state, slack_state, discord_state
     register_broadcast(_broadcast)
     scheduler_task = asyncio.create_task(scheduler_loop(_broadcast, interval_seconds=60))
 
@@ -520,7 +528,7 @@ async def lifespan(app: FastAPI):
     _telegram_bot = TelegramBot(
         token=tg_token,
         chat_id=tg_chat_id,
-        directive_callback=_handle_telegram_directive,
+        directive_callback=_handle_messaging_directive,
         resolve_review_fn=resolve_review_item,
         broadcast_fn=_broadcast,
         on_review_approved_fn=_on_review_approved,
@@ -538,7 +546,7 @@ async def lifespan(app: FastAPI):
         _telegram_bot = TelegramBot(
             token=token,
             chat_id=chat_id,
-            directive_callback=_handle_telegram_directive,
+            directive_callback=_handle_messaging_directive,
             resolve_review_fn=resolve_review_item,
             broadcast_fn=_broadcast,
             on_review_approved_fn=_on_review_approved,
@@ -546,6 +554,81 @@ async def lifespan(app: FastAPI):
         _telegram_task = asyncio.create_task(_telegram_bot.start())
 
     telegram_state.register(_restart_telegram)
+
+    # ── Slack ─────────────────────────────────────────────────────────────────
+    _cfg = get_agent_config()
+    sl_bot_token = _cfg.get("slack_bot_token", "")
+    sl_app_token = _cfg.get("slack_app_token", "")
+    sl_notif_ch  = _cfg.get("slack_notification_channel_id", "")
+    sl_enabled   = _cfg.get("slack_enabled", "false") == "true"
+
+    _slack_bot = SlackBot(
+        bot_token=sl_bot_token if sl_enabled else "",
+        app_token=sl_app_token if sl_enabled else "",
+        notification_channel_id=sl_notif_ch,
+        directive_callback=_handle_messaging_directive,
+        resolve_review_fn=resolve_review_item,
+        broadcast_fn=_broadcast,
+        on_review_approved_fn=_on_review_approved,
+    )
+    _slack_task = asyncio.create_task(_slack_bot.start())
+
+    async def _restart_slack(bot_token: str, app_token: str) -> None:
+        global _slack_bot, _slack_task
+        if _slack_task and not _slack_task.done():
+            _slack_task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(_slack_task), timeout=2)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        _slack_bot = SlackBot(
+            bot_token=bot_token,
+            app_token=app_token,
+            notification_channel_id=get_agent_config().get("slack_notification_channel_id", ""),
+            directive_callback=_handle_messaging_directive,
+            resolve_review_fn=resolve_review_item,
+            broadcast_fn=_broadcast,
+            on_review_approved_fn=_on_review_approved,
+        )
+        _slack_task = asyncio.create_task(_slack_bot.start())
+
+    slack_state.register(_restart_slack)
+
+    # ── Discord ───────────────────────────────────────────────────────────────
+    dc_token    = _cfg.get("discord_bot_token", "")
+    dc_notif_ch = _cfg.get("discord_notification_channel_id", "")
+    dc_enabled  = _cfg.get("discord_enabled", "false") == "true"
+
+    _discord_bot = DiscordBot(
+        token=dc_token if dc_enabled else "",
+        notification_channel_id=int(dc_notif_ch) if dc_notif_ch else 0,
+        directive_callback=_handle_messaging_directive,
+        resolve_review_fn=resolve_review_item,
+        broadcast_fn=_broadcast,
+        on_review_approved_fn=_on_review_approved,
+    )
+    _discord_task = asyncio.create_task(_discord_bot.start())
+
+    async def _restart_discord(token: str) -> None:
+        global _discord_bot, _discord_task
+        if _discord_task and not _discord_task.done():
+            _discord_task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(_discord_task), timeout=2)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        notif_ch_str = get_agent_config().get("discord_notification_channel_id", "")
+        _discord_bot = DiscordBot(
+            token=token,
+            notification_channel_id=int(notif_ch_str) if notif_ch_str else 0,
+            directive_callback=_handle_messaging_directive,
+            resolve_review_fn=resolve_review_item,
+            broadcast_fn=_broadcast,
+            on_review_approved_fn=_on_review_approved,
+        )
+        _discord_task = asyncio.create_task(_discord_bot.start())
+
+    discord_state.register(_restart_discord)
 
     _mcp_manager = MCPManager()
     stdio_servers = [s for s in list_all_mcp_servers() if s["type"] == "stdio" and s["enabled"]]
@@ -556,7 +639,10 @@ async def lifespan(app: FastAPI):
     yield
 
     await _mcp_manager.stop()
-    tasks_to_cancel = [scheduler_task, _telegram_task, *_worker_tasks.values()]
+    tasks_to_cancel = [
+        scheduler_task, _telegram_task, _slack_task, _discord_task,
+        *_worker_tasks.values()
+    ]
     for t in tasks_to_cancel:
         t.cancel()
     await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
