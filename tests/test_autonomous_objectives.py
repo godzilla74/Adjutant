@@ -145,11 +145,11 @@ def test_on_review_approved_falls_through_to_task_agent(db):
     import backend.main as main_mod
     importlib.reload(main_mod)
 
-    # Insert a review item with action_type, no linked social draft, no blocked objective
+    # Insert a non-email review item — should fall through to _run_approved_review_task
     with db._conn() as conn:
         rid = conn.execute(
             """INSERT INTO review_items (product_id, title, description, risk_label, action_type, status)
-               VALUES ('p1', 'Outbound pipeline', 'Run outreach campaign', 'email', 'email', 'approved')"""
+               VALUES ('p1', 'Outbound pipeline', 'Run outreach campaign', 'low', 'task', 'approved')"""
         ).lastrowid
 
     task_calls = []
@@ -245,8 +245,8 @@ def test_on_review_approved_email_with_payload_sends_directly(db):
     assert len(task_calls) == 0, "_run_approved_review_task must NOT be called for email+payload"
 
 
-def test_on_review_approved_email_without_payload_falls_through_to_task_agent(db):
-    """Email review items with no payload (legacy) fall through to _run_approved_review_task."""
+def test_on_review_approved_email_without_payload_emits_cannot_send(db):
+    """Email review items with no payload (legacy) emit a 'cannot send' activity event and do NOT spawn an agent."""
     from unittest.mock import patch
     import importlib
     import backend.main as main_mod
@@ -268,4 +268,6 @@ def test_on_review_approved_email_without_payload_falls_through_to_task_agent(db
     with patch("backend.scheduler._run_approved_review_task", fake_run_approved_review_task):
         asyncio.run(main_mod._on_review_approved(rid))
 
-    assert len(task_calls) == 1
+    assert len(task_calls) == 0, "_run_approved_review_task must NOT be called for legacy email items"
+    events = db.load_activity_events("p1")
+    assert any("Cannot send" in e["headline"] for e in events)

@@ -173,14 +173,19 @@ async def _on_review_approved(item_id: int) -> None:
     if not review:
         return
 
-    # Email with stored payload: execute directly without spawning an agent
-    if review.get("action_type") == "email" and review.get("payload"):
-        try:
-            params = json.loads(review["payload"])
-        except (ValueError, KeyError):
-            params = None
+    # Email items: require a stored payload for direct execution
+    if review.get("action_type") == "email":
+        payload_raw = review.get("payload")
+        params = None
+        if payload_raw:
+            try:
+                params = json.loads(payload_raw)
+            except (ValueError, KeyError):
+                params = None
+
+        pid = review["product_id"]
         if params and params.get("to") and params.get("subject") and params.get("body"):
-            pid = review["product_id"]
+            # Full payload present — execute directly without spawning an agent
             event_id = save_activity_event(
                 product_id=pid,
                 agent_type="email",
@@ -203,7 +208,19 @@ async def _on_review_approved(item_id: int) -> None:
             update_activity_event(event_id, status="done", summary=summary)
             await _broadcast({"type": "activity_done", "product_id": pid, "id": event_id,
                               "summary": summary, "ts": _ts()})
-            return
+        else:
+            # No payload (legacy item created before payload column existed) — cannot recover
+            event_id = save_activity_event(
+                product_id=pid,
+                agent_type="email",
+                headline=f"Cannot send: {review['title']}",
+                rationale="This review item was created before full email content was stored. The original email body is not available.",
+                status="done",
+            )
+            await _broadcast({"type": "activity_done", "product_id": pid, "id": event_id,
+                              "summary": "Cannot send: email body not stored (legacy item). Please compose and send the email manually.",
+                              "ts": _ts()})
+        return
 
     # Generic fallback: spawn task agent for any other action_type
     if review.get("action_type"):
