@@ -1113,9 +1113,10 @@ async def _gmail_send(product_id: str, to: str, subject: str, body: str, thread_
         item_id = save_review_item(
             product_id=product_id,
             title=f"Send email: {subject}",
-            description=f"To: {to}\n\n{body[:300]}",
+            description=f"To: {to}\n\n{body}",
             risk_label="Sends email · irreversible",
             action_type="email",
+            payload=json.dumps({"to": to, "subject": subject, "body": body, "thread_id": thread_id}),
         )
         return json.dumps({"queued_for_review": True, "review_item_id": item_id,
                            "message": "Email queued for approval."})

@@ -137,6 +137,39 @@ def test_review_item_payload_stored_and_retrieved(db):
     assert parsed["body"] == "Hello"
 
 
+def test_gmail_send_approve_tier_stores_full_payload(db):
+    """Queued email stores full body (no truncation) and a parseable JSON payload."""
+    import json as _json
+    db.set_action_autonomy("prod-1", "email", "approve", None)
+    long_body = "x" * 500  # longer than old 300-char limit
+
+    async def run():
+        with patch("backend.google_api.gmail_send", new=AsyncMock()):
+            import importlib as il
+            import core.tools as tools_mod
+            il.reload(tools_mod)
+            return _json.loads(await tools_mod.execute_tool(
+                "gmail_send",
+                {"product_id": "prod-1", "to": "a@b.com", "subject": "Sub", "body": long_body},
+            ))
+
+    result = asyncio.run(run())
+    assert result.get("queued_for_review") is True
+
+    items = db.load_review_items("prod-1")
+    assert len(items) == 1
+    # Full body stored in description — no truncation
+    assert long_body in items[0]["description"]
+
+    # payload is stored and parseable
+    item = db.get_review_item_by_id(items[0]["id"])
+    parsed = _json.loads(item["payload"])
+    assert parsed["to"] == "a@b.com"
+    assert parsed["subject"] == "Sub"
+    assert parsed["body"] == long_body
+    assert parsed.get("thread_id") is None
+
+
 def test_gmail_send_auto_tier_sends_immediately(db):
     db.set_action_autonomy("prod-1", "email", "auto", None)
     async def run():
