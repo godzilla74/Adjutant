@@ -158,12 +158,21 @@ async def _on_review_approved(item_id: int) -> None:
                 await _do_publish_draft(draft)
         else:
             await _do_publish_draft(draft)
+        return
 
     blocked_obj = get_objective_blocked_by_review(item_id)
     if blocked_obj:
         clear_objective_block(blocked_obj["id"])
         from backend.scheduler import _run_objective_loop
         asyncio.create_task(_run_objective_loop(blocked_obj["product_id"], blocked_obj["id"]))
+        return
+
+    # No social draft and no blocked objective — spawn task agent if the review has an action_type
+    from backend.db import get_review_item_by_id
+    review = get_review_item_by_id(item_id)
+    if review and review.get("action_type"):
+        from backend.scheduler import _run_approved_review_task
+        asyncio.create_task(_run_approved_review_task(review["product_id"], review))
 
 
 _BROWSER_OUTCOME_SUFFIX = (
