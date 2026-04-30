@@ -167,10 +167,46 @@ async def _on_review_approved(item_id: int) -> None:
         asyncio.create_task(_run_objective_loop(blocked_obj["product_id"], blocked_obj["id"]))
         return
 
-    # No social draft and no blocked objective — spawn task agent if the review has an action_type
+    # No social draft and no blocked objective
     from backend.db import get_review_item_by_id
     review = get_review_item_by_id(item_id)
-    if review and review.get("action_type"):
+    if not review:
+        return
+
+    # Email with stored payload: execute directly without spawning an agent
+    if review.get("action_type") == "email" and review.get("payload"):
+        try:
+            params = json.loads(review["payload"])
+        except (ValueError, KeyError):
+            params = None
+        if params and params.get("to") and params.get("subject") and params.get("body"):
+            pid = review["product_id"]
+            event_id = save_activity_event(
+                product_id=pid,
+                agent_type="email",
+                headline=f"Sending: {review['title']}",
+                rationale=review.get("description", ""),
+                status="running",
+            )
+            await _broadcast({"type": "activity_started", "product_id": pid, "id": event_id,
+                              "agent_type": "email", "headline": f"Sending: {review['title']}",
+                              "rationale": review.get("description", ""), "ts": _ts()})
+            try:
+                from backend.google_api import gmail_send
+                await gmail_send(
+                    pid, params["to"], params["subject"], params["body"],
+                    params.get("thread_id"),
+                )
+                summary = f"Sent to {params['to']}"
+            except Exception as exc:
+                summary = f"Failed to send: {exc}"
+            update_activity_event(event_id, status="done", summary=summary)
+            await _broadcast({"type": "activity_done", "product_id": pid, "id": event_id,
+                              "summary": summary, "ts": _ts()})
+            return
+
+    # Generic fallback: spawn task agent for any other action_type
+    if review.get("action_type"):
         from backend.scheduler import _run_approved_review_task
         asyncio.create_task(_run_approved_review_task(review["product_id"], review))
 

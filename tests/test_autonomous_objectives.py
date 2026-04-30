@@ -199,3 +199,73 @@ def test_on_review_approved_does_not_spawn_task_when_objective_blocked(db):
 
     assert len(task_calls) == 0
     assert len(obj_loop_calls) == 1
+
+
+def test_on_review_approved_email_with_payload_sends_directly(db):
+    """_on_review_approved calls gmail_send directly for email reviews with a stored payload."""
+    import json as _json
+    from unittest.mock import patch, AsyncMock
+    import importlib
+    import backend.main as main_mod
+    importlib.reload(main_mod)
+
+    payload = _json.dumps({
+        "to": "paul@example.com",
+        "subject": "Hello",
+        "body": "Full email body here.",
+        "thread_id": None,
+    })
+    with db._conn() as conn:
+        rid = conn.execute(
+            """INSERT INTO review_items
+               (product_id, title, description, risk_label, action_type, payload, status)
+               VALUES ('p1', 'Send email: Hello', 'To: paul@example.com\n\nFull email body here.',
+                       'Sends email · irreversible', 'email', ?, 'approved')""",
+            (payload,),
+        ).lastrowid
+
+    gmail_calls = []
+
+    async def fake_gmail_send(product_id, to, subject, body, thread_id=None):
+        gmail_calls.append({"to": to, "subject": subject, "body": body})
+        return '{"sent": true}'
+
+    task_calls = []
+
+    async def fake_run_approved_review_task(product_id, review):
+        task_calls.append(product_id)
+
+    with patch("backend.google_api.gmail_send", fake_gmail_send), \
+         patch("backend.scheduler._run_approved_review_task", fake_run_approved_review_task):
+        asyncio.run(main_mod._on_review_approved(rid))
+
+    assert len(gmail_calls) == 1, "gmail_send should be called exactly once"
+    assert gmail_calls[0]["to"] == "paul@example.com"
+    assert gmail_calls[0]["body"] == "Full email body here."
+    assert len(task_calls) == 0, "_run_approved_review_task must NOT be called for email+payload"
+
+
+def test_on_review_approved_email_without_payload_falls_through_to_task_agent(db):
+    """Email review items with no payload (legacy) fall through to _run_approved_review_task."""
+    from unittest.mock import patch
+    import importlib
+    import backend.main as main_mod
+    importlib.reload(main_mod)
+
+    with db._conn() as conn:
+        rid = conn.execute(
+            """INSERT INTO review_items
+               (product_id, title, description, risk_label, action_type, status)
+               VALUES ('p1', 'Send email: Hello', 'To: x\n\nBody',
+                       'Sends email · irreversible', 'email', 'approved')""",
+        ).lastrowid
+
+    task_calls = []
+
+    async def fake_run_approved_review_task(product_id, review):
+        task_calls.append(product_id)
+
+    with patch("backend.scheduler._run_approved_review_task", fake_run_approved_review_task):
+        asyncio.run(main_mod._on_review_approved(rid))
+
+    assert len(task_calls) == 1
