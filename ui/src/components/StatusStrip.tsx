@@ -133,15 +133,17 @@ export default function StatusStrip({
       )}
 
       {open === 'reviews' && (
-        <Popover title="Pending Reviews">
+        <Popover title="Pending Reviews" width="w-96">
           {pendingReviews.length === 0 && (
             <p className="text-adj-text-muted text-xs px-3 py-2">No pending reviews</p>
           )}
           {pendingReviews.map(r => (
             <div key={r.id} className={`px-3 py-2 bg-adj-base rounded-md border-l-2 ${r.risk_label === 'high' ? 'border-red-500' : r.risk_label === 'medium' ? 'border-amber-500' : 'border-adj-border'}`}>
               <div className={`text-[9px] font-bold uppercase mb-1 ${r.risk_label === 'high' ? 'text-red-400' : 'text-amber-400'}`}>{r.risk_label} risk</div>
-              <div className="text-xs text-adj-text-primary mb-2">{r.title}</div>
-              <div className="flex gap-2">
+              <div className="text-xs font-medium text-adj-text-primary mb-1">{r.title}</div>
+              {r.description && <div className="text-[11px] text-adj-text-muted mb-1 whitespace-pre-wrap">{r.description}</div>}
+              {r.scheduled_for && <div className="text-[10px] text-adj-text-muted mb-1">Scheduled: {new Date(r.scheduled_for).toLocaleString()}</div>}
+              <div className="flex gap-2 mt-1">
                 <button onClick={() => onResolveReview(r.id, 'approved')} className="text-[10px] px-2 py-0.5 rounded bg-green-900 text-green-400 font-semibold hover:bg-green-800 transition-colors">Approve</button>
                 <button onClick={() => onResolveReview(r.id, 'skipped')}  className="text-[10px] px-2 py-0.5 rounded bg-adj-elevated text-adj-text-muted font-semibold hover:bg-adj-border transition-colors">Skip</button>
               </div>
@@ -166,21 +168,22 @@ export default function StatusStrip({
   )
 }
 
-function Popover({ title, children, onManage, manageLabel = 'Manage →' }: {
+function Popover({ title, children, onManage, manageLabel = 'Manage →', width = 'w-72' }: {
   title: string
   children: React.ReactNode
   onManage?: () => void
   manageLabel?: string
+  width?: string
 }) {
   return (
-    <div className="absolute top-full left-4 mt-1 w-72 bg-adj-surface border border-adj-border rounded-xl shadow-2xl z-50 overflow-hidden">
+    <div className={`absolute top-full left-4 mt-1 ${width} bg-adj-surface border border-adj-border rounded-xl shadow-2xl z-50 overflow-hidden`}>
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-adj-border">
         <span className="text-xs font-semibold text-adj-text-primary">{title}</span>
         {onManage && (
           <button onClick={onManage} className="text-[10px] text-adj-accent hover:underline">{manageLabel}</button>
         )}
       </div>
-      <div className="p-2 flex flex-col gap-1.5 max-h-72 overflow-y-auto">{children}</div>
+      <div className="p-2 flex flex-col gap-1.5 max-h-[32rem] overflow-y-auto">{children}</div>
     </div>
   )
 }
