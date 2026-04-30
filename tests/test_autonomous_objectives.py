@@ -104,3 +104,98 @@ def test_objective_goes_dormant_on_exception(db, monkeypatch):
         row = conn.execute("SELECT autonomous, next_run_at FROM objectives WHERE id=?", (oid,)).fetchone()
     assert row["autonomous"] == 0
     assert row["next_run_at"] is None
+
+
+def test_run_approved_review_task_creates_activity_and_calls_agent_loop(db, monkeypatch):
+    import backend.scheduler as sched_mod
+    importlib.reload(sched_mod)
+
+    agent_loop_calls = []
+
+    async def fake_agent_loop(broadcast_fn, product_id, messages, session_id=None):
+        agent_loop_calls.append({"product_id": product_id, "messages": messages})
+        return messages, []
+
+    review = {
+        "id": 99,
+        "product_id": "p1",
+        "title": "Launch outbound campaign",
+        "description": "Send cold outreach to 50 fractional execs.",
+        "action_type": "email",
+    }
+
+    with patch("backend.main._agent_loop", fake_agent_loop), \
+         patch("backend.scheduler._broadcast_fn", AsyncMock()):
+        asyncio.run(
+            sched_mod._run_approved_review_task("p1", review)
+        )
+
+    assert len(agent_loop_calls) == 1
+    assert agent_loop_calls[0]["product_id"] == "p1"
+    last_msg = agent_loop_calls[0]["messages"][-1]
+    assert last_msg["role"] == "user"
+    assert "Launch outbound campaign" in last_msg["content"]
+    assert "Send cold outreach" in last_msg["content"]
+
+    events = db.load_activity_events("p1")
+    assert any("[Approved]" in e["headline"] for e in events)
+
+
+def test_on_review_approved_falls_through_to_task_agent(db):
+    import backend.main as main_mod
+    importlib.reload(main_mod)
+
+    # Insert a review item with action_type, no linked social draft, no blocked objective
+    with db._conn() as conn:
+        rid = conn.execute(
+            """INSERT INTO review_items (product_id, title, description, risk_label, action_type, status)
+               VALUES ('p1', 'Outbound pipeline', 'Run outreach campaign', 'email', 'email', 'approved')"""
+        ).lastrowid
+
+    task_calls = []
+
+    async def fake_run_approved_review_task(product_id, review):
+        task_calls.append({"product_id": product_id, "review": review})
+
+    with patch("backend.scheduler._run_approved_review_task", fake_run_approved_review_task):
+        asyncio.run(
+            main_mod._on_review_approved(rid)
+        )
+
+    assert len(task_calls) == 1
+    assert task_calls[0]["product_id"] == "p1"
+    assert task_calls[0]["review"]["title"] == "Outbound pipeline"
+
+
+def test_on_review_approved_does_not_spawn_task_when_objective_blocked(db):
+    import backend.main as main_mod
+    importlib.reload(main_mod)
+
+    with db._conn() as conn:
+        rid = conn.execute(
+            """INSERT INTO review_items (product_id, title, description, risk_label, action_type, status)
+               VALUES ('p1', 'Some review', 'desc', 'low', 'agent_review', 'approved')"""
+        ).lastrowid
+        conn.execute(
+            """INSERT INTO objectives (product_id, text, blocked_by_review_id)
+               VALUES ('p1', 'Grow followers', ?)""",
+            (rid,)
+        )
+
+    task_calls = []
+    obj_loop_calls = []
+
+    async def fake_run_approved_review_task(product_id, review):
+        task_calls.append(product_id)
+
+    async def fake_run_objective_loop(product_id, objective_id):
+        obj_loop_calls.append((product_id, objective_id))
+
+    with patch("backend.scheduler._run_approved_review_task", fake_run_approved_review_task), \
+         patch("backend.scheduler._run_objective_loop", fake_run_objective_loop):
+        asyncio.run(
+            main_mod._on_review_approved(rid)
+        )
+
+    assert len(task_calls) == 0
+    assert len(obj_loop_calls) == 1
