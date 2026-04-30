@@ -518,6 +518,297 @@ async def discover_telegram_chat(_=Depends(_auth)):
     return {"chat_id": None}
 
 
+class EnabledRequest(BaseModel):
+    enabled: bool
+
+
+@router.put("/telegram/enabled")
+async def set_telegram_enabled(body: EnabledRequest, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import telegram_state
+    set_agent_config("telegram_enabled", "true" if body.enabled else "false")
+    if body.enabled:
+        token, chat_id = _get_telegram_creds()
+        await telegram_state.restart(token, chat_id)
+    else:
+        await telegram_state.restart("", "")
+    return {"enabled": body.enabled}
+
+
+@router.delete("/telegram")
+async def delete_telegram(_=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import telegram_state
+    for key in ["telegram_bot_token", "telegram_chat_id", "telegram_enabled"]:
+        set_agent_config(key, "")
+    await telegram_state.restart("", "")
+    return {"ok": True}
+
+
+# ── Slack ─────────────────────────────────────────────────────────────────────
+
+class SlackTokensRequest(BaseModel):
+    bot_token: str
+    app_token: str
+
+
+class SlackChannelRequest(BaseModel):
+    channel_id: str
+
+
+def _get_slack_creds() -> tuple[str, str, str]:
+    """Return (bot_token, app_token, notification_channel_id)."""
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    return (
+        cfg.get("slack_bot_token", ""),
+        cfg.get("slack_app_token", ""),
+        cfg.get("slack_notification_channel_id", ""),
+    )
+
+
+@router.get("/slack/status")
+async def get_slack_status(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    bot_token, app_token, notif_channel = _get_slack_creds()
+    cfg = get_agent_config()
+    enabled = cfg.get("slack_enabled", "false") == "true"
+    if not bot_token:
+        return {"configured": False, "connected": False, "bot_username": None, "enabled": enabled}
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.post(
+                "https://slack.com/api/auth.test",
+                headers={"Authorization": f"Bearer {bot_token}"},
+            )
+            data = resp.json()
+            if data.get("ok"):
+                return {
+                    "configured": True,
+                    "connected": True,
+                    "bot_username": data.get("bot_id") or data.get("user"),
+                    "enabled": enabled,
+                    "notification_channel_id": notif_channel,
+                }
+    except Exception:
+        pass
+    return {"configured": True, "connected": False, "bot_username": None, "enabled": enabled}
+
+
+@router.put("/slack/tokens")
+async def save_slack_tokens(body: SlackTokensRequest, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import slack_state
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.post(
+                "https://slack.com/api/auth.test",
+                headers={"Authorization": f"Bearer {body.bot_token}"},
+            )
+            data = resp.json()
+    except Exception:
+        raise HTTPException(400, detail="Could not reach Slack API")
+    if not data.get("ok"):
+        raise HTTPException(400, detail=f"Invalid bot token: {data.get('error', 'unknown')}")
+    set_agent_config("slack_bot_token", body.bot_token)
+    set_agent_config("slack_app_token", body.app_token)
+    set_agent_config("slack_enabled", "true")
+    await slack_state.restart(body.bot_token, body.app_token)
+    return {"bot_username": data.get("user"), "bot_id": data.get("bot_id")}
+
+
+@router.get("/slack/channels")
+async def list_slack_channels(_=Depends(_auth)):
+    bot_token, _, _ = _get_slack_creds()
+    if not bot_token:
+        raise HTTPException(400, detail="Slack not configured")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://slack.com/api/conversations.list",
+                headers={"Authorization": f"Bearer {bot_token}"},
+                params={"types": "public_channel,private_channel", "exclude_archived": "true", "limit": "200"},
+            )
+            data = resp.json()
+    except Exception:
+        raise HTTPException(502, detail="Could not reach Slack API")
+    channels = [
+        {"id": c["id"], "name": c["name"]}
+        for c in data.get("channels", [])
+        if c.get("is_member")
+    ]
+    return {"channels": channels}
+
+
+@router.put("/slack/notification-channel")
+async def save_slack_notification_channel(body: SlackChannelRequest, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import slack_state
+    set_agent_config("slack_notification_channel_id", body.channel_id)
+    bot_token, app_token, _ = _get_slack_creds()
+    await slack_state.restart(bot_token, app_token)
+    return {"channel_id": body.channel_id}
+
+
+@router.put("/slack/enabled")
+async def set_slack_enabled(body: EnabledRequest, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import slack_state
+    set_agent_config("slack_enabled", "true" if body.enabled else "false")
+    if body.enabled:
+        bot_token, app_token, _ = _get_slack_creds()
+        await slack_state.restart(bot_token, app_token)
+    else:
+        await slack_state.restart("", "")
+    return {"enabled": body.enabled}
+
+
+@router.delete("/slack")
+async def delete_slack(_=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import slack_state
+    for key in ["slack_bot_token", "slack_app_token", "slack_notification_channel_id", "slack_enabled"]:
+        set_agent_config(key, "")
+    await slack_state.restart("", "")
+    return {"ok": True}
+
+
+# ── Discord ───────────────────────────────────────────────────────────────────
+
+class DiscordTokenRequest(BaseModel):
+    token: str
+
+
+class DiscordChannelRequest(BaseModel):
+    channel_id: str
+
+
+def _get_discord_creds() -> tuple[str, str]:
+    """Return (token, notification_channel_id)."""
+    from backend.db import get_agent_config
+    cfg = get_agent_config()
+    return (
+        cfg.get("discord_bot_token", ""),
+        cfg.get("discord_notification_channel_id", ""),
+    )
+
+
+@router.get("/discord/status")
+async def get_discord_status(_=Depends(_auth)):
+    from backend.db import get_agent_config
+    token, notif_channel = _get_discord_creds()
+    cfg = get_agent_config()
+    enabled = cfg.get("discord_enabled", "false") == "true"
+    if not token:
+        return {"configured": False, "connected": False, "bot_username": None, "enabled": enabled}
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bot {token}"},
+            )
+            data = resp.json()
+            if resp.status_code == 200:
+                return {
+                    "configured": True,
+                    "connected": True,
+                    "bot_username": data.get("username"),
+                    "enabled": enabled,
+                    "notification_channel_id": notif_channel,
+                }
+    except Exception:
+        pass
+    return {"configured": True, "connected": False, "bot_username": None, "enabled": enabled}
+
+
+@router.put("/discord/token")
+async def save_discord_token(body: DiscordTokenRequest, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import discord_state
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bot {body.token}"},
+            )
+            data = resp.json()
+    except Exception:
+        raise HTTPException(400, detail="Could not reach Discord API")
+    if resp.status_code != 200:
+        raise HTTPException(400, detail=f"Invalid bot token: {data.get('message', 'unknown')}")
+    set_agent_config("discord_bot_token", body.token)
+    set_agent_config("discord_enabled", "true")
+    await discord_state.restart(body.token)
+    return {"bot_username": data.get("username")}
+
+
+@router.get("/discord/channels")
+async def list_discord_channels(_=Depends(_auth)):
+    token, _ = _get_discord_creds()
+    if not token:
+        raise HTTPException(400, detail="Discord not configured")
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            guilds_resp = await client.get(
+                "https://discord.com/api/v10/users/@me/guilds",
+                headers={"Authorization": f"Bot {token}"},
+            )
+            guilds = guilds_resp.json()
+    except Exception:
+        raise HTTPException(502, detail="Could not reach Discord API")
+    channels = []
+    for guild in guilds[:10]:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                ch_resp = await client.get(
+                    f"https://discord.com/api/v10/guilds/{guild['id']}/channels",
+                    headers={"Authorization": f"Bot {token}"},
+                )
+                for ch in ch_resp.json():
+                    if ch.get("type") == 0:  # GUILD_TEXT
+                        channels.append({
+                            "id": ch["id"],
+                            "name": ch["name"],
+                            "guild": guild.get("name", ""),
+                        })
+        except Exception:
+            continue
+    return {"channels": channels}
+
+
+@router.put("/discord/notification-channel")
+async def save_discord_notification_channel(body: DiscordChannelRequest, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import discord_state
+    set_agent_config("discord_notification_channel_id", body.channel_id)
+    token, _ = _get_discord_creds()
+    await discord_state.restart(token)
+    return {"channel_id": body.channel_id}
+
+
+@router.put("/discord/enabled")
+async def set_discord_enabled(body: EnabledRequest, _=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import discord_state
+    set_agent_config("discord_enabled", "true" if body.enabled else "false")
+    if body.enabled:
+        token, _ = _get_discord_creds()
+        await discord_state.restart(token)
+    else:
+        await discord_state.restart("")
+    return {"enabled": body.enabled}
+
+
+@router.delete("/discord")
+async def delete_discord(_=Depends(_auth)):
+    from backend.db import set_agent_config
+    from backend import discord_state
+    for key in ["discord_bot_token", "discord_notification_channel_id", "discord_enabled"]:
+        set_agent_config(key, "")
+    await discord_state.restart("")
+    return {"ok": True}
+
+
 # ── MCP Servers ───────────────────────────────────────────────────────────────
 
 @router.get("/mcp-servers")
