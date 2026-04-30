@@ -510,7 +510,10 @@ async def _run_approved_review_task(product_id: str, review: dict) -> None:
                 f"The following was reviewed and approved by the user:\n\n"
                 f"**{review['title']}**\n\n"
                 f"{review.get('description', '')}\n\n"
-                "Please execute this now using your available tools."
+                "Please execute this now using your available tools. "
+                "IMPORTANT: This action has already been approved — do NOT call "
+                "create_review_item or queue anything for further approval. "
+                "Execute directly and report what you did."
             ),
         })
 
