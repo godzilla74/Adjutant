@@ -119,6 +119,24 @@ def test_gmail_send_approve_tier_creates_review_item(db):
     asyncio.run(run())
 
 
+def test_review_item_payload_stored_and_retrieved(db):
+    """save_review_item stores payload; get_review_item_by_id returns it."""
+    import json as _json
+    item_id = db.save_review_item(
+        product_id="prod-1",
+        title="Test",
+        description="desc",
+        risk_label="low",
+        action_type="email",
+        payload=_json.dumps({"to": "a@b.com", "subject": "Hi", "body": "Hello"}),
+    )
+    item = db.get_review_item_by_id(item_id)
+    assert item is not None
+    parsed = _json.loads(item["payload"])
+    assert parsed["to"] == "a@b.com"
+    assert parsed["body"] == "Hello"
+
+
 def test_gmail_send_auto_tier_sends_immediately(db):
     db.set_action_autonomy("prod-1", "email", "auto", None)
     async def run():

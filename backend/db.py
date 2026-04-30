@@ -310,6 +310,7 @@ def init_db() -> None:
         for col_name, col_def in [
             ("action_type",    "TEXT"),
             ("auto_approve_at","DATETIME"),
+            ("payload",        "TEXT"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE review_items ADD COLUMN {col_name} {col_def}")
@@ -1043,13 +1044,14 @@ def save_review_item(
     risk_label: str,
     activity_event_id: Optional[int] = None,
     action_type: Optional[str] = None,
+    payload: Optional[str] = None,
 ) -> int:
     with _conn() as conn:
         cur = conn.execute(
             """INSERT INTO review_items
-               (product_id, activity_event_id, title, description, risk_label, action_type)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (product_id, activity_event_id, title, description, risk_label, action_type),
+               (product_id, activity_event_id, title, description, risk_label, action_type, payload)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (product_id, activity_event_id, title, description, risk_label, action_type, payload),
         )
         return cur.lastrowid
 
@@ -1183,7 +1185,7 @@ def get_review_item_by_id(item_id: int) -> "dict | None":
     with _conn() as conn:
         row = conn.execute(
             """SELECT id, product_id, activity_event_id, title, description, risk_label,
-                      status, created_at, action_type, auto_approve_at
+                      status, created_at, action_type, auto_approve_at, payload
                FROM review_items WHERE id = ?""",
             (item_id,),
         ).fetchone()
