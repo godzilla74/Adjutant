@@ -470,6 +470,85 @@ async def _run_objective_loop(product_id: str, objective_id: int) -> None:
         _running_objectives.pop(objective_id, None)
 
 
+async def _run_approved_review_task(product_id: str, review: dict) -> None:
+    """Spawn an agent loop to execute a user-approved review item."""
+    event_id = None
+
+    try:
+        from backend.db import (
+            save_activity_event, update_activity_event,
+            create_session, get_workstreams, get_objectives,
+            load_activity_events, load_review_items,
+        )
+        from backend.main import _build_context, _agent_loop
+
+        session_id = create_session(f"Approved: {review['title'][:40]}", product_id)
+
+        event_id = save_activity_event(
+            product_id=product_id,
+            agent_type="general",
+            headline=f"[Approved] {review['title'][:60]}",
+            rationale=review.get("description", ""),
+            status="running",
+        )
+        now_ts = datetime.now().isoformat(timespec="seconds")
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "activity_started",
+                "product_id": product_id,
+                "id": event_id,
+                "agent_type": "general",
+                "headline": f"[Approved] {review['title'][:60]}",
+                "rationale": review.get("description", ""),
+                "ts": now_ts,
+            })
+
+        messages = _build_context(product_id, session_id=session_id)
+        messages.append({
+            "role": "user",
+            "content": (
+                f"The following was reviewed and approved by the user:\n\n"
+                f"**{review['title']}**\n\n"
+                f"{review.get('description', '')}\n\n"
+                "Please execute this now using your available tools."
+            ),
+        })
+
+        await _agent_loop(_broadcast_fn, product_id, messages, session_id=session_id)
+        summary = f"Completed: {review['title']}"
+        update_activity_event(event_id, status="done", summary=summary)
+        done_ts = datetime.now().isoformat(timespec="seconds")
+        if _broadcast_fn:
+            await _broadcast_fn({
+                "type": "activity_done",
+                "product_id": product_id,
+                "id": event_id,
+                "summary": summary,
+                "ts": done_ts,
+            })
+            await _broadcast_fn({
+                "type": "product_data",
+                "product_id": product_id,
+                "workstreams":  get_workstreams(product_id),
+                "objectives":   get_objectives(product_id),
+                "events":       load_activity_events(product_id),
+                "review_items": load_review_items(product_id),
+            })
+
+    except Exception as exc:
+        log.error("Approved review task %r (%s) failed: %s", review.get("title"), product_id, exc)
+        if event_id is not None:
+            update_activity_event(event_id, status="done", summary=f"Error: {exc}")
+        if _broadcast_fn and event_id is not None:
+            await _broadcast_fn({
+                "type": "activity_done",
+                "product_id": product_id,
+                "id": event_id,
+                "summary": f"Error: {exc}",
+                "ts": datetime.now().isoformat(timespec="seconds"),
+            })
+
+
 async def _run_launch_wizard(
     product_id: str, session_id: str, description: str, primary_goal: str
 ) -> None:
