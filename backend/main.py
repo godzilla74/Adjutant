@@ -529,8 +529,9 @@ async def lifespan(app: FastAPI):
     scheduler_task = asyncio.create_task(scheduler_loop(_broadcast, interval_seconds=60))
 
     _tg_cfg    = get_agent_config()
-    tg_token   = os.environ.get("TELEGRAM_BOT_TOKEN") or _tg_cfg.get("telegram_bot_token") or ""
-    tg_chat_id = os.environ.get("TELEGRAM_CHAT_ID")   or _tg_cfg.get("telegram_chat_id")   or ""
+    _tg_enabled = _tg_cfg.get("telegram_enabled", "true") != "false"
+    tg_token   = (os.environ.get("TELEGRAM_BOT_TOKEN") or _tg_cfg.get("telegram_bot_token") or "") if _tg_enabled else ""
+    tg_chat_id = (os.environ.get("TELEGRAM_CHAT_ID")   or _tg_cfg.get("telegram_chat_id")   or "") if _tg_enabled else ""
 
     _telegram_bot = TelegramBot(
         token=tg_token,

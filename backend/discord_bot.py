@@ -55,6 +55,8 @@ class DiscordBot:
 
     async def notify(self, event: dict) -> None:
         """Forward relevant backend events to Discord."""
+        if not self._token or not self._client:
+            return
         event_type = event.get("type")
         product_id = event.get("product_id")
 

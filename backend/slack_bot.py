@@ -63,6 +63,8 @@ class SlackBot:
 
     async def notify(self, event: dict) -> None:
         """Forward relevant backend events to Slack."""
+        if not self.bot_token or not self._web_client:
+            return
         event_type = event.get("type")
         product_id = event.get("product_id")
 

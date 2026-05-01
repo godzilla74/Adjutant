@@ -169,6 +169,8 @@ class TelegramBot:
 
     async def notify(self, event: dict) -> None:
         """Forward relevant backend events to Telegram."""
+        if not self.token or not self.chat_id:
+            return
         event_type = event.get("type")
         product_id = event.get("product_id")
 
