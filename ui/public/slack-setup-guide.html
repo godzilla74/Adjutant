@@ -167,7 +167,16 @@
         <li><span class="step-num">5</span><p>Copy the token — it starts with <code>xapp-</code>.</p></li>
       </ol>
 
-      <p class="section-title">Step 3 — Add Bot Scopes</p>
+      <p class="section-title">Step 3 — Subscribe to Events</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><p>In the left sidebar, click <strong>Event Subscriptions</strong>.</p></li>
+        <li><span class="step-num">2</span><p>Toggle <strong>Enable Events</strong> to ON. (Socket Mode fills in the Request URL automatically — no public URL needed.)</p></li>
+        <li><span class="step-num">3</span><p>Expand <strong>Subscribe to bot events</strong> and click <strong>Add Bot User Event</strong>.</p></li>
+        <li><span class="step-num">4</span><p>Add <code>app_mention</code> — this is what triggers Adjutant when you @mention the bot.</p></li>
+        <li><span class="step-num">5</span><p>Click <strong>Save Changes</strong>.</p></li>
+      </ol>
+
+      <p class="section-title">Step 4 — Add Bot Scopes</p>
       <ol class="steps">
         <li><span class="step-num">1</span><p>In the left sidebar, go to <strong>OAuth &amp; Permissions</strong>.</p></li>
         <li><span class="step-num">2</span><p>Scroll to <strong>Bot Token Scopes</strong> and add:
@@ -181,14 +190,14 @@
         </p></li>
       </ol>
 
-      <p class="section-title">Step 4 — Install the App to Your Workspace</p>
+      <p class="section-title">Step 5 — Install the App to Your Workspace</p>
       <ol class="steps">
         <li><span class="step-num">1</span><p>Still in <strong>OAuth &amp; Permissions</strong>, scroll to the top and click <strong>Install to Workspace</strong>.</p></li>
         <li><span class="step-num">2</span><p>Authorize the app.</p></li>
         <li><span class="step-num">3</span><p>Copy the <strong>Bot User OAuth Token</strong> — it starts with <code>xoxb-</code>.</p></li>
       </ol>
 
-      <p class="section-title">Step 5 — Invite the Bot to Directive Channels</p>
+      <p class="section-title">Step 6 — Invite the Bot to Directive Channels</p>
       <ol class="steps">
         <li><span class="step-num">1</span><p>For any channel where you want to @mention the bot, type <code>/invite @YourAppName</code> in that channel.</p></li>
         <li><span class="step-num">2</span><p>The notification channel is handled automatically — Adjutant will join it when you select it.</p></li>
@@ -196,7 +205,7 @@
 
       <hr class="divider">
 
-      <p class="section-title">Step 6 — Connect in Adjutant</p>
+      <p class="section-title">Step 7 — Connect in Adjutant</p>
       <div class="field-map">
         <div class="field-row"><span class="field-key">Bot Token (xoxb-...)</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>Bot Token</strong> field</span></div>
         <div class="field-row"><span class="field-key">App-Level Token (xapp-...)</span><span class="field-arrow">→</span><span class="field-dest">paste into the <strong>App-Level Token</strong> field</span></div>
