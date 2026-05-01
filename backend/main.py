@@ -509,6 +509,13 @@ async def _bootstrap_product_workspace() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging as _logging
+    _logging.basicConfig(
+        level=_logging.INFO,
+        format="%(levelname)s:%(name)s: %(message)s",
+        force=True,
+    )
+
     global _telegram_bot, _mcp_manager, _telegram_task
     global _slack_bot, _slack_task, _discord_bot, _discord_task
     from backend.scheduler import scheduler_loop, register_broadcast
