@@ -1,5 +1,5 @@
 // ui/src/api.ts
-import { ProductConfig, Workstream, Objective, Tag, Signal } from './types'
+import { ProductConfig, Workstream, Objective, Tag, Signal, OrchestratorConfig, OrchestratorRun } from './types'
 
 async function apiFetch<T>(
   path: string,
@@ -552,6 +552,26 @@ export const api = {
 
   unconsumeSignal: (pw: string, productId: string, signalId: number) =>
     apiFetch<{ ok: boolean; signal_id: number }>(`/api/products/${productId}/signals/${signalId}/unconsume`, pw, {
+      method: 'POST',
+    }),
+
+  getOrchestratorConfig: (pw: string, productId: string) =>
+    apiFetch<OrchestratorConfig>(`/api/products/${productId}/orchestrator/config`, pw),
+
+  updateOrchestratorConfig: (pw: string, productId: string, updates: Partial<Pick<OrchestratorConfig, 'enabled' | 'schedule' | 'signal_threshold' | 'autonomy_settings'>>) =>
+    apiFetch<OrchestratorConfig>(`/api/products/${productId}/orchestrator/config`, pw, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    }),
+
+  getOrchestratorRuns: (pw: string, productId: string, limit = 20) =>
+    apiFetch<OrchestratorRun[]>(`/api/products/${productId}/orchestrator/runs?limit=${limit}`, pw),
+
+  getOrchestratorRun: (pw: string, productId: string, runId: number) =>
+    apiFetch<OrchestratorRun>(`/api/products/${productId}/orchestrator/runs/${runId}`, pw),
+
+  triggerOrchestrator: (pw: string, productId: string) =>
+    apiFetch<{ queued: boolean }>(`/api/products/${productId}/orchestrator/trigger`, pw, {
       method: 'POST',
     }),
 }

@@ -115,6 +115,7 @@ export type ServerMessage =
   | { type: 'wizard_progress'; product_id: string; message: string }
   | { type: 'launch_complete'; product_id: string; summary: string }
   | { type: 'launch_started'; product_id: string }
+  | { type: 'orchestrator_run_complete'; product_id: string; run_id: number; brief_preview: string; pending_approval_count: number }
 
 export interface DirectiveHistoryItem {
   id: number
@@ -160,4 +161,47 @@ export interface Signal {
   note: string
   consumed_at: string | null
   created_at: string
+}
+
+export interface OrchestratorConfig {
+  product_id: string
+  enabled: number
+  schedule: string
+  signal_threshold: number
+  next_run_at: string | null
+  autonomy_settings: Record<string, 'autonomous' | 'approval_required'>
+}
+
+export interface OrchestratorDecision {
+  action: string
+  signal_id?: number
+  workstream_id?: number
+  note?: string
+  new_mission?: string
+  new_schedule?: string
+  add?: string[]
+  remove?: string[]
+  text?: string
+  name?: string
+  mission?: string
+  schedule?: string
+  workstream_type?: string
+  description?: string
+  tag?: string
+  reason?: string
+  _status: 'applied' | 'queued' | 'skipped' | 'error'
+  _note?: string
+  _review_item_id?: number
+  _error?: string
+}
+
+export interface OrchestratorRun {
+  id: number
+  product_id: string
+  triggered_by: 'schedule' | 'signal_threshold'
+  run_at: string
+  status: 'complete' | 'error'
+  decisions: OrchestratorDecision[]
+  brief: string
+  error?: string | null
 }
