@@ -2338,10 +2338,11 @@ def create_signal(
 def get_signals(product_id: str, tag_prefix: str = "", include_consumed: bool = False) -> list[dict]:
     """Return signals for a product, optionally filtered by tag name prefix."""
     consumed_clause = "" if include_consumed else "AND s.consumed_at IS NULL"
-    prefix_clause = "AND t.name LIKE ?" if tag_prefix else ""
+    prefix_clause = "AND t.name LIKE ? ESCAPE '\\'" if tag_prefix else ""
     params: list = [product_id]
     if tag_prefix:
-        params.append(f"{tag_prefix}%")
+        safe = tag_prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params.append(f"{safe}%")
     with _conn() as conn:
         rows = conn.execute(
             f"""SELECT s.id, s.tag_id, t.name AS tag_name, s.content_type, s.content_id,
