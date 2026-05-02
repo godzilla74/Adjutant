@@ -1,7 +1,8 @@
 // ui/src/components/ReportsTab.tsx
 import { useEffect, useState } from 'react'
 import MarkdownContent from './MarkdownContent'
-import { RunReport } from '../types'
+import { RunReport, Tag } from '../types'
+import { api } from '../api'
 
 interface Props {
   productId: string
@@ -14,6 +15,11 @@ export default function ReportsTab({ productId, password, initialReportId }: Pro
   const [selected,      setSelected]      = useState<RunReport | null>(null)
   const [loading,       setLoading]       = useState(true)
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [tagging,       setTagging]       = useState(false)
+  const [tags,          setTags]          = useState<Tag[]>([])
+  const [tagId,         setTagId]         = useState<number | null>(null)
+  const [tagNote,       setTagNote]       = useState('')
+  const [tagSaving,     setTagSaving]     = useState(false)
 
   const headers = { 'X-Agent-Password': password }
 
@@ -29,6 +35,7 @@ export default function ReportsTab({ productId, password, initialReportId }: Pro
   async function openReport(id: number) {
     const res = await fetch(`/api/products/${productId}/reports/${id}`, { headers })
     if (res.ok) setSelected(await res.json())
+    setTagging(false)
   }
 
   async function handleDelete(id: number) {
@@ -36,6 +43,27 @@ export default function ReportsTab({ productId, password, initialReportId }: Pro
     setConfirmDelete(null)
     if (selected?.id === id) setSelected(null)
     setReports(prev => prev.filter(r => r.id !== id))
+  }
+
+  async function startTagging() {
+    const loaded = await api.listTags(password)
+    setTags(loaded)
+    setTagId(loaded[0]?.id ?? null)
+    setTagNote('')
+    setTagging(true)
+  }
+
+  async function submitTag(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selected || tagId === null) return
+    setTagSaving(true)
+    try {
+      await api.createSignal(password, productId, tagId, 'run_report', selected.id, tagNote)
+      setTagging(false)
+      setTagNote('')
+    } finally {
+      setTagSaving(false)
+    }
   }
 
   useEffect(() => { fetchReports() }, [productId])
@@ -65,6 +93,14 @@ export default function ReportsTab({ productId, password, initialReportId }: Pro
               })}
             </div>
           </div>
+          {!tagging && (
+            <button
+              onClick={startTagging}
+              className="text-xs px-2.5 py-1.5 rounded border border-zinc-700 text-zinc-400 hover:border-adj-accent hover:text-adj-accent transition-colors flex-shrink-0"
+            >
+              🏷 Tag this report
+            </button>
+          )}
           {confirmDelete === selected.id ? (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-zinc-400">Delete this report?</span>
@@ -90,6 +126,45 @@ export default function ReportsTab({ productId, password, initialReportId }: Pro
             </button>
           )}
         </div>
+
+        {tagging && (
+          <form onSubmit={submitTag} className="rounded-xl border border-adj-border bg-adj-surface px-4 py-3 space-y-2">
+            <p className="text-xs font-semibold text-adj-text-primary mb-2">Tag this report</p>
+            <select
+              value={tagId ?? ''}
+              onChange={e => setTagId(Number(e.target.value))}
+              className="w-full bg-adj-panel border border-adj-border rounded px-2.5 py-1.5 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent"
+            >
+              {tags.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <textarea
+              rows={2}
+              value={tagNote}
+              onChange={e => setTagNote(e.target.value)}
+              placeholder="Handoff note — what's the opportunity? (optional)"
+              className="w-full bg-adj-panel border border-adj-border rounded px-2.5 py-1.5 text-sm text-adj-text-primary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent resize-none"
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={tagSaving || tagId === null}
+                className="px-3 py-1.5 rounded bg-adj-accent text-white text-xs font-semibold hover:bg-adj-accent-dark transition-colors disabled:opacity-50"
+              >
+                {tagSaving ? 'Saving…' : 'Tag it'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTagging(false)}
+                className="text-xs text-adj-text-faint hover:text-adj-text-muted"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
         <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-4 text-sm text-zinc-300 leading-relaxed">
           {selected.full_output
             ? <MarkdownContent>{selected.full_output}</MarkdownContent>
