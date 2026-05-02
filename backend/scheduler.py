@@ -175,6 +175,18 @@ NOW: {datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')}
 Execute the mission above fully. Be concrete and specific — summarise what you found, \
 drafted, or changed. Keep the summary under 400 words.
 
+After your summary, if you identified any opportunities for other workstreams to act on, \
+add a SIGNALS block using this exact format (omit the block entirely if there are no signals):
+
+SIGNALS:
+- tag:name :: One-sentence note for the receiving agent explaining the opportunity
+- tag:name :: Another opportunity
+END_SIGNALS
+
+Use namespaced tags: social:linkedin, social:twitter, social:instagram, social:facebook, \
+email:newsletter, email:customers, email:prospects, feature:request, feature:improvement, \
+research:competitive, research:market. Create a new tag:name if none fit.
+
 End your response with exactly one of these lines (no extra text on the line):
 STATUS:OK
 STATUS:WARN
@@ -185,6 +197,39 @@ review urgently. Otherwise use STATUS:OK."""
 
 def _parse_warn(result: str) -> bool:
     return "STATUS:WARN" in result
+
+
+def _parse_signals(output: str) -> list[tuple[str, str]]:
+    """Extract (tag_name, note) pairs from a SIGNALS: ... END_SIGNALS block."""
+    signals = []
+    in_block = False
+    for line in output.splitlines():
+        if line.strip() == "SIGNALS:":
+            in_block = True
+            continue
+        if line.strip() == "END_SIGNALS":
+            break
+        if in_block and line.strip().startswith("- "):
+            content = line.strip()[2:]
+            if " :: " in content:
+                tag, note = content.split(" :: ", 1)
+                signals.append((tag.strip(), note.strip()))
+    return signals
+
+
+def _strip_signals_block(output: str) -> str:
+    """Remove the SIGNALS: ... END_SIGNALS block from output text."""
+    lines, in_block = [], False
+    for line in output.splitlines():
+        if line.strip() == "SIGNALS:":
+            in_block = True
+            continue
+        if line.strip() == "END_SIGNALS":
+            in_block = False
+            continue
+        if not in_block:
+            lines.append(line)
+    return "\n".join(lines).strip()
 
 
 async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
@@ -203,7 +248,7 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
             update_workstream_fields, get_product_config,
             get_workstreams, get_objectives,
             load_activity_events, load_review_items,
-            create_run_report,
+            create_run_report, create_signal, get_or_create_tag,
         )
 
         config = get_product_config(product_id)
@@ -233,8 +278,10 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
         result = await run_research_agent(_build_task(ws, config))
 
         is_warn = _parse_warn(result)
-        # Strip the STATUS line from the summary shown to Justin
-        summary_text = result.replace("STATUS:OK", "").replace("STATUS:WARN", "").strip()
+        raw_signals = _parse_signals(result)
+        # Strip STATUS and SIGNALS blocks from the saved summary
+        clean = _strip_signals_block(result)
+        summary_text = clean.replace("STATUS:OK", "").replace("STATUS:WARN", "").strip()
         summary = summary_text[:300].rstrip() + ("…" if len(summary_text) > 300 else "")
 
         # Save the full output as a report (best-effort)
@@ -248,6 +295,22 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
             )
         except Exception as report_exc:
             log.error("Failed to save run report for workstream %s: %s", ws_id, report_exc)
+
+        # Create signals from the SIGNALS block (best-effort)
+        if report_id and raw_signals:
+            for tag_name, note in raw_signals:
+                try:
+                    tag_id = get_or_create_tag(tag_name)
+                    create_signal(
+                        tag_id=tag_id,
+                        content_type="run_report",
+                        content_id=report_id,
+                        product_id=product_id,
+                        tagged_by="agent",
+                        note=note,
+                    )
+                except Exception as sig_exc:
+                    log.error("Failed to create signal '%s' for report %s: %s", tag_name, report_id, sig_exc)
 
         update_activity_event(event_id, status="done", summary=summary, report_id=report_id)
 
