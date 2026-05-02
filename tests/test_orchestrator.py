@@ -102,3 +102,19 @@ def test_update_orchestrator_run_decisions(db):
     )
     run = db.get_orchestrator_run(run_id)
     assert run["decisions"][0]["action"] == "update_mission"
+
+
+def test_get_due_orchestrator_products_scheduled(db):
+    from datetime import datetime, timedelta
+    past = (datetime.now() - timedelta(minutes=1)).isoformat(timespec="seconds")
+    db.update_orchestrator_config("p1", enabled=1, next_run_at=past)
+    due = db.get_due_orchestrator_products()
+    assert any(d["product_id"] == "p1" and d["trigger_type"] == "schedule" for d in due)
+
+
+def test_get_due_orchestrator_products_not_due_when_disabled(db):
+    from datetime import datetime, timedelta
+    past = (datetime.now() - timedelta(minutes=1)).isoformat(timespec="seconds")
+    db.update_orchestrator_config("p1", enabled=0, next_run_at=past)
+    due = db.get_due_orchestrator_products()
+    assert not any(d["product_id"] == "p1" for d in due)

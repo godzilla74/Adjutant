@@ -2510,6 +2510,8 @@ def update_orchestrator_config(product_id: str, **fields) -> None:
     updates = {k: v for k, v in fields.items() if k in _allowed}
     if not updates:
         return
+    if "enabled" in updates and isinstance(updates["enabled"], bool):
+        updates["enabled"] = int(updates["enabled"])
     with _conn() as conn:
         conn.execute(
             "INSERT OR IGNORE INTO orchestrator_config (product_id) VALUES (?)",
@@ -2585,7 +2587,7 @@ def list_orchestrator_runs(product_id: str, limit: int = 20) -> list[dict]:
 def get_due_orchestrator_products() -> list[dict]:
     """Return products whose PA should fire (scheduled or signal threshold)."""
     from datetime import datetime
-    now = datetime.now().isoformat()
+    now = datetime.now().isoformat(timespec="seconds")
     with _conn() as conn:
         scheduled = conn.execute(
             """SELECT oc.product_id, 'schedule' as trigger_type
