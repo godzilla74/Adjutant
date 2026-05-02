@@ -890,7 +890,7 @@ def test_get_signals_excludes_consumed(db):
         tagged_by="agent",
         note="Test",
     )
-    db.consume_signal(signal_id)
+    db.consume_signal(signal_id, "test-product")
     signals = db.get_signals(product_id="test-product", tag_prefix="social:")
     assert signals == []
 
@@ -922,7 +922,7 @@ def test_consume_signal(db):
     tag_id = db.create_tag("social:linkedin", "LinkedIn")
     signal_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
                                   product_id="test-product", tagged_by="agent", note="Test")
-    db.consume_signal(signal_id)
+    db.consume_signal(signal_id, "test-product")
     with db._conn() as conn:
         row = conn.execute("SELECT consumed_at FROM signals WHERE id = ?", (signal_id,)).fetchone()
     assert row["consumed_at"] is not None
@@ -939,7 +939,7 @@ def test_get_signals_include_consumed(db):
     tag_id = db.create_tag("social:linkedin", "LinkedIn")
     signal_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
                                   product_id="test-product", tagged_by="agent", note="Test")
-    db.consume_signal(signal_id)
+    db.consume_signal(signal_id, "test-product")
     all_signals = db.get_signals(product_id="test-product", include_consumed=True)
     assert len(all_signals) == 1
     assert all_signals[0]["consumed_at"] is not None

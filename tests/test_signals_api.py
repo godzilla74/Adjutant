@@ -133,7 +133,7 @@ def test_list_signals_includes_consumed_when_flag_set(client):
     tag_id = db.create_tag("social:linkedin", "LinkedIn")
     sig_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
                                product_id="p1", tagged_by="agent", note="Test")
-    db.consume_signal(sig_id)
+    db.consume_signal(sig_id, "p1")
     # Without flag — excluded
     r = tc.get("/api/products/p1/signals", headers=HEADERS)
     assert len(r.json()) == 0
@@ -148,10 +148,51 @@ def test_unconsume_signal_api(client):
     tag_id = db.create_tag("social:linkedin", "LinkedIn")
     sig_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
                                product_id="p1", tagged_by="agent", note="Test")
-    db.consume_signal(sig_id)
+    db.consume_signal(sig_id, "p1")
     r = tc.post(f"/api/products/p1/signals/{sig_id}/unconsume", headers=HEADERS)
     assert r.status_code == 200
     assert r.json()["ok"] is True
     signals = db.get_signals(product_id="p1")
     assert len(signals) == 1
     assert signals[0]["consumed_at"] is None
+
+
+def test_create_tag_duplicate_returns_409(client):
+    tc, _ = client
+    tc.post("/api/tags", json={"name": "dup:tag", "description": "First"}, headers=HEADERS)
+    r = tc.post("/api/tags", json={"name": "dup:tag", "description": "Second"}, headers=HEADERS)
+    assert r.status_code == 409
+
+
+def test_update_tag_duplicate_name_returns_409(client):
+    tc, db = client
+    db.create_tag("tag:alpha", "Alpha")
+    beta_id = db.create_tag("tag:beta", "Beta")
+    r = tc.patch(f"/api/tags/{beta_id}", json={"name": "tag:alpha"}, headers=HEADERS)
+    assert r.status_code == 409
+
+
+def test_consume_signal_wrong_product_is_noop(client):
+    tc, db = client
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    sig_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
+                               product_id="p1", tagged_by="agent", note="Test")
+    # consume via wrong product_id — should not affect the signal
+    r = tc.post(f"/api/products/other/signals/{sig_id}/consume", headers=HEADERS)
+    assert r.status_code == 200
+    signals = db.get_signals(product_id="p1")
+    assert len(signals) == 1
+    assert signals[0]["consumed_at"] is None
+
+
+def test_unconsume_signal_wrong_product_is_noop(client):
+    tc, db = client
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    sig_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
+                               product_id="p1", tagged_by="agent", note="Test")
+    db.consume_signal(sig_id, "p1")
+    # unconsume via wrong product_id — should not reopen the signal
+    r = tc.post(f"/api/products/other/signals/{sig_id}/unconsume", headers=HEADERS)
+    assert r.status_code == 200
+    signals = db.get_signals(product_id="p1", include_consumed=True)
+    assert signals[0]["consumed_at"] is not None

@@ -145,15 +145,23 @@ def list_tags_api(_=Depends(_auth)):
 
 @router.post("/tags", status_code=201)
 def create_tag_api(body: TagCreate, _=Depends(_auth)):
+    import sqlite3
     from backend.db import create_tag, get_tag
-    tag_id = create_tag(body.name, body.description)
+    try:
+        tag_id = create_tag(body.name, body.description)
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail=f"Tag '{body.name}' already exists")
     return get_tag(tag_id)
 
 
 @router.patch("/tags/{tag_id}")
 def update_tag_api(tag_id: int, body: TagUpdate, _=Depends(_auth)):
+    import sqlite3
     from backend.db import update_tag, get_tag
-    update_tag(tag_id, name=body.name, description=body.description)
+    try:
+        update_tag(tag_id, name=body.name, description=body.description)
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="A tag with that name already exists")
     tag = get_tag(tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -193,14 +201,14 @@ def create_signal_api(product_id: str, body: SignalCreate, _=Depends(_auth)):
 @router.post("/products/{product_id}/signals/{signal_id}/consume")
 def consume_signal_api(product_id: str, signal_id: int, _=Depends(_auth)):
     from backend.db import consume_signal
-    consume_signal(signal_id)
+    consume_signal(signal_id, product_id)
     return {"ok": True, "signal_id": signal_id}
 
 
 @router.post("/products/{product_id}/signals/{signal_id}/unconsume")
 def unconsume_signal_api(product_id: str, signal_id: int, _=Depends(_auth)):
     from backend.db import unconsume_signal
-    unconsume_signal(signal_id)
+    unconsume_signal(signal_id, product_id)
     return {"ok": True, "signal_id": signal_id}
 
 

@@ -2356,19 +2356,19 @@ def get_signals(product_id: str, tag_prefix: str = "", include_consumed: bool = 
     return [dict(r) for r in rows]
 
 
-def consume_signal(signal_id: int) -> None:
+def consume_signal(signal_id: int, product_id: str) -> None:
     with _conn() as conn:
         conn.execute(
-            "UPDATE signals SET consumed_at = datetime('now') WHERE id = ?",
-            (signal_id,),
+            "UPDATE signals SET consumed_at = datetime('now') WHERE id = ? AND product_id = ?",
+            (signal_id, product_id),
         )
 
 
-def unconsume_signal(signal_id: int) -> None:
+def unconsume_signal(signal_id: int, product_id: str) -> None:
     with _conn() as conn:
         conn.execute(
-            "UPDATE signals SET consumed_at = NULL WHERE id = ?",
-            (signal_id,),
+            "UPDATE signals SET consumed_at = NULL WHERE id = ? AND product_id = ?",
+            (signal_id, product_id),
         )
 
 
