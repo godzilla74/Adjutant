@@ -2466,3 +2466,152 @@ def initialize_tags_for_workstream_type(workstream_id: int, workstream_type: str
     subscriptions = _WORKSTREAM_TYPE_SUBSCRIPTIONS.get(workstream_type, [])
     if subscriptions:
         update_workstream_fields(workstream_id, tag_subscriptions=_json.dumps(subscriptions))
+
+
+# ── Orchestrator ──────────────────────────────────────────────────────────────
+
+_ORCHESTRATOR_DEFAULT_AUTONOMY = {
+    "route_signal": "autonomous",
+    "update_mission": "autonomous",
+    "update_schedule": "autonomous",
+    "update_subscriptions": "autonomous",
+    "create_objective": "autonomous",
+    "consume_signal": "autonomous",
+    "pause_workstream": "approval_required",
+    "create_workstream": "approval_required",
+    "external_action": "approval_required",
+    "capability_gap": "autonomous",
+}
+
+
+def get_orchestrator_config(product_id: str) -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM orchestrator_config WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()
+    if row is None:
+        return {
+            "product_id": product_id,
+            "enabled": 0,
+            "schedule": "daily at 8am",
+            "signal_threshold": 5,
+            "next_run_at": None,
+            "autonomy_settings": dict(_ORCHESTRATOR_DEFAULT_AUTONOMY),
+        }
+    d = dict(row)
+    stored = json.loads(d.get("autonomy_settings") or "{}")
+    d["autonomy_settings"] = {**_ORCHESTRATOR_DEFAULT_AUTONOMY, **stored}
+    return d
+
+
+def update_orchestrator_config(product_id: str, **fields) -> None:
+    _allowed = {"enabled", "schedule", "signal_threshold", "next_run_at", "autonomy_settings"}
+    updates = {k: v for k, v in fields.items() if k in _allowed}
+    if not updates:
+        return
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO orchestrator_config (product_id) VALUES (?)",
+            (product_id,),
+        )
+        if "autonomy_settings" in updates and isinstance(updates["autonomy_settings"], dict):
+            updates["autonomy_settings"] = json.dumps(updates["autonomy_settings"])
+        sets = [f"{k} = ?" for k in updates]
+        conn.execute(
+            f"UPDATE orchestrator_config SET {', '.join(sets)} WHERE product_id = ?",
+            list(updates.values()) + [product_id],
+        )
+
+
+def save_orchestrator_run(
+    product_id: str,
+    triggered_by: str,
+    status: str,
+    decisions: list,
+    brief: str,
+    error: str | None = None,
+) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO orchestrator_runs
+               (product_id, triggered_by, status, decisions, brief, error)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (product_id, triggered_by, status, json.dumps(decisions), brief, error),
+        )
+        return cur.lastrowid
+
+
+def update_orchestrator_run_decisions(
+    run_id: int,
+    decisions: list,
+    status: str = "complete",
+    error: str | None = None,
+) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE orchestrator_runs SET decisions = ?, status = ?, error = ? WHERE id = ?",
+            (json.dumps(decisions), status, error, run_id),
+        )
+
+
+def get_orchestrator_run(run_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM orchestrator_runs WHERE id = ?", (run_id,)
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d["decisions"] = json.loads(d.get("decisions") or "[]")
+    return d
+
+
+def list_orchestrator_runs(product_id: str, limit: int = 20) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT * FROM orchestrator_runs WHERE product_id = ?
+               ORDER BY run_at DESC, id DESC LIMIT ?""",
+            (product_id, limit),
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["decisions"] = json.loads(d.get("decisions") or "[]")
+        result.append(d)
+    return result
+
+
+def get_due_orchestrator_products() -> list[dict]:
+    """Return products whose PA should fire (scheduled or signal threshold)."""
+    from datetime import datetime
+    now = datetime.now().isoformat()
+    with _conn() as conn:
+        scheduled = conn.execute(
+            """SELECT oc.product_id, 'schedule' as trigger_type
+               FROM orchestrator_config oc
+               WHERE oc.enabled = 1
+                 AND oc.next_run_at IS NOT NULL
+                 AND oc.next_run_at <= ?""",
+            (now,),
+        ).fetchall()
+        threshold = conn.execute(
+            """SELECT oc.product_id, 'signal_threshold' as trigger_type
+               FROM orchestrator_config oc
+               WHERE oc.enabled = 1
+                 AND (oc.next_run_at IS NULL OR oc.next_run_at > ?)
+                 AND (
+                   SELECT COUNT(*) FROM signals s
+                   WHERE s.product_id = oc.product_id
+                     AND s.consumed_at IS NULL
+                 ) >= oc.signal_threshold""",
+            (now,),
+        ).fetchall()
+    seen: set[str] = set()
+    result = []
+    for r in list(scheduled) + list(threshold):
+        d = dict(r)
+        if d["product_id"] not in seen:
+            seen.add(d["product_id"])
+            result.append(d)
+    return result
