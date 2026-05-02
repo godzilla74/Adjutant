@@ -6,7 +6,7 @@ import pytest
 
 def test_tool_groups_contains_expected_groups():
     from core.tools import TOOL_GROUPS
-    assert set(TOOL_GROUPS.keys()) == {"core", "email", "calendar", "social", "management", "system"}
+    assert set(TOOL_GROUPS.keys()) == {"core", "email", "calendar", "social", "management", "system", "signals"}
 
 
 def test_tool_groups_core_has_essential_tools():
