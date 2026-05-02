@@ -180,3 +180,187 @@ def test_consume_routed_signals(populated_db):
             "SELECT consumed_at FROM signals WHERE id = ?", (sig_id,)
         ).fetchone()
     assert row["consumed_at"] is not None
+
+
+def test_build_context_includes_workstreams(populated_db):
+    from backend.orchestrator import build_context
+    db, ws_id, sig_id = populated_db
+    ctx = build_context("p1")
+    assert len(ctx["workstreams"]) == 1
+    assert ctx["workstreams"][0]["name"] == "LinkedIn Research"
+
+
+def test_build_context_includes_unconsumed_signals(populated_db):
+    from backend.orchestrator import build_context
+    db, ws_id, sig_id = populated_db
+    ctx = build_context("p1")
+    assert len(ctx["unconsumed_signals"]) == 1
+    assert ctx["unconsumed_signals"][0]["note"] == "Brand tone is off"
+
+
+def test_build_context_empty_product_no_error(db):
+    from backend.orchestrator import build_context
+    ctx = build_context("p1")
+    assert ctx["workstreams"] == []
+    assert ctx["unconsumed_signals"] == []
+    assert ctx["recent_reports"] == []
+
+
+def test_apply_update_mission(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "update_mission", "workstream_id": ws_id,
+                  "new_mission": "Track LinkedIn brand voice daily", "reason": "test"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "applied"
+    ws = db.get_workstreams("p1")[0]
+    assert ws["mission"] == "Track LinkedIn brand voice daily"
+
+
+def test_apply_route_signal(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "route_signal", "signal_id": sig_id,
+                  "workstream_id": ws_id, "note": "relevant"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "applied"
+    signals = db.get_routed_signals_for_workstream(ws_id)
+    assert len(signals) == 1
+
+
+def test_apply_update_schedule(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "update_schedule", "workstream_id": ws_id,
+                  "new_schedule": "every monday at 9am", "reason": "test"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "applied"
+    ws = db.get_workstreams("p1")[0]
+    assert ws["schedule"] == "every monday at 9am"
+
+
+def test_apply_update_subscriptions(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    import json
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "update_subscriptions", "workstream_id": ws_id,
+                  "add": ["social:"], "remove": [], "reason": "test"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "applied"
+    ws = db.get_workstreams("p1")[0]
+    subs = json.loads(ws["tag_subscriptions"] or "[]")
+    assert "social:" in subs
+
+
+def test_apply_create_objective(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "create_objective", "text": "Grow LinkedIn followers to 1000",
+                  "reason": "test"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "applied"
+    with db._conn() as conn:
+        row = conn.execute(
+            "SELECT text FROM objectives WHERE product_id = 'p1'"
+        ).fetchone()
+    assert row["text"] == "Grow LinkedIn followers to 1000"
+
+
+def test_apply_consume_signal(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "consume_signal", "signal_id": sig_id, "reason": "noise"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "applied"
+    remaining = db.get_signals(product_id="p1")
+    assert remaining == []
+
+
+def test_apply_capability_gap_creates_review_item(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "capability_gap", "tag": "email:analytics",
+                  "description": "No workstream handles email analytics", "reason": "gap"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "applied"
+    with db._conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM review_items WHERE product_id = 'p1'"
+        ).fetchone()
+    assert row is not None
+    assert "email:analytics" in row["title"]
+
+
+def test_apply_pause_workstream_queues_review(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "pause_workstream", "workstream_id": ws_id, "reason": "underperforming"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "queued"
+    ws = db.get_workstreams("p1")[0]
+    assert ws["status"] == "paused"   # unchanged — workstream was already paused, NOT paused by decision
+
+
+def test_apply_create_workstream_queues_review(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "create_workstream", "name": "Email Analytics",
+                  "mission": "Track email open rates", "schedule": "weekly",
+                  "workstream_type": "email", "reason": "gap"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "queued"
+    ws_list = db.get_workstreams("p1")
+    assert len(ws_list) == 1  # no new workstream created
+
+
+def test_apply_unknown_action_skipped(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "teleport", "reason": "test"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "skipped"
+
+
+def test_apply_invalid_workstream_id_skipped(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    decisions = [{"action": "update_mission", "workstream_id": 9999,
+                  "new_mission": "x", "reason": "test"}]
+    annotated = apply_decisions("p1", decisions, _ORCHESTRATOR_DEFAULT_AUTONOMY, run_id)
+    assert annotated[0]["_status"] == "error"
+
+
+def test_apply_autonomy_override_creates_review_item(populated_db):
+    from backend.orchestrator import apply_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    db, ws_id, sig_id = populated_db
+    run_id = db.save_orchestrator_run("p1", "schedule", "complete", [], "")
+    autonomy = {**_ORCHESTRATOR_DEFAULT_AUTONOMY, "update_mission": "approval_required"}
+    decisions = [{"action": "update_mission", "workstream_id": ws_id,
+                  "new_mission": "New mission", "reason": "test"}]
+    annotated = apply_decisions("p1", decisions, autonomy, run_id)
+    assert annotated[0]["_status"] == "queued"
+    ws = db.get_workstreams("p1")[0]
+    assert ws["mission"] != "New mission"  # not applied
