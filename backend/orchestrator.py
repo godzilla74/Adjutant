@@ -35,13 +35,14 @@ def build_context(product_id: str) -> dict:
             (product_id,),
         ).fetchone()
         report_rows = conn.execute(
-            """SELECT rr.workstream_id, w.name as workstream_name,
-                      rr.created_at, rr.full_output
-               FROM run_reports rr
-               JOIN workstreams w ON w.id = rr.workstream_id
-               WHERE rr.product_id = ?
-               ORDER BY rr.created_at DESC
-               LIMIT 50""",
+            """SELECT workstream_id, workstream_name, run_at, full_output FROM (
+                 SELECT rr.workstream_id, w.name as workstream_name,
+                        rr.created_at as run_at, rr.full_output,
+                        ROW_NUMBER() OVER (PARTITION BY rr.workstream_id ORDER BY rr.created_at DESC) as rn
+                 FROM run_reports rr
+                 JOIN workstreams w ON w.id = rr.workstream_id
+                 WHERE rr.product_id = ?
+               ) WHERE rn <= 5""",
             (product_id,),
         ).fetchall()
 
@@ -58,7 +59,7 @@ def build_context(product_id: str) -> dict:
         if len(reports_by_ws[ws_id]) < 5:
             reports_by_ws[ws_id].append({
                 "workstream_name": r["workstream_name"],
-                "run_at": r["created_at"],
+                "run_at": r["run_at"],
                 "full_output": r["full_output"],
             })
 
@@ -158,7 +159,7 @@ def _execute_decision(
             product_id=product_id,
             title=f"Capability gap: {d.get('tag', 'unknown')}",
             description=d.get("description", ""),
-            risk_label="low",
+            risk_label="Opportunity · no action taken",
             action_type="capability_gap",
             payload=json.dumps(d),
         )
@@ -214,7 +215,7 @@ def apply_decisions(
             note = _execute_decision(product_id, d, valid_ws, valid_signals)
             annotated.append({**d, "_status": "applied", "_note": note})
         except Exception as exc:
-            log.warning("orchestrator: decision failed: %s — %s", d, exc)
+            log.warning("orchestrator: decision failed: %s — %s", d, exc, exc_info=True)
             annotated.append({**d, "_status": "error", "_error": str(exc)})
 
     return annotated
