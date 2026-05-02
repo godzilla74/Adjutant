@@ -16,11 +16,12 @@ import ImageGenerationSettings from './settings/ImageGenerationSettings'
 import TokenUsageSettings from './settings/TokenUsageSettings'
 import ProductModelSettings from './settings/ProductModelSettings'
 import TagsSettings from './settings/TagsSettings'
+import SignalsSettings from './settings/SignalsSettings'
 export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp' | 'product-model'
   | 'agent-model' | 'google-oauth' | 'integrations' | 'mcp' | 'image-generation' | 'usage'
-  | 'tags'
+  | 'tags' | 'signals'
 
 interface Props {
   products: Product[]
@@ -43,6 +44,7 @@ const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'workstreams',   label: 'Workstreams', icon: '⟳' },
   { key: 'objectives',    label: 'Objectives',  icon: '◎' },
   { key: 'autonomy',      label: 'Autonomy',    icon: '🛡' },
+  { key: 'signals',       label: 'Signals',     icon: '📡' },
   { key: 'product-model', label: 'Model',       icon: '🤖' },
 ]
 const INTEGRATION_TABS: { key: Tab; label: string; icon: string }[] = [
@@ -100,6 +102,7 @@ export default function SettingsPage({
       case 'workstreams':   return <WorkstreamsSettings workstreams={activeState?.workstreams ?? []} onWorkstreamUpdated={onWorkstreamUpdated} onRefresh={() => onRefreshData(settingsProductId)} {...productCommon} />
       case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
       case 'autonomy':      return <AutonomySettings {...productCommon} />
+      case 'signals':       return <SignalsSettings {...productCommon} />
       case 'product-model': return <ProductModelSettings {...productCommon} />
 
       case 'connections':   return <ConnectionsSettings {...productCommon} onOpenSettings={tab => { setTab(tab as Tab) }} />
