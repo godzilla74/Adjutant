@@ -208,7 +208,8 @@ def _parse_signals(output: str) -> list[tuple[str, str]]:
             in_block = True
             continue
         if line.strip() == "END_SIGNALS":
-            break
+            in_block = False
+            continue
         if in_block and line.strip().startswith("- "):
             content = line.strip()[2:]
             if " :: " in content:

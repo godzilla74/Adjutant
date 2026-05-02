@@ -25,7 +25,6 @@ STATUS:OK"""
 
 
 def test_parse_signals_empty():
-    from backend.scheduler import _parse_signals
     assert _parse_signals("No signals here.\nSTATUS:OK") == []
 
 
