@@ -199,9 +199,9 @@ class TelegramBot:
         elif event_type == "orchestrator_run_complete":
             brief_preview = event.get("brief_preview", "")
             pending = event.get("pending_approval_count", 0)
-            msg = f"📋 *Product Adjutant Briefing*\n{brief_preview}"
+            msg = f"📋 <b>Product Adjutant Briefing</b>\n{brief_preview}"
             if pending > 0:
-                msg += f"\n\n⏳ *{pending} decision(s) awaiting approval* — open Adjutant → Briefing."
+                msg += f"\n\n⏳ <b>{pending} decision(s) awaiting approval</b> — open Adjutant → Briefing."
             if msg:
                 try:
                     await self.send_message(msg[:4096])
