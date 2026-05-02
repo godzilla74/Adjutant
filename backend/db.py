@@ -243,6 +243,20 @@ def init_db() -> None:
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
                 updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS signals (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                tag_id       INTEGER NOT NULL REFERENCES tags(id) ON UPDATE CASCADE ON DELETE CASCADE,
+                content_type TEXT    NOT NULL,
+                content_id   INTEGER NOT NULL,
+                product_id   TEXT    NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                tagged_by    TEXT    NOT NULL DEFAULT 'agent',
+                note         TEXT    NOT NULL DEFAULT '',
+                consumed_at  TEXT,
+                created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_signals_product_tag
+                ON signals(product_id, tag_id, consumed_at);
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -2297,3 +2311,60 @@ def update_tag(tag_id: int, name: str | None = None, description: str | None = N
 def delete_tag(tag_id: int) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+
+
+# ---------------------------------------------------------------------------
+# Signals
+# ---------------------------------------------------------------------------
+
+def create_signal(
+    tag_id: int,
+    content_type: str,
+    content_id: int,
+    product_id: str,
+    tagged_by: str = "agent",
+    note: str = "",
+) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO signals (tag_id, content_type, content_id, product_id, tagged_by, note)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (tag_id, content_type, content_id, product_id, tagged_by, note),
+        )
+        return cur.lastrowid
+
+
+def get_signals(product_id: str, tag_prefix: str = "", include_consumed: bool = False) -> list[dict]:
+    """Return signals for a product, optionally filtered by tag name prefix."""
+    consumed_clause = "" if include_consumed else "AND s.consumed_at IS NULL"
+    prefix_clause = "AND t.name LIKE ?" if tag_prefix else ""
+    params: list = [product_id]
+    if tag_prefix:
+        params.append(f"{tag_prefix}%")
+    with _conn() as conn:
+        rows = conn.execute(
+            f"""SELECT s.id, s.tag_id, t.name AS tag_name, s.content_type, s.content_id,
+                       s.product_id, s.tagged_by, s.note, s.consumed_at, s.created_at
+                FROM signals s
+                JOIN tags t ON t.id = s.tag_id
+                WHERE s.product_id = ? {prefix_clause} {consumed_clause}
+                ORDER BY s.created_at DESC""",
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def consume_signal(signal_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE signals SET consumed_at = datetime('now') WHERE id = ?",
+            (signal_id,),
+        )
+
+
+def get_or_create_tag(name: str, description: str = "") -> int:
+    """Return existing tag ID by name, or create it. Used by agents creating signals."""
+    tag = get_tag_by_name(name)
+    if tag:
+        return tag["id"]
+    return create_tag(name, description)

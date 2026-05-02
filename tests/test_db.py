@@ -854,3 +854,92 @@ def test_get_tag_by_id(db):
     assert tag["id"] == tag_id
     assert tag["name"] == "social:linkedin"
     assert db.get_tag(tag_id + 999) is None
+
+
+# ── Signals ───────────────────────────────────────────────────────────────
+
+def test_create_and_get_signals(db):
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    signal_id = db.create_signal(
+        tag_id=tag_id,
+        content_type="run_report",
+        content_id=42,
+        product_id="test-product",
+        tagged_by="agent",
+        note="New feature X — strong enterprise angle",
+    )
+    assert isinstance(signal_id, int)
+    signals = db.get_signals(product_id="test-product", tag_prefix="social:")
+    assert len(signals) == 1
+    s = signals[0]
+    assert s["tag_id"] == tag_id
+    assert s["content_type"] == "run_report"
+    assert s["content_id"] == 42
+    assert s["note"] == "New feature X — strong enterprise angle"
+    assert s["consumed_at"] is None
+    assert s["tag_name"] == "social:linkedin"
+
+
+def test_get_signals_excludes_consumed(db):
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    signal_id = db.create_signal(
+        tag_id=tag_id,
+        content_type="run_report",
+        content_id=1,
+        product_id="test-product",
+        tagged_by="agent",
+        note="Test",
+    )
+    db.consume_signal(signal_id)
+    signals = db.get_signals(product_id="test-product", tag_prefix="social:")
+    assert signals == []
+
+
+def test_get_signals_scoped_to_product(db):
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
+                     product_id="test-product", tagged_by="agent", note="A")
+    db.create_signal(tag_id=tag_id, content_type="run_report", content_id=2,
+                     product_id="test-product-2", tagged_by="agent", note="B")
+    signals = db.get_signals(product_id="test-product", tag_prefix="social:")
+    assert len(signals) == 1
+    assert signals[0]["note"] == "A"
+
+
+def test_get_signals_filters_by_prefix(db):
+    tag1 = db.create_tag("social:linkedin", "LinkedIn")
+    tag2 = db.create_tag("email:customers", "Email")
+    db.create_signal(tag_id=tag1, content_type="run_report", content_id=1,
+                     product_id="test-product", tagged_by="agent", note="Social")
+    db.create_signal(tag_id=tag2, content_type="run_report", content_id=2,
+                     product_id="test-product", tagged_by="agent", note="Email")
+    social = db.get_signals(product_id="test-product", tag_prefix="social:")
+    assert len(social) == 1
+    assert social[0]["note"] == "Social"
+
+
+def test_consume_signal(db):
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    signal_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
+                                  product_id="test-product", tagged_by="agent", note="Test")
+    db.consume_signal(signal_id)
+    with db._conn() as conn:
+        row = conn.execute("SELECT consumed_at FROM signals WHERE id = ?", (signal_id,)).fetchone()
+    assert row["consumed_at"] is not None
+
+
+def test_get_or_create_tag(db):
+    tag_id1 = db.get_or_create_tag("social:linkedin", "LinkedIn")
+    tag_id2 = db.get_or_create_tag("social:linkedin", "LinkedIn")
+    assert tag_id1 == tag_id2
+    assert len(db.list_tags()) == 1
+
+
+def test_get_signals_include_consumed(db):
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    signal_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
+                                  product_id="test-product", tagged_by="agent", note="Test")
+    db.consume_signal(signal_id)
+    all_signals = db.get_signals(product_id="test-product", include_consumed=True)
+    assert len(all_signals) == 1
+    assert all_signals[0]["consumed_at"] is not None
