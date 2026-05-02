@@ -169,9 +169,9 @@ def delete_tag_api(tag_id: int, _=Depends(_auth)):
 # ── Signals ───────────────────────────────────────────────────────────────────
 
 @router.get("/products/{product_id}/signals")
-def list_signals_api(product_id: str, tag_prefix: str = "", _=Depends(_auth)):
+def list_signals_api(product_id: str, tag_prefix: str = "", include_consumed: bool = False, _=Depends(_auth)):
     from backend.db import get_signals
-    return get_signals(product_id=product_id, tag_prefix=tag_prefix)
+    return get_signals(product_id=product_id, tag_prefix=tag_prefix, include_consumed=include_consumed)
 
 
 @router.post("/products/{product_id}/signals", status_code=201)
@@ -194,6 +194,13 @@ def create_signal_api(product_id: str, body: SignalCreate, _=Depends(_auth)):
 def consume_signal_api(product_id: str, signal_id: int, _=Depends(_auth)):
     from backend.db import consume_signal
     consume_signal(signal_id)
+    return {"ok": True, "signal_id": signal_id}
+
+
+@router.post("/products/{product_id}/signals/{signal_id}/unconsume")
+def unconsume_signal_api(product_id: str, signal_id: int, _=Depends(_auth)):
+    from backend.db import unconsume_signal
+    unconsume_signal(signal_id)
     return {"ok": True, "signal_id": signal_id}
 
 

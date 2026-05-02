@@ -2364,6 +2364,14 @@ def consume_signal(signal_id: int) -> None:
         )
 
 
+def unconsume_signal(signal_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE signals SET consumed_at = NULL WHERE id = ?",
+            (signal_id,),
+        )
+
+
 def get_or_create_tag(name: str, description: str = "") -> int:
     """Return existing tag ID by name, or create it atomically."""
     with _conn() as conn:

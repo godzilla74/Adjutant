@@ -126,3 +126,32 @@ def test_workstream_creation_auto_initializes_tags(client):
     import json
     subs = json.loads(ws["tag_subscriptions"])
     assert "social:" in subs
+
+
+def test_list_signals_includes_consumed_when_flag_set(client):
+    tc, db = client
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    sig_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
+                               product_id="p1", tagged_by="agent", note="Test")
+    db.consume_signal(sig_id)
+    # Without flag — excluded
+    r = tc.get("/api/products/p1/signals", headers=HEADERS)
+    assert len(r.json()) == 0
+    # With flag — included
+    r2 = tc.get("/api/products/p1/signals?include_consumed=true", headers=HEADERS)
+    assert len(r2.json()) == 1
+    assert r2.json()[0]["consumed_at"] is not None
+
+
+def test_unconsume_signal_api(client):
+    tc, db = client
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    sig_id = db.create_signal(tag_id=tag_id, content_type="run_report", content_id=1,
+                               product_id="p1", tagged_by="agent", note="Test")
+    db.consume_signal(sig_id)
+    r = tc.post(f"/api/products/p1/signals/{sig_id}/unconsume", headers=HEADERS)
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    signals = db.get_signals(product_id="p1")
+    assert len(signals) == 1
+    assert signals[0]["consumed_at"] is None
