@@ -257,7 +257,36 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_signals_product_tag
                 ON signals(product_id, tag_id, consumed_at);
+
+            CREATE TABLE IF NOT EXISTS orchestrator_config (
+                product_id       TEXT PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+                enabled          INTEGER NOT NULL DEFAULT 0,
+                schedule         TEXT NOT NULL DEFAULT 'daily at 8am',
+                signal_threshold INTEGER NOT NULL DEFAULT 5,
+                next_run_at      TEXT,
+                autonomy_settings TEXT NOT NULL DEFAULT '{}'
+            );
+
+            CREATE TABLE IF NOT EXISTS orchestrator_runs (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id   TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                triggered_by TEXT NOT NULL,
+                run_at       TEXT NOT NULL DEFAULT (datetime('now')),
+                status       TEXT NOT NULL DEFAULT 'complete',
+                decisions    TEXT NOT NULL DEFAULT '[]',
+                brief        TEXT NOT NULL DEFAULT '',
+                error        TEXT
+            );
         """)
+        # Safe migration: add routed_to_workstream_id to signals if not present
+        try:
+            conn.execute(
+                "ALTER TABLE signals ADD COLUMN routed_to_workstream_id "
+                "INTEGER REFERENCES workstreams(id)"
+            )
+        except Exception:
+            pass  # column already exists
+
         # Add brand config columns to products (idempotent)
         _brand_cols = [
             ("brand_voice",     "TEXT"),
