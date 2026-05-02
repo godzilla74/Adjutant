@@ -22,6 +22,9 @@ _running_objectives: dict[int, bool] = {}
 # Per-product launch wizard in-flight guard
 _running_wizards: dict[str, bool] = {}
 
+# Per-product orchestrator (Product Adjutant) in-flight guard
+_running_orchestrators: set[str] = set()
+
 # Broadcast function registered by main.py
 _broadcast_fn: Callable[[dict], Awaitable[None]] | None = None
 
@@ -152,6 +155,22 @@ def calc_next_run(schedule: str, from_dt: datetime | None = None) -> datetime | 
 
 
 # ── Agent execution ───────────────────────────────────────────────────────────
+
+def _build_routed_signal_prefix(workstream_id: int) -> str:
+    """Return a context block of routed signals to prepend to the agent mission, or '' if none."""
+    from backend.db import get_routed_signals_for_workstream
+    signals = get_routed_signals_for_workstream(workstream_id)
+    if not signals:
+        return ""
+    lines = ["=== ROUTED SIGNALS ==="]
+    for s in signals:
+        lines.append(
+            f"[{s['tag_name']}] {s['content_type']} #{s['content_id']} "
+            f"({s['created_at']}): \"{s['note']}\""
+        )
+    lines.append("======================\n")
+    return "\n".join(lines) + "\n"
+
 
 def _build_task(ws: dict, product_config: dict) -> str:
     product_name = product_config.get("name", ws["product_id"]) if product_config else ws["product_id"]
@@ -293,9 +312,13 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
             "ts": now_ts,
         })
 
+        # Build task with any routed signal context prepended
+        signal_prefix = _build_routed_signal_prefix(ws_id)
+        task_text = signal_prefix + _build_task(ws, config)
+
         # Run the agent
         from agents.runner import run_research_agent
-        result = await run_research_agent(_build_task(ws, config))
+        result = await run_research_agent(task_text)
 
         is_warn = _parse_warn(result)
         raw_signals = _parse_signals(result)
@@ -332,6 +355,10 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
                     _check_capability_gap(product_id, tag_name, note)
                 except Exception as sig_exc:
                     log.error("Failed to create signal '%s' for report %s: %s", tag_name, report_id, sig_exc)
+
+        # Consume routed signals now that this run completed successfully
+        from backend.db import consume_routed_signals
+        consume_routed_signals(ws_id)
 
         update_activity_event(event_id, status="done", summary=summary, report_id=report_id)
 
@@ -385,6 +412,20 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
         })
     finally:
         _running.pop(ws_id, None)
+
+
+async def _run_product_adjutant_task(
+    product_id: str,
+    triggered_by: str,
+    broadcast: BroadcastFn,
+) -> None:
+    try:
+        from backend.orchestrator import run_product_adjutant
+        await run_product_adjutant(product_id, triggered_by, broadcast)
+    except Exception as exc:
+        log.error("orchestrator task error for %s: %s", product_id, exc, exc_info=True)
+    finally:
+        _running_orchestrators.discard(product_id)
 
 
 async def _run_objective_loop(product_id: str, objective_id: int) -> None:
@@ -791,6 +832,14 @@ async def scheduler_loop(broadcast: BroadcastFn, interval_seconds: int = 60) -> 
             for obj in due_objs:
                 if not _running_objectives.get(obj["id"]):
                     asyncio.create_task(_run_objective_loop(obj["product_id"], obj["id"]))
+            # Orchestrator triggers
+            from backend.db import get_due_orchestrator_products
+            due_orch = get_due_orchestrator_products()
+            for item in due_orch:
+                pid = item["product_id"]
+                if pid not in _running_orchestrators:
+                    _running_orchestrators.add(pid)
+                    asyncio.create_task(_run_product_adjutant_task(pid, item["trigger_type"], broadcast))
             # Auto-resolve expired window reviews (every ~30s regardless of main interval)
             _auto_resolve_counter += 1
             if _auto_resolve_counter >= max(1, 30 // interval_seconds):

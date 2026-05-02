@@ -431,3 +431,20 @@ async def test_run_product_adjutant_malformed_json_saves_error(populated_db, moc
     # No decisions applied
     remaining = db.get_signals(product_id="p1")
     assert len(remaining) == 1
+
+
+def test_build_routed_signal_context_prefix(populated_db):
+    from backend.scheduler import _build_routed_signal_prefix
+    db, ws_id, sig_id = populated_db
+    db.route_signal(sig_id, ws_id)
+    prefix = _build_routed_signal_prefix(ws_id)
+    assert "=== ROUTED SIGNALS ===" in prefix
+    assert "social:linkedin" in prefix
+    assert "Brand tone is off" in prefix
+
+
+def test_build_routed_signal_prefix_empty_when_none(populated_db):
+    from backend.scheduler import _build_routed_signal_prefix
+    db, ws_id, sig_id = populated_db
+    prefix = _build_routed_signal_prefix(ws_id)
+    assert prefix == ""
