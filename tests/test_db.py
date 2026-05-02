@@ -955,3 +955,20 @@ def test_workstream_tag_subscriptions_field(db):
     db.update_workstream_fields(ws_id, tag_subscriptions=json.dumps(["social:"]))
     ws = db.get_workstreams("test-product")[0]
     assert json.loads(ws["tag_subscriptions"]) == ["social:"]
+
+
+def test_capability_gap_creates_review_item(db):
+    import json
+    # No workstream subscribes to "video:" tags
+    db.create_tag("video:youtube", "YouTube opportunity")
+    # Simulate the scheduler logic
+    from backend.scheduler import _check_capability_gap
+    _check_capability_gap(
+        product_id="test-product",
+        tag_name="video:youtube",
+        note="Strong YouTube opportunity found",
+    )
+    items = db.load_review_items("test-product")
+    assert len(items) == 1
+    assert items[0]["action_type"] == "capability_gap"
+    assert "video:youtube" in items[0]["title"]
