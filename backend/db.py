@@ -2363,8 +2363,13 @@ def consume_signal(signal_id: int) -> None:
 
 
 def get_or_create_tag(name: str, description: str = "") -> int:
-    """Return existing tag ID by name, or create it. Used by agents creating signals."""
-    tag = get_tag_by_name(name)
-    if tag:
-        return tag["id"]
-    return create_tag(name, description)
+    """Return existing tag ID by name, or create it atomically."""
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO tags (name, description) VALUES (?, ?)",
+            (name, description),
+        )
+        row = conn.execute(
+            "SELECT id FROM tags WHERE name = ?", (name,)
+        ).fetchone()
+    return row["id"]
