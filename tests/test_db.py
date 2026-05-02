@@ -830,6 +830,7 @@ def test_update_tag(db):
     tags = db.list_tags()
     assert tags[0]["name"] == "social:linkedin-post"
     assert tags[0]["description"] == "New description"
+    assert tags[0]["updated_at"] >= tags[0]["created_at"]
 
 
 def test_delete_tag(db):
@@ -844,3 +845,12 @@ def test_get_tag_by_name(db):
     assert tag is not None
     assert tag["name"] == "social:linkedin"
     assert db.get_tag_by_name("nonexistent") is None
+
+
+def test_get_tag_by_id(db):
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    tag = db.get_tag(tag_id)
+    assert tag is not None
+    assert tag["id"] == tag_id
+    assert tag["name"] == "social:linkedin"
+    assert db.get_tag(tag_id + 999) is None
