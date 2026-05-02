@@ -69,6 +69,24 @@ def _product_context(product_id: str) -> str:
     except Exception:
         pass
 
+    # Tags and workstream subscriptions
+    signals_section = ""
+    try:
+        from backend.db import list_tags as _list_tags
+        import json as _json
+        all_tags = _list_tags()
+        tag_lines = "\n".join(f"  - {t['name']}: {t['description']}" for t in all_tags) or "  (none)"
+
+        sub_lines = []
+        for w in workstreams:
+            subs = _json.loads(w.get("tag_subscriptions") or "[]")
+            if subs:
+                sub_lines.append(f"  - {w['name']}: {', '.join(subs)}")
+        subs_text = "\n".join(sub_lines) or "  (none)"
+        signals_section = f"\n### Available Tags\n{tag_lines}\n\n### Workstream Signal Subscriptions\n{subs_text}"
+    except Exception:
+        pass
+
     return f"""
 ## Active Product Context: {config['name']} (id: {product_id})
 
@@ -79,7 +97,7 @@ def _product_context(product_id: str) -> str:
 
 ### Active Objectives
 {obj_lines}
-{brand_section}{mcp_section}
+{brand_section}{mcp_section}{signals_section}
 
 When delegating tasks, include a `context` parameter explaining WHY you are doing this — this becomes the rationale shown to {owner_name} in the activity feed.
 When drafting social content, always apply the brand configuration above.

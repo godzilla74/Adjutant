@@ -4,6 +4,19 @@ import pytest
 
 
 @pytest.fixture
+def db(tmp_path, monkeypatch):
+    """Fixture to provide a test database for config tests."""
+    monkeypatch.setenv("AGENT_DB", str(tmp_path / "test.db"))
+    import backend.db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init_db()
+    # Create test products so FK constraints pass
+    with db_mod._conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO products (id, name, icon_label, color) VALUES ('test-product', 'Test Product', 'TP', '#2563eb')")
+    return db_mod
+
+
+@pytest.fixture
 def config_mod(monkeypatch):
     monkeypatch.setenv("AGENT_NAME", "Aria")
     monkeypatch.setenv("AGENT_OWNER_NAME", "Sarah")
@@ -120,3 +133,20 @@ def test_global_system_prompt_has_no_datetime(monkeypatch):
     importlib.reload(mod)
     prompt = mod.get_global_system_prompt([])
     assert "Current Date & Time" not in prompt
+
+
+def test_product_context_includes_tags_and_subscriptions(db, monkeypatch):
+    import json
+    from core.config import _product_context
+
+    # Setup tags
+    db.create_tag("social:linkedin", "LinkedIn opportunity")
+    db.create_tag("email:customers", "Customer email")
+
+    # Setup workstream with subscription
+    ws_id = db.create_workstream("test-product", "Social Media", "running")
+    db.update_workstream_fields(ws_id, tag_subscriptions=json.dumps(["social:"]))
+
+    context = _product_context("test-product")
+    assert "social:linkedin" in context
+    assert "social:" in context
