@@ -699,6 +699,9 @@ export default function App() {
                   agentMessages={agentMessages['__global__'] ?? []}
                   agentDraft={agentDraftByProduct['__global__'] ?? ''}
                   agentName={agentName}
+                  reviewItems={productStates['__global__']?.review_items ?? []}
+                  onApprove={id => resolveReview(id, 'approved')}
+                  onSkip={id => resolveReview(id, 'skipped')}
                 />
                 <DirectiveBar
                   onSend={sendDirective}
@@ -750,6 +753,9 @@ export default function App() {
                 agentMessages={agentMessages[activeProductId] ?? []}
                 agentDraft={agentDraftByProduct[activeProductId] ?? ''}
                 agentName={agentName}
+                reviewItems={activeState.review_items}
+                onApprove={id => resolveReview(id, 'approved')}
+                onSkip={id => resolveReview(id, 'skipped')}
               />
               <DirectiveTemplates
                 productId={activeProductId}

@@ -1,9 +1,10 @@
 // ui/src/components/ActivityFeed.tsx
 import { useEffect, useRef, useState } from 'react'
-import { ActivityEvent, AgentType } from '../types'
+import { ActivityEvent, AgentType, ReviewItem } from '../types'
 import ActivityCard from './ActivityCard'
 import MarkdownContent from './MarkdownContent'
 import ReportsTab from './ReportsTab'
+import BriefingTab from './BriefingTab'
 
 interface DirectiveEntry { type: 'directive'; content: string; ts: string }
 interface AgentEntry     { type: 'agent';     content: string; ts: string }
@@ -16,6 +17,9 @@ interface Props {
   agentMessages: AgentEntry[]
   agentDraft:    string
   agentName:     string
+  reviewItems?:  ReviewItem[]
+  onApprove?:    (id: number) => void
+  onSkip?:       (id: number) => void
 }
 
 const FILTER_TYPES: { label: string; value: AgentType }[] = [
@@ -28,9 +32,9 @@ const FILTER_TYPES: { label: string; value: AgentType }[] = [
 
 const parseTs = (ts: string) => new Date(ts.replace(' ', 'T')).getTime()
 
-export default function ActivityFeed({ productId, password, events, directives, agentMessages, agentDraft, agentName }: Props) {
+export default function ActivityFeed({ productId, password, events, directives, agentMessages, agentDraft, agentName, reviewItems = [], onApprove, onSkip }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
-  const [activeTab,        setActiveTab]        = useState<'chat' | 'activity' | 'reports'>('chat')
+  const [activeTab,        setActiveTab]        = useState<'chat' | 'activity' | 'reports' | 'briefing'>('chat')
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
   const [search,           setSearch]           = useState('')
   const [typeFilter,       setTypeFilter]       = useState<AgentType | null>(null)
@@ -45,6 +49,10 @@ export default function ActivityFeed({ productId, password, events, directives, 
   )
 
   const runningCount = events.filter(e => e.status === 'running').length
+
+  const pendingApprovalCount = reviewItems.filter(
+    (r: ReviewItem) => r.status === 'pending' && r.action_type?.startsWith('orchestrator_')
+  ).length
 
   const isFiltering = !!search || !!typeFilter
 
@@ -104,6 +112,19 @@ export default function ActivityFeed({ productId, password, events, directives, 
         >
           Reports
         </button>
+        <button
+          onClick={() => setActiveTab('briefing')}
+          className={`text-xs px-3 py-1 rounded-full transition-colors flex items-center gap-1 ${
+            activeTab === 'briefing'
+              ? 'bg-adj-surface text-adj-text-primary'
+              : 'text-adj-text-faint hover:text-adj-text-secondary'
+          }`}
+        >
+          Briefing
+          {pendingApprovalCount > 0 && (
+            <span className="text-amber-400">({pendingApprovalCount})</span>
+          )}
+        </button>
       </div>
 
       {/* Chat tab */}
@@ -161,6 +182,19 @@ export default function ActivityFeed({ productId, password, events, directives, 
             productId={productId}
             password={password}
             initialReportId={selectedReportId}
+          />
+        </div>
+      )}
+
+      {/* Briefing tab */}
+      {activeTab === 'briefing' && (
+        <div className="flex-1 overflow-y-auto">
+          <BriefingTab
+            productId={productId}
+            password={password}
+            reviewItems={reviewItems}
+            onApprove={onApprove ?? (() => {})}
+            onSkip={onSkip ?? (() => {})}
           />
         </div>
       )}
