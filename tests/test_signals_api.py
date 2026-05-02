@@ -108,3 +108,21 @@ def test_signals_scoped_to_product(client):
                      product_id="p1", tagged_by="agent", note="For p1")
     r = tc.get("/api/products/p1/signals", headers=HEADERS)
     assert len(r.json()) == 1
+
+
+def test_workstream_creation_auto_initializes_tags(client):
+    tc, db = client
+    r = tc.post("/api/products/p1/workstreams", json={
+        "name": "Social Media",
+        "status": "paused",
+        "workstream_type": "social",
+    }, headers=HEADERS)
+    assert r.status_code == 201
+    tags = db.list_tags()
+    tag_names = {t["name"] for t in tags}
+    assert "social:linkedin" in tag_names
+    assert "social:twitter" in tag_names
+    ws = db.get_workstreams("p1")[0]
+    import json
+    subs = json.loads(ws["tag_subscriptions"])
+    assert "social:" in subs

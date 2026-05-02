@@ -2374,3 +2374,54 @@ def get_or_create_tag(name: str, description: str = "") -> int:
             "SELECT id FROM tags WHERE name = ?", (name,)
         ).fetchone()
     return row["id"]
+
+
+# ---------------------------------------------------------------------------
+# Tag auto-initialization taxonomy
+# ---------------------------------------------------------------------------
+
+_WORKSTREAM_TAG_TAXONOMY: dict[str, list[tuple[str, str]]] = {
+    "social": [
+        ("social:linkedin",  "LinkedIn post opportunity"),
+        ("social:twitter",   "Twitter/X post opportunity"),
+        ("social:instagram", "Instagram post opportunity"),
+        ("social:facebook",  "Facebook post opportunity"),
+    ],
+    "email": [
+        ("email:newsletter",  "Newsletter content opportunity"),
+        ("email:customers",   "Announcement to existing customers"),
+        ("email:prospects",   "Outreach to prospects"),
+    ],
+    "research": [
+        ("research:competitive", "Competitive intelligence finding"),
+        ("research:market",      "Market trend or insight"),
+    ],
+    "product": [
+        ("feature:request",     "Feature request identified"),
+        ("feature:improvement", "Product improvement opportunity"),
+        ("feature:bug",         "Bug or issue found"),
+    ],
+    "content": [
+        ("content:blog",   "Blog post opportunity"),
+        ("content:video",  "Video content opportunity"),
+    ],
+}
+
+_WORKSTREAM_TYPE_SUBSCRIPTIONS: dict[str, list[str]] = {
+    "social":   ["social:"],
+    "email":    ["email:"],
+    "research": ["research:"],
+    "product":  ["feature:"],
+    "content":  ["content:"],
+}
+
+
+def initialize_tags_for_workstream_type(workstream_id: int, workstream_type: str) -> None:
+    """Create default tags for a workstream type and set its subscriptions."""
+    import json as _json
+    tag_pairs = _WORKSTREAM_TAG_TAXONOMY.get(workstream_type, [])
+    for name, description in tag_pairs:
+        get_or_create_tag(name, description)
+    subscriptions = _WORKSTREAM_TYPE_SUBSCRIPTIONS.get(workstream_type, [])
+    if subscriptions:
+        update_workstream_fields(workstream_id, tag_subscriptions=_json.dumps(subscriptions))

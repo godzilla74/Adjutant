@@ -65,8 +65,9 @@ class SignalCreate(BaseModel):
 
 
 class WorkstreamCreate(BaseModel):
-    name:   str
-    status: str = "paused"
+    name:            str
+    status:          str = "paused"
+    workstream_type: str = ""
 
 
 class WorkstreamUpdate(BaseModel):
@@ -237,12 +238,17 @@ def update_config(product_id: str, body: ProductConfigUpdate, _=Depends(_auth)):
 
 @router.post("/products/{product_id}/workstreams", status_code=201)
 def create_workstream_api(product_id: str, body: WorkstreamCreate, _=Depends(_auth)):
-    from backend.db import create_workstream, get_workstreams
+    from backend.db import create_workstream, get_workstreams, initialize_tags_for_workstream_type
     if body.status not in ("running", "warn", "paused"):
         raise HTTPException(status_code=422, detail="Invalid status")
     create_workstream(product_id, body.name, body.status)
     rows = get_workstreams(product_id)
-    return rows[-1]  # return the newly created workstream
+    new_ws = rows[-1]
+    if body.workstream_type:
+        initialize_tags_for_workstream_type(new_ws["id"], body.workstream_type)
+        rows = get_workstreams(product_id)
+        new_ws = next(w for w in rows if w["id"] == new_ws["id"])
+    return new_ws
 
 
 @router.patch("/workstreams/{ws_id}")
