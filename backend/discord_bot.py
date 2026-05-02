@@ -92,6 +92,20 @@ class DiscordBot:
             item = event.get("item", {})
             await self._send_review_item(item)
 
+        elif event_type == "orchestrator_run_complete":
+            brief_preview = event.get("brief_preview", "")
+            pending = event.get("pending_approval_count", 0)
+            msg = f"📋 **Product Adjutant Briefing**\n{brief_preview}"
+            if pending > 0:
+                msg += f"\n\n⏳ **{pending} decision(s) awaiting approval** — open Adjutant → Briefing."
+            if msg and self.notification_channel_id:
+                channel = self._client.get_channel(int(self.notification_channel_id))
+                if channel:
+                    try:
+                        await channel.send(msg[:2000])
+                    except Exception as e:
+                        logger.warning("Discord orchestrator briefing failed: %s", e)
+
     async def _send_review_item(self, item: dict) -> None:
         if not self.notification_channel_id or not self._client:
             return

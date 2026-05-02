@@ -97,6 +97,46 @@ class SlackBot:
             item = event.get("item", {})
             await self._send_review_item(item)
 
+        elif event_type == "orchestrator_run_complete":
+            await self._send_orchestrator_briefing(event)
+
+    async def _send_orchestrator_briefing(self, event: dict) -> None:
+        if not self.notification_channel_id:
+            return
+        brief_preview = event.get("brief_preview", "")
+        pending = event.get("pending_approval_count", 0)
+
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "📋 Product Adjutant Briefing"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": brief_preview or "_No summary available._",
+                },
+            },
+        ]
+        if pending > 0:
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*{pending} decision(s) awaiting your approval.* Open Adjutant → Briefing to review.",
+                },
+            })
+
+        try:
+            await self._web_client.chat_postMessage(
+                channel=self.notification_channel_id,
+                text=f"📋 Product Adjutant Briefing — {pending} pending approval(s)",
+                blocks=blocks,
+            )
+        except Exception as e:
+            logger.warning("Slack orchestrator briefing failed: %s", e)
+
     async def _send_review_item(self, item: dict) -> None:
         if not self.notification_channel_id:
             return
