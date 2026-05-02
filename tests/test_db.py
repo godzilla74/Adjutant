@@ -950,7 +950,7 @@ def test_workstream_tag_subscriptions_field(db):
     db.create_workstream("test-product", "Social Media", "paused")
     ws = db.get_workstreams("test-product")[0]
     ws_id = ws["id"]
-    assert ws.get("tag_subscriptions") is not None
+    assert ws["tag_subscriptions"] == "[]"
 
     db.update_workstream_fields(ws_id, tag_subscriptions=json.dumps(["social:"]))
     ws = db.get_workstreams("test-product")[0]
