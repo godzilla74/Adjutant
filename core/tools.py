@@ -445,6 +445,89 @@ TOOLS_DEFINITIONS = [
         },
     },
     {
+        "name": "list_tags",
+        "description": "List all available tags. Call this before creating a signal to avoid inventing duplicate tag names.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "create_tag",
+        "description": "Create a new global tag. Use a namespaced name like 'social:linkedin' or 'email:customers'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name":        {"type": "string", "description": "Namespaced tag name, e.g. 'social:linkedin'"},
+                "description": {"type": "string", "description": "What this tag signals to consuming agents"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "update_tag",
+        "description": "Rename or update the description of an existing tag. Changes cascade to all signals using this tag.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tag_id":      {"type": "integer"},
+                "name":        {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["tag_id"],
+        },
+    },
+    {
+        "name": "delete_tag",
+        "description": "Delete a tag and all its associated signals.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tag_id": {"type": "integer"},
+            },
+            "required": ["tag_id"],
+        },
+    },
+    {
+        "name": "create_signal",
+        "description": (
+            "Tag a piece of content with a handoff note for another workstream agent. "
+            "Use this when you identify an opportunity another agent should act on. "
+            "Call list_tags first to find the right tag name."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id":    {"type": "string"},
+                "tag_name":      {"type": "string", "description": "Tag name, e.g. 'social:linkedin'. Created if it doesn't exist."},
+                "content_type":  {"type": "string", "description": "'run_report', 'social_draft', 'objective', 'note', or 'activity_event'"},
+                "content_id":    {"type": "integer"},
+                "note":          {"type": "string", "description": "One-sentence briefing for the receiving agent"},
+            },
+            "required": ["product_id", "tag_name", "content_type", "content_id", "note"],
+        },
+    },
+    {
+        "name": "get_signals",
+        "description": "Fetch unconsumed signals for this product matching a tag prefix. Call at the start of a workstream run to find pending opportunities.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string"},
+                "tag_prefix": {"type": "string", "description": "Namespace prefix to filter by, e.g. 'social:' or 'email:'"},
+            },
+            "required": ["product_id"],
+        },
+    },
+    {
+        "name": "consume_signal",
+        "description": "Mark a signal as consumed after acting on it. Call this after you have created the post, email, or other output the signal requested.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "signal_id": {"type": "integer"},
+            },
+            "required": ["signal_id"],
+        },
+    },
+    {
         "name": "search_stock_photo",
         "description": "Search Pexels for a stock photo. Returns a public CDN URL suitable for social posts.",
         "input_schema": {
@@ -541,6 +624,10 @@ TOOL_GROUPS: dict[str, set[str]] = {
         "manage_mcp_server", "manage_capability_slots",
         "report_wizard_progress", "complete_launch",
     },
+    "signals": {
+        "list_tags", "create_tag", "update_tag", "delete_tag",
+        "create_signal", "get_signals", "consume_signal",
+    },
 }
 
 
@@ -554,6 +641,7 @@ def get_tools_for_groups(groups: list[str], product_id: str | None) -> list[dict
     ext_names = {t["name"] for t in get_extensions_for_product(product_id)} if product_id else set()
 
     allowed: set[str] = set(TOOL_GROUPS.get("core", set()))
+    allowed |= TOOL_GROUPS.get("signals", set())
     for g in groups:
         allowed |= TOOL_GROUPS.get(g, set())
 
@@ -587,6 +675,9 @@ _GLOBAL_BASE_TOOL_NAMES = {
     "create_product", "update_product", "delete_product",
     "create_workstream", "update_workstream_status", "delete_workstream",
     "create_objective", "update_objective", "delete_objective",
+    # signals tools — always available to all agents
+    "list_tags", "create_tag", "update_tag", "delete_tag",
+    "create_signal", "get_signals", "consume_signal",
 }
 
 
@@ -1075,6 +1166,20 @@ async def execute_tool(name: str, inputs: dict, product_id: str | None = None) -
         return await _search_stock_photo(**inputs)
     if name == "generate_image":
         return await _generate_image(**inputs)
+    if name == "list_tags":
+        return _list_tags()
+    if name == "create_tag":
+        return _create_tag(**inputs)
+    if name == "update_tag":
+        return _update_tag(**inputs)
+    if name == "delete_tag":
+        return _delete_tag(**inputs)
+    if name == "create_signal":
+        return _create_signal(**inputs)
+    if name == "get_signals":
+        return _get_signals(**inputs)
+    if name == "consume_signal":
+        return _consume_signal(**inputs)
     if name in _EXTENSION_EXECUTORS:
         return await _EXTENSION_EXECUTORS[name](inputs)
     return f"Unknown tool: {name}"
@@ -1600,3 +1705,63 @@ def _set_objective_autonomous_tool(objective_id: int, autonomous: bool) -> str:
     set_objective_autonomous(objective_id, autonomous)
     state = "enabled" if autonomous else "disabled"
     return f"Objective {objective_id} autonomous mode {state}."
+
+
+# ── Signal / tag implementations ──────────────────────────────────────────────
+
+def _list_tags() -> str:
+    from backend.db import list_tags
+    return json.dumps(list_tags())
+
+
+def _create_tag(name: str, description: str = "") -> str:
+    from backend.db import get_tag_by_name
+    existing = get_tag_by_name(name)
+    if existing:
+        return json.dumps({"tag_id": existing["id"], "created": False, "name": name})
+    from backend.db import create_tag
+    tag_id = create_tag(name, description)
+    return json.dumps({"tag_id": tag_id, "created": True, "name": name})
+
+
+def _update_tag(tag_id: int, name: str | None = None, description: str | None = None) -> str:
+    from backend.db import update_tag
+    update_tag(tag_id, name=name, description=description)
+    return json.dumps({"ok": True, "tag_id": tag_id})
+
+
+def _delete_tag(tag_id: int) -> str:
+    from backend.db import delete_tag
+    delete_tag(tag_id)
+    return json.dumps({"ok": True, "tag_id": tag_id})
+
+
+def _create_signal(
+    product_id: str,
+    tag_name: str,
+    content_type: str,
+    content_id: int,
+    note: str,
+) -> str:
+    from backend.db import get_or_create_tag, create_signal
+    tag_id = get_or_create_tag(tag_name)
+    signal_id = create_signal(
+        tag_id=tag_id,
+        content_type=content_type,
+        content_id=content_id,
+        product_id=product_id,
+        tagged_by="agent",
+        note=note,
+    )
+    return json.dumps({"signal_id": signal_id, "tag_name": tag_name, "ok": True})
+
+
+def _get_signals(product_id: str, tag_prefix: str = "") -> str:
+    from backend.db import get_signals
+    return json.dumps(get_signals(product_id=product_id, tag_prefix=tag_prefix))
+
+
+def _consume_signal(signal_id: int) -> str:
+    from backend.db import consume_signal
+    consume_signal(signal_id)
+    return json.dumps({"ok": True, "signal_id": signal_id})
