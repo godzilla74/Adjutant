@@ -24,9 +24,9 @@ vi.mock('../api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  global.fetch = vi.fn()
+  vi.stubGlobal('fetch', vi.fn()
     .mockResolvedValueOnce({ ok: true, json: async () => mockReports })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ ...mockReports[0], full_output: 'Full content here' }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ ...mockReports[0], full_output: 'Full content here' }) }))
 })
 
 describe('ReportsTab', () => {
