@@ -804,3 +804,43 @@ def test_load_activity_events_includes_report_id(db):
     events = db.load_activity_events("test-product")
     assert "report_id" in events[0]
     assert events[0]["report_id"] is None
+
+
+# ── Tags ──────────────────────────────────────────────────────────────────
+
+def test_create_and_list_tags(db):
+    tag_id = db.create_tag("social:linkedin", "LinkedIn post opportunity")
+    assert isinstance(tag_id, int)
+    tags = db.list_tags()
+    assert len(tags) == 1
+    assert tags[0]["name"] == "social:linkedin"
+    assert tags[0]["description"] == "LinkedIn post opportunity"
+    assert tags[0]["id"] == tag_id
+
+
+def test_create_tag_duplicate_name_raises(db):
+    db.create_tag("social:linkedin", "First")
+    with pytest.raises(Exception):
+        db.create_tag("social:linkedin", "Second")
+
+
+def test_update_tag(db):
+    tag_id = db.create_tag("social:linkedin", "Old description")
+    db.update_tag(tag_id, name="social:linkedin-post", description="New description")
+    tags = db.list_tags()
+    assert tags[0]["name"] == "social:linkedin-post"
+    assert tags[0]["description"] == "New description"
+
+
+def test_delete_tag(db):
+    tag_id = db.create_tag("social:linkedin", "Test")
+    db.delete_tag(tag_id)
+    assert db.list_tags() == []
+
+
+def test_get_tag_by_name(db):
+    db.create_tag("social:linkedin", "LinkedIn")
+    tag = db.get_tag_by_name("social:linkedin")
+    assert tag is not None
+    assert tag["name"] == "social:linkedin"
+    assert db.get_tag_by_name("nonexistent") is None

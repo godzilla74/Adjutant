@@ -235,6 +235,14 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_run_reports_product
                 ON run_reports(product_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS tags (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    NOT NULL UNIQUE,
+                description TEXT    NOT NULL DEFAULT '',
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
         """)
         # Add brand config columns to products (idempotent)
         _brand_cols = [
@@ -2229,3 +2237,63 @@ def get_token_usage_summary(days: int = 30) -> dict:
     ]
 
     return {"period_days": days, "totals": totals, "by_call_type": by_call_type, "by_day": by_day}
+
+
+# ---------------------------------------------------------------------------
+# Tags
+# ---------------------------------------------------------------------------
+
+def create_tag(name: str, description: str = "") -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO tags (name, description) VALUES (?, ?)",
+            (name, description),
+        )
+        return cur.lastrowid
+
+
+def list_tags() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, name, description, created_at, updated_at FROM tags ORDER BY name"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_tag_by_name(name: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, description, created_at, updated_at FROM tags WHERE name = ?",
+            (name,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_tag(tag_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, description, created_at, updated_at FROM tags WHERE id = ?",
+            (tag_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_tag(tag_id: int, name: str | None = None, description: str | None = None) -> None:
+    fields, vals = [], []
+    if name is not None:
+        fields.append("name = ?")
+        vals.append(name)
+    if description is not None:
+        fields.append("description = ?")
+        vals.append(description)
+    if not fields:
+        return
+    fields.append("updated_at = datetime('now')")
+    vals.append(tag_id)
+    with _conn() as conn:
+        conn.execute(f"UPDATE tags SET {', '.join(fields)} WHERE id = ?", vals)
+
+
+def delete_tag(tag_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
