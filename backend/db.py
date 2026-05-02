@@ -277,6 +277,9 @@ def init_db() -> None:
                 brief        TEXT NOT NULL DEFAULT '',
                 error        TEXT
             );
+
+            CREATE INDEX IF NOT EXISTS idx_orchestrator_runs_product
+                ON orchestrator_runs(product_id, run_at DESC);
         """)
         # Safe migration: add routed_to_workstream_id to signals if not present
         try:
