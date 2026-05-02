@@ -2617,3 +2617,38 @@ def get_due_orchestrator_products() -> list[dict]:
             seen.add(d["product_id"])
             result.append(d)
     return result
+
+
+def route_signal(signal_id: int, workstream_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE signals SET routed_to_workstream_id = ? WHERE id = ?",
+            (workstream_id, signal_id),
+        )
+        conn.execute(
+            "UPDATE workstreams SET next_run_at = datetime('now') WHERE id = ?",
+            (workstream_id,),
+        )
+
+
+def get_routed_signals_for_workstream(workstream_id: int) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT s.id, t.name as tag_name, s.content_type, s.content_id,
+                      s.note, s.created_at
+               FROM signals s
+               JOIN tags t ON s.tag_id = t.id
+               WHERE s.routed_to_workstream_id = ?
+                 AND s.consumed_at IS NULL""",
+            (workstream_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def consume_routed_signals(workstream_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """UPDATE signals SET consumed_at = datetime('now')
+               WHERE routed_to_workstream_id = ? AND consumed_at IS NULL""",
+            (workstream_id,),
+        )

@@ -118,3 +118,65 @@ def test_get_due_orchestrator_products_not_due_when_disabled(db):
     db.update_orchestrator_config("p1", enabled=0, next_run_at=past)
     due = db.get_due_orchestrator_products()
     assert not any(d["product_id"] == "p1" for d in due)
+
+
+@pytest.fixture
+def populated_db(db):
+    """DB with a product, workstream, tag, and signal."""
+    with db._conn() as conn:
+        conn.execute(
+            "INSERT INTO workstreams (product_id, name, status, display_order, tag_subscriptions) "
+            "VALUES ('p1', 'LinkedIn Research', 'paused', 1, '[]')"
+        )
+    tag_id = db.create_tag("social:linkedin", "LinkedIn")
+    ws_id = db.get_workstreams("p1")[0]["id"]
+    sig_id = db.create_signal(
+        tag_id=tag_id, content_type="run_report", content_id=1,
+        product_id="p1", tagged_by="agent", note="Brand tone is off",
+    )
+    return db, ws_id, sig_id
+
+
+def test_route_signal_sets_workstream_id(populated_db):
+    db, ws_id, sig_id = populated_db
+    db.route_signal(sig_id, ws_id)
+    with db._conn() as conn:
+        row = conn.execute(
+            "SELECT routed_to_workstream_id FROM signals WHERE id = ?", (sig_id,)
+        ).fetchone()
+    assert row["routed_to_workstream_id"] == ws_id
+
+
+def test_route_signal_sets_workstream_next_run_at_now(populated_db):
+    db, ws_id, sig_id = populated_db
+    db.route_signal(sig_id, ws_id)
+    ws = db.get_workstreams("p1")[0]
+    assert ws["next_run_at"] is not None
+
+
+def test_get_routed_signals_for_workstream(populated_db):
+    db, ws_id, sig_id = populated_db
+    db.route_signal(sig_id, ws_id)
+    signals = db.get_routed_signals_for_workstream(ws_id)
+    assert len(signals) == 1
+    assert signals[0]["tag_name"] == "social:linkedin"
+    assert signals[0]["note"] == "Brand tone is off"
+
+
+def test_get_routed_signals_excludes_consumed(populated_db):
+    db, ws_id, sig_id = populated_db
+    db.route_signal(sig_id, ws_id)
+    db.consume_signal(sig_id, "p1")
+    signals = db.get_routed_signals_for_workstream(ws_id)
+    assert signals == []
+
+
+def test_consume_routed_signals(populated_db):
+    db, ws_id, sig_id = populated_db
+    db.route_signal(sig_id, ws_id)
+    db.consume_routed_signals(ws_id)
+    with db._conn() as conn:
+        row = conn.execute(
+            "SELECT consumed_at FROM signals WHERE id = ?", (sig_id,)
+        ).fetchone()
+    assert row["consumed_at"] is not None
