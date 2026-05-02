@@ -56,6 +56,14 @@ class TagUpdate(BaseModel):
     description: str | None = None
 
 
+class SignalCreate(BaseModel):
+    tag_id: int
+    content_type: str
+    content_id: int
+    note: str = ""
+    tagged_by: str = "user"
+
+
 class WorkstreamCreate(BaseModel):
     name:   str
     status: str = "paused"
@@ -155,6 +163,37 @@ def update_tag_api(tag_id: int, body: TagUpdate, _=Depends(_auth)):
 def delete_tag_api(tag_id: int, _=Depends(_auth)):
     from backend.db import delete_tag
     delete_tag(tag_id)
+
+
+# ── Signals ───────────────────────────────────────────────────────────────────
+
+@router.get("/products/{product_id}/signals")
+def list_signals_api(product_id: str, tag_prefix: str = "", _=Depends(_auth)):
+    from backend.db import get_signals
+    return get_signals(product_id=product_id, tag_prefix=tag_prefix)
+
+
+@router.post("/products/{product_id}/signals", status_code=201)
+def create_signal_api(product_id: str, body: SignalCreate, _=Depends(_auth)):
+    from backend.db import create_signal, get_signals
+    signal_id = create_signal(
+        tag_id=body.tag_id,
+        content_type=body.content_type,
+        content_id=body.content_id,
+        product_id=product_id,
+        tagged_by=body.tagged_by,
+        note=body.note,
+    )
+    signals = get_signals(product_id=product_id, include_consumed=True)
+    match = next((s for s in signals if s["id"] == signal_id), None)
+    return match
+
+
+@router.post("/products/{product_id}/signals/{signal_id}/consume")
+def consume_signal_api(product_id: str, signal_id: int, _=Depends(_auth)):
+    from backend.db import consume_signal
+    consume_signal(signal_id)
+    return {"ok": True, "signal_id": signal_id}
 
 
 # ── Product config ────────────────────────────────────────────────────────────
