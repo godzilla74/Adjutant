@@ -135,6 +135,13 @@ class CapabilitySlotBody(BaseModel):
     built_in_tools: list[str] = []
 
 
+class OrchestratorConfigUpdate(BaseModel):
+    enabled: bool | None = None
+    schedule: str | None = None
+    signal_threshold: int | None = None
+    autonomy_settings: dict | None = None
+
+
 # ── Tags ─────────────────────────────────────────────────────────────────────
 
 @router.get("/tags")
@@ -210,6 +217,51 @@ def unconsume_signal_api(product_id: str, signal_id: int, _=Depends(_auth)):
     from backend.db import unconsume_signal
     unconsume_signal(signal_id, product_id)
     return {"ok": True, "signal_id": signal_id}
+
+
+# ── Orchestrator ──────────────────────────────────────────────────────────────
+
+@router.get("/products/{product_id}/orchestrator/config")
+def get_orchestrator_config_api(product_id: str, _=Depends(_auth)):
+    from backend.db import get_orchestrator_config
+    return get_orchestrator_config(product_id)
+
+
+@router.patch("/products/{product_id}/orchestrator/config")
+def update_orchestrator_config_api(
+    product_id: str, body: OrchestratorConfigUpdate, _=Depends(_auth)
+):
+    from backend.db import update_orchestrator_config, get_orchestrator_config
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "enabled" in updates:
+        updates["enabled"] = int(updates["enabled"])
+    update_orchestrator_config(product_id, **updates)
+    return get_orchestrator_config(product_id)
+
+
+@router.get("/products/{product_id}/orchestrator/runs")
+def list_orchestrator_runs_api(
+    product_id: str, limit: int = 20, _=Depends(_auth)
+):
+    from backend.db import list_orchestrator_runs
+    return list_orchestrator_runs(product_id, limit=limit)
+
+
+@router.get("/products/{product_id}/orchestrator/runs/{run_id}")
+def get_orchestrator_run_api(product_id: str, run_id: int, _=Depends(_auth)):
+    from backend.db import get_orchestrator_run
+    run = get_orchestrator_run(run_id)
+    if not run or run["product_id"] != product_id:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run
+
+
+@router.post("/products/{product_id}/orchestrator/trigger")
+def trigger_orchestrator_api(product_id: str, _=Depends(_auth)):
+    from backend.db import update_orchestrator_config
+    from datetime import datetime
+    update_orchestrator_config(product_id, next_run_at=datetime.now().isoformat(timespec="seconds"))
+    return {"queued": True}
 
 
 # ── Product config ────────────────────────────────────────────────────────────
