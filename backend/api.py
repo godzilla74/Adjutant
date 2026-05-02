@@ -46,6 +46,16 @@ class ProductConfigUpdate(BaseModel):
     brand_notes:     str | None = None
 
 
+class TagCreate(BaseModel):
+    name: str
+    description: str = ""
+
+
+class TagUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
 class WorkstreamCreate(BaseModel):
     name:   str
     status: str = "paused"
@@ -114,6 +124,37 @@ class CapabilitySlotBody(BaseModel):
     name: str
     label: str
     built_in_tools: list[str] = []
+
+
+# ── Tags ─────────────────────────────────────────────────────────────────────
+
+@router.get("/tags")
+def list_tags_api(_=Depends(_auth)):
+    from backend.db import list_tags
+    return list_tags()
+
+
+@router.post("/tags", status_code=201)
+def create_tag_api(body: TagCreate, _=Depends(_auth)):
+    from backend.db import create_tag, get_tag
+    tag_id = create_tag(body.name, body.description)
+    return get_tag(tag_id)
+
+
+@router.patch("/tags/{tag_id}")
+def update_tag_api(tag_id: int, body: TagUpdate, _=Depends(_auth)):
+    from backend.db import update_tag, get_tag
+    update_tag(tag_id, name=body.name, description=body.description)
+    tag = get_tag(tag_id)
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return tag
+
+
+@router.delete("/tags/{tag_id}", status_code=204)
+def delete_tag_api(tag_id: int, _=Depends(_auth)):
+    from backend.db import delete_tag
+    delete_tag(tag_id)
 
 
 # ── Product config ────────────────────────────────────────────────────────────
