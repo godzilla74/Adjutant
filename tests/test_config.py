@@ -149,4 +149,19 @@ def test_product_context_includes_tags_and_subscriptions(db, monkeypatch):
 
     context = _product_context("test-product")
     assert "social:linkedin" in context
+    assert "email:customers" in context
     assert "social:" in context
+
+
+def test_product_context_no_subscriptions_shows_none(db, monkeypatch):
+    import importlib
+    import core.config as config_mod
+    importlib.reload(config_mod)
+    from core.config import _product_context
+
+    db.create_tag("social:linkedin", "LinkedIn opportunity")
+    db.create_workstream("test-product", "Research", "paused")
+
+    context = _product_context("test-product")
+    assert "social:linkedin" in context
+    assert "(none)" in context
