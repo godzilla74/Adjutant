@@ -1715,13 +1715,10 @@ def _list_tags() -> str:
 
 
 def _create_tag(name: str, description: str = "") -> str:
-    from backend.db import get_tag_by_name
-    existing = get_tag_by_name(name)
-    if existing:
-        return json.dumps({"tag_id": existing["id"], "created": False, "name": name})
-    from backend.db import create_tag
-    tag_id = create_tag(name, description)
-    return json.dumps({"tag_id": tag_id, "created": True, "name": name})
+    from backend.db import get_tag_by_name, get_or_create_tag
+    pre_existing = get_tag_by_name(name)
+    tag_id = get_or_create_tag(name, description)
+    return json.dumps({"tag_id": tag_id, "created": pre_existing is None, "name": name})
 
 
 def _update_tag(tag_id: int, name: str | None = None, description: str | None = None) -> str:
