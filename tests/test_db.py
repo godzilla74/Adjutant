@@ -943,3 +943,15 @@ def test_get_signals_include_consumed(db):
     all_signals = db.get_signals(product_id="test-product", include_consumed=True)
     assert len(all_signals) == 1
     assert all_signals[0]["consumed_at"] is not None
+
+
+def test_workstream_tag_subscriptions_field(db):
+    import json
+    db.create_workstream("test-product", "Social Media", "paused")
+    ws = db.get_workstreams("test-product")[0]
+    ws_id = ws["id"]
+    assert ws.get("tag_subscriptions") is not None
+
+    db.update_workstream_fields(ws_id, tag_subscriptions=json.dumps(["social:"]))
+    ws = db.get_workstreams("test-product")[0]
+    assert json.loads(ws["tag_subscriptions"]) == ["social:"]

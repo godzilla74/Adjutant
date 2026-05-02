@@ -282,10 +282,11 @@ def init_db() -> None:
                 pass  # column already exists
         # Add autonomous workstream columns (idempotent)
         _ws_cols = [
-            ("mission",     "TEXT NOT NULL DEFAULT ''"),
-            ("schedule",    "TEXT NOT NULL DEFAULT 'manual'"),
-            ("last_run_at", "TEXT"),
-            ("next_run_at", "TEXT"),
+            ("mission",            "TEXT NOT NULL DEFAULT ''"),
+            ("schedule",           "TEXT NOT NULL DEFAULT 'manual'"),
+            ("last_run_at",        "TEXT"),
+            ("next_run_at",        "TEXT"),
+            ("tag_subscriptions",  "TEXT NOT NULL DEFAULT '[]'"),
         ]
         for col_name, col_type in _ws_cols:
             try:
@@ -710,7 +711,7 @@ def get_workstreams(product_id: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             """SELECT id, name, status, display_order,
-                      mission, schedule, last_run_at, next_run_at
+                      mission, schedule, last_run_at, next_run_at, tag_subscriptions
                FROM workstreams WHERE product_id = ? ORDER BY display_order""",
             (product_id,),
         ).fetchall()
@@ -721,7 +722,7 @@ def get_workstream_by_id(ws_id: int) -> dict | None:
     with _conn() as conn:
         row = conn.execute(
             """SELECT id, name, product_id, status, display_order,
-                      mission, schedule, last_run_at, next_run_at
+                      mission, schedule, last_run_at, next_run_at, tag_subscriptions
                FROM workstreams WHERE id = ?""",
             (ws_id,),
         ).fetchone()
@@ -735,7 +736,7 @@ def get_due_workstreams() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             """SELECT w.id, w.name, w.product_id, w.status,
-                      w.mission, w.schedule, w.last_run_at, w.next_run_at
+                      w.mission, w.schedule, w.last_run_at, w.next_run_at, w.tag_subscriptions
                FROM workstreams w
                WHERE w.next_run_at IS NOT NULL
                  AND w.next_run_at <= ?
@@ -748,7 +749,7 @@ def get_due_workstreams() -> list[dict]:
 
 def update_workstream_fields(ws_id: int, **fields) -> None:
     """Flexible update for any workstream columns. Pass None to clear a nullable column."""
-    _allowed = {"name", "status", "mission", "schedule", "last_run_at", "next_run_at"}
+    _allowed = {"name", "status", "mission", "schedule", "last_run_at", "next_run_at", "tag_subscriptions"}
     updates = {k: v for k, v in fields.items() if k in _allowed}
     if not updates:
         return
