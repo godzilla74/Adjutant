@@ -140,3 +140,24 @@ export interface Session {
   product_id: string | null
   created_at: string
 }
+
+export interface Tag {
+  id: number
+  name: string
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Signal {
+  id: number
+  tag_id: number
+  tag_name: string
+  content_type: string
+  content_id: number
+  product_id: string
+  tagged_by: string
+  note: string
+  consumed_at: string | null
+  created_at: string
+}

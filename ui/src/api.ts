@@ -1,5 +1,5 @@
 // ui/src/api.ts
-import { ProductConfig, Workstream, Objective } from './types'
+import { ProductConfig, Workstream, Objective, Tag, Signal } from './types'
 
 async function apiFetch<T>(
   path: string,
@@ -513,5 +513,45 @@ export const api = {
     apiFetch<{ configured: boolean; masked: string }>('/api/settings/openai-key', pw, {
       method: 'PUT',
       body: JSON.stringify({ key }),
+    }),
+
+  listTags: (pw: string) =>
+    apiFetch<Tag[]>('/api/tags', pw),
+
+  createTag: (pw: string, name: string, description: string) =>
+    apiFetch<Tag>('/api/tags', pw, {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+
+  updateTag: (pw: string, tagId: number, data: { name?: string; description?: string }) =>
+    apiFetch<Tag>(`/api/tags/${tagId}`, pw, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteTag: (pw: string, tagId: number) =>
+    apiFetch<void>(`/api/tags/${tagId}`, pw, { method: 'DELETE' }),
+
+  getSignals: (pw: string, productId: string, tagPrefix = '', includeConsumed = false) =>
+    apiFetch<Signal[]>(
+      `/api/products/${productId}/signals?tag_prefix=${encodeURIComponent(tagPrefix)}&include_consumed=${includeConsumed}`,
+      pw,
+    ),
+
+  createSignal: (pw: string, productId: string, tagId: number, contentType: string, contentId: number, note: string) =>
+    apiFetch<Signal>(`/api/products/${productId}/signals`, pw, {
+      method: 'POST',
+      body: JSON.stringify({ tag_id: tagId, content_type: contentType, content_id: contentId, note, tagged_by: 'user' }),
+    }),
+
+  consumeSignal: (pw: string, productId: string, signalId: number) =>
+    apiFetch<{ ok: boolean; signal_id: number }>(`/api/products/${productId}/signals/${signalId}/consume`, pw, {
+      method: 'POST',
+    }),
+
+  unconsumeSignal: (pw: string, productId: string, signalId: number) =>
+    apiFetch<{ ok: boolean; signal_id: number }>(`/api/products/${productId}/signals/${signalId}/unconsume`, pw, {
+      method: 'POST',
     }),
 }
