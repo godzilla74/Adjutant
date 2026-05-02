@@ -15,10 +15,12 @@ import ProductMCPSettings from './settings/ProductMCPSettings'
 import ImageGenerationSettings from './settings/ImageGenerationSettings'
 import TokenUsageSettings from './settings/TokenUsageSettings'
 import ProductModelSettings from './settings/ProductModelSettings'
+import TagsSettings from './settings/TagsSettings'
 export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp' | 'product-model'
   | 'agent-model' | 'google-oauth' | 'integrations' | 'mcp' | 'image-generation' | 'usage'
+  | 'tags'
 
 interface Props {
   products: Product[]
@@ -55,6 +57,7 @@ const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'mcp',               label: 'MCP Servers',       icon: '⚡' },
   { key: 'image-generation',  label: 'Image Generation',  icon: '🖼' },
   { key: 'usage',             label: 'Usage',             icon: '📊' },
+  { key: 'tags',              label: 'Tags',              icon: '🏷' },
 ]
 
 export default function SettingsPage({
@@ -108,6 +111,7 @@ export default function SettingsPage({
       case 'mcp':              return <GlobalMCPSettings {...common} />
       case 'image-generation': return <ImageGenerationSettings {...common} />
       case 'usage':            return <TokenUsageSettings {...common} />
+      case 'tags':             return <TagsSettings {...common} />
     }
   }
 
