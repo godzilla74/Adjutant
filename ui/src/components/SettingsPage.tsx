@@ -17,11 +17,12 @@ import TokenUsageSettings from './settings/TokenUsageSettings'
 import ProductModelSettings from './settings/ProductModelSettings'
 import TagsSettings from './settings/TagsSettings'
 import SignalsSettings from './settings/SignalsSettings'
+import OrchestratorSettings from './settings/OrchestratorSettings'
 export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp' | 'product-model'
   | 'agent-model' | 'google-oauth' | 'integrations' | 'mcp' | 'image-generation' | 'usage'
-  | 'tags' | 'signals'
+  | 'tags' | 'signals' | 'orchestrator'
 
 interface Props {
   products: Product[]
@@ -45,7 +46,8 @@ const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'objectives',    label: 'Objectives',  icon: '◎' },
   { key: 'autonomy',      label: 'Autonomy',    icon: '🛡' },
   { key: 'signals',       label: 'Signals',     icon: '📡' },
-  { key: 'product-model', label: 'Model',       icon: '🤖' },
+  { key: 'orchestrator',  label: 'Adjutant',    icon: '🤖' },
+  { key: 'product-model', label: 'Model',       icon: '⚙' },
 ]
 const INTEGRATION_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'connections', label: 'Connections', icon: '🔗' },
@@ -103,6 +105,7 @@ export default function SettingsPage({
       case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
       case 'autonomy':      return <AutonomySettings {...productCommon} />
       case 'signals':       return <SignalsSettings {...productCommon} />
+      case 'orchestrator':  return <OrchestratorSettings {...productCommon} />
       case 'product-model': return <ProductModelSettings {...productCommon} />
 
       case 'connections':   return <ConnectionsSettings {...productCommon} onOpenSettings={tab => { setTab(tab as Tab) }} />
