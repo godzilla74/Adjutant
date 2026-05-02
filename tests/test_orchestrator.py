@@ -364,3 +364,70 @@ def test_apply_autonomy_override_creates_review_item(populated_db):
     assert annotated[0]["_status"] == "queued"
     ws = db.get_workstreams("p1")[0]
     assert ws["mission"] != "New mission"  # not applied
+
+
+@pytest.fixture
+def mock_provider_factory(monkeypatch):
+    """Returns a factory that patches make_provider with a given LLM response text."""
+    def factory(response_text: str):
+        class MockProvider:
+            name = "anthropic"
+            async def create(self, model, system, messages, max_tokens):
+                class _Msg:
+                    text = response_text
+                class _Resp:
+                    content = [_Msg()]
+                return _Resp()
+        monkeypatch.setattr("backend.orchestrator.make_provider", lambda m: MockProvider())
+    return factory
+
+
+@pytest.mark.asyncio
+async def test_run_product_adjutant_applies_decisions(populated_db, mock_provider_factory):
+    from backend.orchestrator import run_product_adjutant
+    db, ws_id, sig_id = populated_db
+    db.update_orchestrator_config("p1", enabled=1)
+
+    response = json.dumps({
+        "decisions": [
+            {"action": "consume_signal", "signal_id": sig_id, "reason": "noise"}
+        ],
+        "brief": "Consumed one noisy signal."
+    })
+    mock_provider_factory(response)
+
+    broadcasts = []
+
+    async def broadcast(event):
+        broadcasts.append(event)
+
+    await run_product_adjutant("p1", "schedule", broadcast)
+
+    runs = db.list_orchestrator_runs("p1")
+    assert len(runs) == 1
+    assert runs[0]["status"] == "complete"
+    assert runs[0]["brief"] == "Consumed one noisy signal."
+    assert runs[0]["decisions"][0]["_status"] == "applied"
+    assert any(b.get("type") == "orchestrator_run_complete" for b in broadcasts)
+
+
+@pytest.mark.asyncio
+async def test_run_product_adjutant_malformed_json_saves_error(populated_db, mock_provider_factory):
+    from backend.orchestrator import run_product_adjutant
+    db, ws_id, sig_id = populated_db
+    db.update_orchestrator_config("p1", enabled=1)
+
+    mock_provider_factory("this is not json at all")
+
+    broadcasts = []
+
+    async def broadcast(event):
+        broadcasts.append(event)
+
+    await run_product_adjutant("p1", "schedule", broadcast)
+
+    runs = db.list_orchestrator_runs("p1")
+    assert runs[0]["status"] == "error"
+    # No decisions applied
+    remaining = db.get_signals(product_id="p1")
+    assert len(remaining) == 1

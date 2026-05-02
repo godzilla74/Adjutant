@@ -2,6 +2,8 @@ import json
 import logging
 from datetime import datetime
 
+from backend.provider import make_provider
+
 log = logging.getLogger(__name__)
 
 PA_SYSTEM_PROMPT = (
@@ -219,3 +221,101 @@ def apply_decisions(
             annotated.append({**d, "_status": "error", "_error": str(exc)})
 
     return annotated
+
+
+async def run_product_adjutant(
+    product_id: str,
+    triggered_by: str,
+    broadcast,
+) -> None:
+    import re
+    from backend.db import (
+        get_orchestrator_config, update_orchestrator_config,
+        save_orchestrator_run, update_orchestrator_run_decisions,
+        get_agent_config,
+    )
+    from backend.scheduler import calc_next_run
+
+    cfg = get_orchestrator_config(product_id)
+    autonomy = cfg["autonomy_settings"]
+    context = build_context(product_id)
+    product_name = context["product"].get("name", product_id)
+
+    system = PA_SYSTEM_PROMPT.format(product_name=product_name)
+    user_msg = (
+        "Here is the current state of your product. "
+        "Review everything and return your decisions.\n\n"
+        + json.dumps(context, indent=2, default=str)
+    )
+
+    agent_cfg = get_agent_config()
+    model = agent_cfg.get("agent_model", "claude-opus-4-7")
+
+    run_id: int | None = None
+    pending = 0
+    brief = ""
+
+    try:
+        provider = make_provider(model)
+        response = await provider.create(
+            model=model,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+            max_tokens=4096,
+        )
+
+        # Both AnthropicProvider and OpenAI providers (via _OAICreateResponse / _OAIMessage)
+        # normalise to response.content[0].text
+        raw = response.content[0].text
+
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+            if m:
+                parsed = json.loads(m.group(1))
+            else:
+                raise
+
+        decisions_raw = parsed.get("decisions", [])
+        brief = parsed.get("brief", "")
+
+        run_id = save_orchestrator_run(
+            product_id=product_id,
+            triggered_by=triggered_by,
+            status="complete",
+            decisions=[],
+            brief=brief,
+        )
+
+        annotated = apply_decisions(product_id, decisions_raw, autonomy, run_id)
+        update_orchestrator_run_decisions(run_id, annotated)
+        pending = sum(1 for d in annotated if d.get("_status") == "queued")
+
+    except Exception as exc:
+        log.error("orchestrator run failed for %s: %s", product_id, exc, exc_info=True)
+        if run_id is None:
+            run_id = save_orchestrator_run(
+                product_id=product_id,
+                triggered_by=triggered_by,
+                status="error",
+                decisions=[],
+                brief="",
+                error=str(exc),
+            )
+        else:
+            update_orchestrator_run_decisions(run_id, [], status="error", error=str(exc))
+
+    next_dt = calc_next_run(cfg["schedule"])
+    update_orchestrator_config(
+        product_id,
+        next_run_at=next_dt.isoformat(timespec="seconds") if next_dt else None,
+    )
+
+    await broadcast({
+        "type": "orchestrator_run_complete",
+        "product_id": product_id,
+        "run_id": run_id,
+        "brief_preview": brief[:300],
+        "pending_approval_count": pending,
+    })
