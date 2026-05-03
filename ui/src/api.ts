@@ -1,5 +1,5 @@
 // ui/src/api.ts
-import { ProductConfig, Workstream, Objective, Tag, Signal, OrchestratorConfig, OrchestratorRun } from './types'
+import { ProductConfig, Workstream, Objective, Tag, Signal, OrchestratorConfig, OrchestratorRun, HCAConfig, HCADirective, HCARun } from './types'
 
 async function apiFetch<T>(
   path: string,
@@ -574,4 +574,31 @@ export const api = {
     apiFetch<{ queued: boolean }>(`/api/products/${productId}/orchestrator/trigger`, pw, {
       method: 'POST',
     }),
+
+  getHCAConfig: (pw: string) =>
+    apiFetch<HCAConfig>('/api/hca/config', pw),
+
+  updateHCAConfig: (pw: string, updates: Partial<HCAConfig>) =>
+    apiFetch<HCAConfig>('/api/hca/config', pw, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    }),
+
+  getHCARuns: (pw: string, limit = 20) =>
+    apiFetch<HCARun[]>(`/api/hca/runs?limit=${limit}`, pw),
+
+  getHCARun: (pw: string, runId: number) =>
+    apiFetch<HCARun>(`/api/hca/runs/${runId}`, pw),
+
+  triggerHCA: (pw: string) =>
+    apiFetch<{ queued: boolean }>('/api/hca/trigger', pw, { method: 'POST' }),
+
+  getHCADirectives: (pw: string, productId?: string) =>
+    apiFetch<HCADirective[]>(
+      `/api/hca/directives${productId ? `?product_id=${productId}` : ''}`,
+      pw,
+    ),
+
+  deleteHCADirective: (pw: string, directiveId: number) =>
+    apiFetch<void>(`/api/hca/directives/${directiveId}`, pw, { method: 'DELETE' }),
 }

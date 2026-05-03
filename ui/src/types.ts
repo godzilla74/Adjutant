@@ -116,6 +116,8 @@ export type ServerMessage =
   | { type: 'launch_complete'; product_id: string; summary: string }
   | { type: 'launch_started'; product_id: string }
   | { type: 'orchestrator_run_complete'; product_id: string; run_id: number; brief_preview: string; pending_approval_count: number }
+  | { type: 'hca_run_complete'; run_id: number; brief_preview: string; pending_proposal_count: number }
+  | { type: 'product_launched'; product_id: string; product_name: string; source: string }
 
 export interface DirectiveHistoryItem {
   id: number
@@ -202,6 +204,57 @@ export interface OrchestratorRun {
   run_at: string
   status: 'complete' | 'error'
   decisions: OrchestratorDecision[]
+  brief: string
+  error?: string | null
+}
+
+export interface HCAConfig {
+  id: number
+  enabled: number
+  schedule: string
+  pa_run_threshold: number
+  next_run_at: string | null
+  last_run_at: string | null
+  hca_slack_channel_id: string
+  hca_discord_channel_id: string
+  hca_telegram_chat_id: string
+}
+
+export interface HCADirective {
+  id: number
+  product_id: string | null
+  content: string
+  hca_run_id: number | null
+  status: 'active' | 'superseded'
+  created_at: string
+}
+
+export interface HCADecision {
+  action: string
+  product_id?: string
+  content?: string
+  directive_id?: number
+  replacement?: string
+  pa_decision?: Record<string, unknown>
+  name?: string
+  description?: string
+  goals?: string
+  icon_label?: string
+  color?: string
+  suggested_workstreams?: Array<Record<string, unknown>>
+  reason?: string
+  _status: 'applied' | 'queued' | 'skipped' | 'error'
+  _note?: string
+  _review_item_id?: number
+  _error?: string
+}
+
+export interface HCARun {
+  id: number
+  triggered_by: 'schedule' | 'pa_run_threshold' | 'manual'
+  run_at: string
+  status: 'complete' | 'error'
+  decisions: HCADecision[]
   brief: string
   error?: string | null
 }
