@@ -550,16 +550,20 @@ def test_hca_inflight_guard_prevents_concurrent_runs(hca_db):
     from unittest.mock import AsyncMock, patch
     import backend.scheduler as sched_mod
 
+    # Test 1: guard blocks when _running_hca is already True
     calls = []
     async def fake_run_hca(triggered_by, broadcast):
         calls.append(triggered_by)
 
+    sched_mod._running_hca = True  # simulate already in-flight
+    with patch("backend.hca.run_hca", fake_run_hca):
+        asyncio.run(sched_mod._run_hca_task("schedule", AsyncMock()))
+    assert len(calls) == 0          # guard blocked the call
+    assert sched_mod._running_hca is True  # flag not reset (we set it, not the task)
+
+    # Test 2: flag resets to False after a normal run completes
     sched_mod._running_hca = False
     with patch("backend.hca.run_hca", fake_run_hca):
-        async def run():
-            await sched_mod._run_hca_task("schedule", AsyncMock())
-            await sched_mod._run_hca_task("schedule", AsyncMock())  # guard should block
-        asyncio.run(run())
-    # Only one run should have executed (guard is False again after first finishes,
-    # so second can also run in sequence) — the real test is that _running_hca is False after
+        asyncio.run(sched_mod._run_hca_task("schedule", AsyncMock()))
+    assert len(calls) == 1
     assert sched_mod._running_hca is False
