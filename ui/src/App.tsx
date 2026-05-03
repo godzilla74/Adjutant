@@ -23,6 +23,7 @@ import ProductDropdown from './components/ProductDropdown'
 import StatusStrip from './components/StatusStrip'
 import SettingsPage, { Tab as SettingsTab } from './components/SettingsPage'
 import ProductWizard from './components/ProductWizard'
+import HCABriefingPanel from './components/HCABriefingPanel'
 
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
 
@@ -57,6 +58,7 @@ export default function App() {
   const [notesOpen,       setNotesOpen]       = useState(false)
   const [historyOpen,     setHistoryOpen]     = useState(false)
   const [showOverview,    setShowOverview]    = useState(false)
+  const [showHCA,         setShowHCA]         = useState(false)
   const [globalViewMode,  setGlobalViewMode]  = useState<'chat' | 'overview'>('overview')
   const [errorBanner,     setErrorBanner]     = useState<string | null>(null)
 
@@ -74,6 +76,9 @@ export default function App() {
 
   const activeState = productStates[activeProductId] ?? EMPTY_STATE
   const activeProduct = products.find(p => p.id === activeProductId)
+  const hcaPendingCount = Object.values(productStates)
+    .flatMap(s => s.review_items)
+    .filter(r => r.action_type === 'hca_new_product' && r.status === 'pending').length
 
   const setProductState = useCallback((productId: string, updater: (prev: ProductState) => ProductState) => {
     setProductStates(prev => ({
@@ -381,6 +386,17 @@ export default function App() {
         return
       }
 
+      if (msg.type === 'hca_run_complete') {
+        // review_items are updated via product_data; badge will refresh automatically
+        return
+      }
+
+      if (msg.type === 'product_launched') {
+        // Reload products list to show the new product (server responds with 'init')
+        wsRef.current?.send(JSON.stringify({ type: 'get_products' }))
+        return
+      }
+
       if (msg.type === 'autonomy_config') {
         // handled by SettingsSidebar (Task 6)
         return
@@ -542,6 +558,23 @@ export default function App() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* HCA Briefing */}
+          <button
+            onClick={() => { setShowHCA(v => !v); setShowOverview(false) }}
+            className={`relative px-2.5 py-1 text-[10px] rounded border transition-colors ${
+              showHCA
+                ? 'bg-adj-accent/20 border-adj-accent text-adj-accent'
+                : 'bg-adj-panel border-adj-border text-adj-text-muted hover:text-adj-text-primary'
+            }`}
+          >
+            🏢 HCA
+            {hcaPendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                {hcaPendingCount}
+              </span>
+            )}
+          </button>
+
           {/* Connection status */}
           <span className={`flex items-center gap-1.5 text-xs ${connState === 'ready' ? 'text-green-500' : 'text-adj-text-faint'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${connState === 'ready' ? 'bg-green-500' : 'bg-adj-text-faint'}`} />
@@ -775,6 +808,16 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* HCA Briefing Panel */}
+      {showHCA && (
+        <HCABriefingPanel
+          password={pw}
+          reviewItems={Object.values(productStates).flatMap(s => s.review_items)}
+          onApprove={id => resolveReview(id, 'approved')}
+          onSkip={id => resolveReview(id, 'skipped')}
+        />
+      )}
 
       {/* Notes drawer */}
       {notesOpen && (
