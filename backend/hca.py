@@ -2,7 +2,7 @@
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from backend.provider import make_provider
 
@@ -312,11 +312,11 @@ async def run_hca(triggered_by: str, broadcast) -> None:
         else:
             update_hca_run_decisions(run_id, [], status="error", error=str(exc))
 
-    from datetime import timedelta as _timedelta
-    now_str = datetime.now().isoformat(timespec="seconds")
+    now = datetime.now()
+    now_str = now.isoformat(timespec="seconds")
     next_dt = calc_next_run(cfg["schedule"])
     if next_dt is None:
-        next_dt = datetime.now() + _timedelta(days=7)
+        next_dt = now + timedelta(days=7)
     update_hca_config(
         next_run_at=next_dt.isoformat(timespec="seconds"),
         last_run_at=now_str,
