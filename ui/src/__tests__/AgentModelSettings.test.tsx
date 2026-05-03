@@ -17,6 +17,12 @@ vi.mock('../api', () => ({
       prescreener_model: 'claude-haiku-4-5-20251001',
       agent_name: 'Adjutant',
     }),
+    getAnthropicKeyStatus: vi.fn().mockResolvedValue({ configured: true, masked: 'sk-ant-••••3f2a' }),
+    getOpenAIKeyStatus: vi.fn().mockResolvedValue({ configured: false, masked: '' }),
+    getAvailableModels: vi.fn().mockResolvedValue({
+      anthropic: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
+      openai: [],
+    }),
   },
 }))
 
@@ -42,7 +48,7 @@ describe('AgentModelSettings', () => {
     const { api } = await import('../api')
     render(<AgentModelSettings password="test" />)
     await waitFor(() => screen.getByLabelText(/pre-screener/i))
-    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
     await waitFor(() => {
       expect(api.updateAgentConfig).toHaveBeenCalledWith(
         'test',

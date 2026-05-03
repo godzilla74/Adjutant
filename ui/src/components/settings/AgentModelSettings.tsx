@@ -31,14 +31,15 @@ const inputCls = 'w-full bg-adj-panel border border-adj-border rounded-md px-3 p
 const keyInputCls = 'flex-1 bg-adj-elevated border border-adj-border rounded px-2 py-1.5 text-xs text-adj-text-primary placeholder:text-adj-text-faint focus:outline-none focus:border-adj-accent font-mono'
 
 const ModelSelect = ({
-  value, onChange, models, hasOpenAI,
+  id, value, onChange, models, hasOpenAI,
 }: {
+  id?: string
   value: string
   onChange: (v: string) => void
   models: { anthropic: string[]; openai: string[] }
   hasOpenAI: boolean
 }) => (
-  <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
+  <select id={id} value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
     <optgroup label="Anthropic">
       {models.anthropic.map(id => (
         <option key={id} value={id}>{MODEL_LABELS[id] ?? id}</option>
@@ -370,24 +371,24 @@ export default function AgentModelSettings({ password }: Props) {
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
+          <label htmlFor="agent-model" className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Main Agent Model
           </label>
-          <ModelSelect value={agentModel} onChange={setAgentModel} models={availableModels} hasOpenAI={hasOpenAI} />
+          <ModelSelect id="agent-model" value={agentModel} onChange={setAgentModel} models={availableModels} hasOpenAI={hasOpenAI} />
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
+          <label htmlFor="subagent-model" className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Sub-agents (research, email, etc.)
           </label>
-          <ModelSelect value={subagentModel} onChange={setSubagentModel} models={availableModels} hasOpenAI={hasOpenAI} />
+          <ModelSelect id="subagent-model" value={subagentModel} onChange={setSubagentModel} models={availableModels} hasOpenAI={hasOpenAI} />
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
+          <label htmlFor="prescreener-model" className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
             Pre-screener (message routing)
           </label>
-          <ModelSelect value={prescreenerModel} onChange={setPrescreenerModel} models={availableModels} hasOpenAI={hasOpenAI} />
+          <ModelSelect id="prescreener-model" value={prescreenerModel} onChange={setPrescreenerModel} models={availableModels} hasOpenAI={hasOpenAI} />
           <button
             onClick={refreshModels}
             disabled={refreshingModels}
