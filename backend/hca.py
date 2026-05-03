@@ -4,6 +4,8 @@ import logging
 import re
 from datetime import datetime
 
+from backend.provider import make_provider
+
 log = logging.getLogger(__name__)
 
 HCA_SYSTEM_PROMPT = (
@@ -237,4 +239,92 @@ async def launch_product_from_hca(payload: dict, broadcast) -> None:
         "product_id": product_id,
         "product_name": name,
         "source": "hca",
+    })
+
+
+async def run_hca(triggered_by: str, broadcast) -> None:
+    from backend.db import (
+        get_hca_config, update_hca_config,
+        save_hca_run, update_hca_run_decisions,
+        get_agent_config,
+    )
+    from backend.scheduler import calc_next_run
+
+    cfg = get_hca_config()
+    context = build_hca_context()
+
+    user_msg = (
+        "Here is the current state of the portfolio. "
+        "Review everything and return your decisions.\n\n"
+        + json.dumps(context, indent=2, default=str)
+    )
+
+    agent_cfg = get_agent_config()
+    model = agent_cfg.get("agent_model", "claude-opus-4-7")
+
+    run_id: int | None = None
+    pending = 0
+    brief = ""
+
+    try:
+        provider = make_provider(model)
+        response = await provider.create(
+            model=model,
+            system=HCA_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_msg}],
+            max_tokens=4096,
+        )
+        raw = response.content[0].text
+
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+            if m:
+                parsed = json.loads(m.group(1))
+            else:
+                raise
+
+        decisions_raw = parsed.get("decisions", [])
+        brief = parsed.get("brief", "")
+
+        run_id = save_hca_run(
+            triggered_by=triggered_by,
+            status="complete",
+            decisions=[],
+            brief=brief,
+        )
+
+        annotated = apply_hca_decisions(decisions_raw, run_id)
+        update_hca_run_decisions(run_id, annotated)
+        pending = sum(1 for d in annotated if d.get("_status") == "queued")
+
+    except Exception as exc:
+        log.error("hca run failed: %s", exc, exc_info=True)
+        if run_id is None:
+            run_id = save_hca_run(
+                triggered_by=triggered_by,
+                status="error",
+                decisions=[],
+                brief="",
+                error=str(exc),
+            )
+        else:
+            update_hca_run_decisions(run_id, [], status="error", error=str(exc))
+
+    from datetime import timedelta as _timedelta
+    now_str = datetime.now().isoformat(timespec="seconds")
+    next_dt = calc_next_run(cfg["schedule"])
+    if next_dt is None:
+        next_dt = datetime.now() + _timedelta(days=7)
+    update_hca_config(
+        next_run_at=next_dt.isoformat(timespec="seconds"),
+        last_run_at=now_str,
+    )
+
+    await broadcast({
+        "type": "hca_run_complete",
+        "run_id": run_id,
+        "brief_preview": brief[:300],
+        "pending_proposal_count": pending,
     })

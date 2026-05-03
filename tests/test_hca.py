@@ -446,3 +446,73 @@ def test_launch_product_from_hca(hca_db):
     assert launched["product_id"] == "new-product"
     assert launched["product_name"] == "New Product"
     assert launched["source"] == "hca"
+
+
+def test_run_hca_full_integration(hca_db):
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from backend.hca import run_hca
+
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock()]
+    mock_response.content[0].text = json.dumps({
+        "decisions": [
+            {"action": "issue_directive", "product_id": "p1",
+             "content": "Focus on growth", "reason": "PA brief indicates stagnation"},
+        ],
+        "brief": "Portfolio is performing well overall.",
+    })
+    mock_provider = AsyncMock()
+    mock_provider.create = AsyncMock(return_value=mock_response)
+
+    broadcast_calls = []
+    async def mock_broadcast(event): broadcast_calls.append(event)
+
+    async def run():
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "backend.hca.make_provider", return_value=mock_provider
+        ):
+            await run_hca("schedule", mock_broadcast)
+
+    asyncio.run(run())
+
+    runs = hca_db.list_hca_runs()
+    assert len(runs) == 1
+    assert runs[0]["status"] == "complete"
+    assert runs[0]["brief"] == "Portfolio is performing well overall."
+    assert any(d["action"] == "issue_directive" for d in runs[0]["decisions"])
+
+    cfg = hca_db.get_hca_config()
+    assert cfg["next_run_at"] is not None
+    assert cfg["last_run_at"] is not None
+
+    assert any(e["type"] == "hca_run_complete" for e in broadcast_calls)
+
+
+def test_run_hca_malformed_json_saves_error(hca_db):
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from backend.hca import run_hca
+
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock()]
+    mock_response.content[0].text = "not valid json at all"
+    mock_provider = AsyncMock()
+    mock_provider.create = AsyncMock(return_value=mock_response)
+
+    broadcast_calls = []
+    async def mock_broadcast(event): broadcast_calls.append(event)
+
+    async def run():
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "backend.hca.make_provider", return_value=mock_provider
+        ):
+            await run_hca("schedule", mock_broadcast)
+
+    asyncio.run(run())
+
+    runs = hca_db.list_hca_runs()
+    assert runs[0]["status"] == "error"
+    cfg = hca_db.get_hca_config()
+    assert cfg["next_run_at"] is not None   # next_run_at still updated
+    assert cfg["last_run_at"] is not None   # last_run_at still updated
