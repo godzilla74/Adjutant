@@ -1,6 +1,7 @@
 // ui/src/components/DirectiveBar.tsx
 import { useState, useEffect, useRef, KeyboardEvent } from 'react'
 import { api } from '../api'
+import DirectiveTemplates from './DirectiveTemplates'
 
 interface Attachment {
   file: File
@@ -17,17 +18,24 @@ interface Props {
   prefill?: string
   onPrefillConsumed?: () => void
   password: string
+  templatesProductId?: string
+  templatesPassword?: string
 }
 
 export default function DirectiveBar({
   onSend, disabled, productName, agentName, prefill, onPrefillConsumed, password,
+  templatesProductId, templatesPassword,
 }: Props) {
-  const [value,       setValue]      = useState('')
-  const [attachment,  setAttachment] = useState<Attachment | null>(null)
-  const [uploading,   setUploading]  = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [value,         setValue]       = useState('')
+  const [attachment,    setAttachment]  = useState<Attachment | null>(null)
+  const [uploading,     setUploading]   = useState(false)
+  const [uploadError,   setUploadError] = useState<string | null>(null)
+  const [showTemplates, setShowTemplates] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const resolvedTemplatesProductId = templatesProductId ?? ''
+  const resolvedTemplatesPassword  = templatesPassword  ?? ''
 
   useEffect(() => {
     if (prefill) {
@@ -125,6 +133,17 @@ export default function DirectiveBar({
         <p className="text-xs text-red-400 mb-2">{uploadError}</p>
       )}
 
+      {/* Templates panel */}
+      {showTemplates && (
+        <div className="mb-2 border border-adj-border rounded-lg overflow-hidden">
+          <DirectiveTemplates
+            productId={resolvedTemplatesProductId}
+            password={resolvedTemplatesPassword}
+            onSelect={content => { setValue(content); setShowTemplates(false) }}
+          />
+        </div>
+      )}
+
       {/* Input row */}
       <div className="flex items-end gap-3">
         <span className="text-xs text-adj-text-faint whitespace-nowrap flex-shrink-0 pb-2">
@@ -159,6 +178,19 @@ export default function DirectiveBar({
           placeholder={`e.g. Focus all agents on ${productName} growth this week.`}
           className="flex-1 rounded-lg border border-adj-border bg-adj-panel px-3 py-2 text-sm text-adj-text-secondary placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-blue-600 disabled:opacity-40 resize-none overflow-hidden leading-relaxed min-h-[36px] max-h-40"
         />
+
+        <button
+          type="button"
+          onClick={() => setShowTemplates(v => !v)}
+          title="Templates"
+          className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors text-sm ${
+            showTemplates
+              ? 'bg-adj-accent/20 border-adj-accent/50 text-adj-accent'
+              : 'bg-adj-elevated border-adj-border text-adj-text-faint hover:text-adj-text-secondary'
+          }`}
+        >
+          ⚡
+        </button>
 
         <button
           type="button"
