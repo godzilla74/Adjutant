@@ -24,7 +24,7 @@ beforeEach(() => { vi.clearAllMocks() })
 describe('HCASettings', () => {
   it('renders enable toggle, schedule and threshold inputs', async () => {
     render(<HCASettings password="test" />)
-    await waitFor(() => screen.getByText('Holding Company Adjutant'))
+    await waitFor(() => screen.getByText('Chief Adjutant'))
     expect(screen.getByRole('checkbox')).toBeInTheDocument()
     expect(screen.getByDisplayValue('weekly on mondays at 8am')).toBeInTheDocument()
     expect(screen.getByDisplayValue('10')).toBeInTheDocument()
@@ -32,7 +32,7 @@ describe('HCASettings', () => {
 
   it('renders channel ID inputs', async () => {
     render(<HCASettings password="test" />)
-    await waitFor(() => screen.getByText('Holding Company Adjutant'))
+    await waitFor(() => screen.getByText('Chief Adjutant'))
     expect(screen.getByPlaceholderText(/slack channel/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/discord channel/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/telegram chat/i)).toBeInTheDocument()
@@ -41,7 +41,7 @@ describe('HCASettings', () => {
   it('calls updateHCAConfig on save', async () => {
     const { api } = await import('../api')
     render(<HCASettings password="test" />)
-    await waitFor(() => screen.getByText('Holding Company Adjutant'))
+    await waitFor(() => screen.getByText('Chief Adjutant'))
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     await waitFor(() => expect(api.updateHCAConfig).toHaveBeenCalled())

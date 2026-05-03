@@ -63,7 +63,7 @@ const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'image-generation',  label: 'Image Generation',  icon: '🖼' },
   { key: 'usage',             label: 'Usage',             icon: '📊' },
   { key: 'tags',              label: 'Tags',              icon: '🏷' },
-  { key: 'hca',              label: 'Holding Company',   icon: '🏢' },
+  { key: 'hca',              label: 'Chief Adjutant',    icon: '🏢' },
 ]
 
 export default function SettingsPage({

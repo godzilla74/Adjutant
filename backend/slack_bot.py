@@ -152,7 +152,7 @@ class SlackBot:
         blocks = [
             {
                 "type": "header",
-                "text": {"type": "plain_text", "text": "🏢 Holding Company Adjutant Briefing"},
+                "text": {"type": "plain_text", "text": "🏢 Chief Adjutant Briefing"},
             },
             {
                 "type": "section",
@@ -167,14 +167,14 @@ class SlackBot:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*{pending} new product proposal(s) awaiting approval.* Open Adjutant → HCA to review.",
+                    "text": f"*{pending} new product proposal(s) awaiting approval.* Open Adjutant → Chief Adjutant to review.",
                 },
             })
 
         try:
             await self._web_client.chat_postMessage(
                 channel=channel,
-                text=f"🏢 HCA Briefing — {pending} pending proposal(s)",
+                text=f"🏢 Chief Adjutant Briefing — {pending} pending proposal(s)",
                 blocks=blocks,
             )
         except Exception as e:

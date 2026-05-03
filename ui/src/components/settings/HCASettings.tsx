@@ -41,7 +41,7 @@ export default function HCASettings({ password }: Props) {
     <div className="flex flex-col gap-6">
       <div>
         <h3 className="text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-3">
-          Holding Company Adjutant
+          Chief Adjutant
         </h3>
         <div className="flex flex-col gap-3">
           <label className="flex items-center gap-2 text-xs text-adj-text-primary cursor-pointer">
@@ -77,7 +77,7 @@ export default function HCASettings({ password }: Props) {
 
       <div>
         <h3 className="text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-3">
-          HCA Notification Channels
+          Chief Adjutant Notification Channels
         </h3>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">

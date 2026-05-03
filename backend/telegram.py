@@ -216,9 +216,9 @@ class TelegramBot:
                 return
             brief_preview = event.get("brief_preview", "")
             pending = event.get("pending_proposal_count", 0)
-            msg = f"🏢 <b>HCA Briefing</b>\n{brief_preview}"
+            msg = f"🏢 <b>Chief Adjutant Briefing</b>\n{brief_preview}"
             if pending > 0:
-                msg += f"\n\n⏳ <b>{pending} new product proposal(s) awaiting approval</b> — open Adjutant → HCA."
+                msg += f"\n\n⏳ <b>{pending} new product proposal(s) awaiting approval</b> — open Adjutant → Chief Adjutant."
             try:
                 await self.send_message(msg[:4096])
             except Exception as e:

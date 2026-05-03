@@ -17,7 +17,7 @@ PA_SYSTEM_PROMPT = (
     "mismatches, or underperformance.\n"
     "3. Make adjustments: update missions, schedules, subscriptions, create objectives as needed.\n"
     "4. For decisions above your autonomy level, create an approval request with clear reasoning.\n"
-    "5. Write a brief summarizing your observations and decisions for the Holding Company Adjutant.\n\n"
+    "5. Write a brief summarizing your observations and decisions for the Chief Adjutant.\n\n"
     "Your autonomy settings are provided in the context. Only apply actions marked 'autonomous' "
     "directly. Actions marked 'approval_required' must be included in decisions — they will be "
     "queued for user approval.\n\n"

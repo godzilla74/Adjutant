@@ -76,7 +76,7 @@ export default function HCABriefingPanel({ password, reviewItems, onApprove, onS
   return (
     <div className="flex flex-col gap-6 p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-adj-text-primary">Holding Company Adjutant</h2>
+        <h2 className="text-sm font-semibold text-adj-text-primary">Chief Adjutant</h2>
         <button
           onClick={trigger}
           disabled={triggering}

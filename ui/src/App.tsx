@@ -570,7 +570,7 @@ export default function App() {
                 : 'bg-adj-panel border-adj-border text-adj-text-muted hover:text-adj-text-primary'
             }`}
           >
-            🏢 HCA
+            🏢 Chief
             {hcaPendingCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
                 {hcaPendingCount}

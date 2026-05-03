@@ -114,9 +114,9 @@ class DiscordBot:
                 return
             brief_preview = event.get("brief_preview", "")
             pending = event.get("pending_proposal_count", 0)
-            msg = f"🏢 **HCA Briefing**\n{brief_preview}"
+            msg = f"🏢 **Chief Adjutant Briefing**\n{brief_preview}"
             if pending > 0:
-                msg += f"\n\n⏳ **{pending} new product proposal(s) awaiting approval** — open Adjutant → HCA."
+                msg += f"\n\n⏳ **{pending} new product proposal(s) awaiting approval** — open Adjutant → Chief Adjutant."
             channel = self._client.get_channel(int(channel_id))
             if channel:
                 try:
