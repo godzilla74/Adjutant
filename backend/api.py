@@ -1938,3 +1938,86 @@ def delete_report(product_id: str, report_id: int, _: None = Depends(_auth)):
     if report is None or report["product_id"] != product_id:
         raise HTTPException(status_code=404, detail="Report not found")
     _delete_run_report(report_id)
+
+
+# ── HCA endpoints ─────────────────────────────────────────────────────────────
+
+class HCAConfigUpdate(BaseModel):
+    enabled: bool | None = None
+    schedule: str | None = None
+    pa_run_threshold: int | None = None
+    hca_slack_channel_id: str | None = None
+    hca_discord_channel_id: str | None = None
+    hca_telegram_chat_id: str | None = None
+
+
+@router.get("/hca/config")
+async def get_hca_config(_=Depends(_auth)):
+    from backend.db import get_hca_config, get_agent_config
+    cfg = get_hca_config()
+    agent = get_agent_config()
+    cfg["hca_slack_channel_id"] = agent.get("hca_slack_channel_id", "")
+    cfg["hca_discord_channel_id"] = agent.get("hca_discord_channel_id", "")
+    cfg["hca_telegram_chat_id"] = agent.get("hca_telegram_chat_id", "")
+    return cfg
+
+
+@router.patch("/hca/config")
+async def patch_hca_config(body: HCAConfigUpdate, _=Depends(_auth)):
+    from backend.db import update_hca_config, set_agent_config, get_hca_config, get_agent_config
+    channel_keys = ("hca_slack_channel_id", "hca_discord_channel_id", "hca_telegram_chat_id")
+    updates = {k: v for k, v in body.model_dump().items()
+               if v is not None and k not in channel_keys}
+    if updates:
+        update_hca_config(**updates)
+    for key in channel_keys:
+        val = getattr(body, key, None)
+        if val is not None:
+            set_agent_config(key, val)
+    cfg = get_hca_config()
+    agent = get_agent_config()
+    cfg["hca_slack_channel_id"] = agent.get("hca_slack_channel_id", "")
+    cfg["hca_discord_channel_id"] = agent.get("hca_discord_channel_id", "")
+    cfg["hca_telegram_chat_id"] = agent.get("hca_telegram_chat_id", "")
+    return cfg
+
+
+@router.get("/hca/runs")
+async def list_hca_runs(limit: int = 20, _=Depends(_auth)):
+    from backend.db import list_hca_runs as _list
+    return _list(limit=limit)
+
+
+@router.get("/hca/runs/{run_id}")
+async def get_hca_run(run_id: int, _=Depends(_auth)):
+    from backend.db import get_hca_run as _get
+    run = _get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run
+
+
+@router.post("/hca/trigger")
+async def trigger_hca(_=Depends(_auth)):
+    import asyncio
+    from backend.hca import run_hca
+    from backend.scheduler import _broadcast_fn
+
+    async def _noop(_event: dict) -> None:
+        pass
+
+    broadcast = _broadcast_fn if _broadcast_fn is not None else _noop
+    asyncio.create_task(run_hca("manual", broadcast))
+    return {"queued": True}
+
+
+@router.get("/hca/directives")
+async def list_hca_directives(product_id: str | None = None, _=Depends(_auth)):
+    from backend.db import list_hca_directives as _list
+    return _list(product_id=product_id)
+
+
+@router.delete("/hca/directives/{directive_id}", status_code=204)
+async def delete_hca_directive(directive_id: int, _=Depends(_auth)):
+    from backend.db import retire_hca_directive
+    retire_hca_directive(directive_id)

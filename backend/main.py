@@ -173,6 +173,19 @@ async def _on_review_approved(item_id: int) -> None:
     if not review:
         return
 
+    # HCA new product: launch product autonomously
+    if review.get("action_type") == "hca_new_product":
+        payload_raw = review.get("payload")
+        if payload_raw:
+            try:
+                payload = json.loads(payload_raw)
+            except (ValueError, KeyError):
+                payload = None
+            if payload:
+                from backend.hca import launch_product_from_hca
+                await launch_product_from_hca(payload, _broadcast)
+        return
+
     # Email items: require a stored payload for direct execution
     if review.get("action_type") == "email":
         payload_raw = review.get("payload")
