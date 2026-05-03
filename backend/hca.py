@@ -1,7 +1,5 @@
 # backend/hca.py
-import json
 import logging
-import re
 from datetime import datetime
 
 log = logging.getLogger(__name__)
