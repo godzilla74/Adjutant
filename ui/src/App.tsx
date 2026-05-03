@@ -402,8 +402,8 @@ export default function App() {
         return
       }
 
-      if ((msg as { type: string }).type === 'error') {
-        const errMsg = (msg as { type: string; message: string }).message
+      if ((msg as unknown as { type: string }).type === 'error') {
+        const errMsg = (msg as unknown as { message: string }).message
         console.error('Server error:', errMsg)
         setErrorBanner(errMsg)
         return

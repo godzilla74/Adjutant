@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import BriefingTab from '../components/BriefingTab'
@@ -23,7 +23,7 @@ const mockRuns = vi.hoisted(() => [
 
 const mockReviewItems = vi.hoisted(() => [
   { id: 5, title: 'pause_workstream', description: '[orchestrator_run:1] underperforming',
-    risk_label: 'medium', status: 'pending', created_at: '2026-05-02 08:00:01',
+    risk_label: 'medium', status: 'pending' as const, created_at: '2026-05-02 08:00:01',
     action_type: 'orchestrator_pause_workstream', payload: null, auto_approve_at: null },
 ])
 
