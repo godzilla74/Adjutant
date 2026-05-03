@@ -6,24 +6,22 @@ import {
   Product,
   ProductState,
   ActivityEvent,
-  DirectiveItem,
   ReviewItem,
   ServerMessage,
 } from './types'
 import SessionsPanel from './components/SessionsPanel'
 import ActivityFeed from './components/ActivityFeed'
 import DirectiveBar from './components/DirectiveBar'
-import DirectiveTemplates from './components/DirectiveTemplates'
-import LiveAgents from './components/LiveAgents'
 import PasswordGate from './components/PasswordGate'
 import NotesDrawer from './components/NotesDrawer'
 import DirectiveHistoryDrawer from './components/DirectiveHistoryDrawer'
-import OverviewPanel from './components/OverviewPanel'
-import ProductDropdown from './components/ProductDropdown'
-import StatusStrip from './components/StatusStrip'
-import SettingsPage, { Tab as SettingsTab } from './components/SettingsPage'
 import ProductWizard from './components/ProductWizard'
-import HCABriefingPanel from './components/HCABriefingPanel'
+import NavRail from './components/NavRail'
+import { Section as NavSection } from './components/NavRail'
+import OverviewPage from './components/OverviewPage'
+import ProductPicker from './components/ProductPicker'
+import ChiefPage from './components/ChiefPage'
+import SettingsPage, { SettingsItem } from './components/SettingsPage'
 
 type ConnState = 'connecting' | 'auth' | 'ready' | 'disconnected'
 
@@ -49,17 +47,13 @@ export default function App() {
   const [agentMessages,   setAgentMessages]   = useState<Record<string, AgentEntry[]>>({})
   const [agentDraftByProduct, setAgentDraftByProduct] = useState<Record<string, string>>({})
   const [agentName,       setAgentName]       = useState<string>('Adjutant')
-  const [settingsOpen,    setSettingsOpen]    = useState(false)
-  const [settingsTab,     setSettingsTab]     = useState<SettingsTab>('overview')
+  const [navSection,      setNavSection]      = useState<NavSection>('overview')
+  const [settingsItem,    setSettingsItem]    = useState<SettingsItem>('general-workspace')
 
   const [wizardOpen,      setWizardOpen]      = useState(false)
-  const [queueByProduct,  setQueueByProduct]  = useState<Record<string, { current: DirectiveItem | null; queued: DirectiveItem[] }>>({})
   const [directivePrefill, setDirectivePrefill] = useState<string>('')
   const [notesOpen,       setNotesOpen]       = useState(false)
   const [historyOpen,     setHistoryOpen]     = useState(false)
-  const [showOverview,    setShowOverview]    = useState(false)
-  const [showHCA,         setShowHCA]         = useState(false)
-  const [globalViewMode,  setGlobalViewMode]  = useState<'chat' | 'overview'>('overview')
   const [errorBanner,     setErrorBanner]     = useState<string | null>(null)
 
   type PendingWizardItem = { name: string; mission: string; schedule: string }
@@ -76,9 +70,9 @@ export default function App() {
 
   const activeState = productStates[activeProductId] ?? EMPTY_STATE
   const activeProduct = products.find(p => p.id === activeProductId)
-  const hcaPendingCount = Object.values(productStates)
+  const pendingReviewCount = Object.values(productStates)
     .flatMap(s => s.review_items)
-    .filter(r => r.action_type === 'hca_new_product' && r.status === 'pending').length
+    .filter(r => r.status === 'pending').length
 
   const setProductState = useCallback((productId: string, updater: (prev: ProductState) => ProductState) => {
     setProductStates(prev => ({
@@ -122,28 +116,18 @@ export default function App() {
 
       if (msg.type === 'init') {
         setProducts(msg.products)
-        // Restore last view from localStorage, fall back to first product
-        let saved: { productId: string; globalViewMode?: string; settingsOpen?: boolean; settingsTab?: string } | null = null
+        let saved: { productId?: string; navSection?: string; settingsItem?: string } | null = null
         try { saved = JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch {}
-        if (saved?.productId === '__global__') {
-          setActiveProductId('__global__')
-          setShowOverview(true)
-          setGlobalViewMode((saved.globalViewMode as 'chat' | 'overview') ?? 'overview')
-          ws.send(JSON.stringify({ type: 'switch_product', product_id: null }))
-        } else {
-          const targetId = (saved?.productId && msg.products.some((p: { id: string }) => p.id === saved!.productId))
-            ? saved!.productId
-            : msg.products[0]?.id
-          if (targetId) {
-            setActiveProductId(targetId)
-            setShowOverview(false)
-            localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: targetId }))
-            ws.send(JSON.stringify({ type: 'switch_product', product_id: targetId }))
-          }
-        }
-        if (saved?.settingsOpen) {
-          setSettingsOpen(true)
-          setSettingsTab((saved.settingsTab as SettingsTab) ?? 'overview')
+        const targetSection = (saved?.navSection as NavSection) ?? 'overview'
+        setNavSection(targetSection)
+        if (saved?.settingsItem) setSettingsItem(saved.settingsItem as SettingsItem)
+        const targetId = (saved?.productId && msg.products.some((p: { id: string }) => p.id === saved!.productId))
+          ? saved!.productId
+          : msg.products[0]?.id
+        if (targetId) {
+          setActiveProductId(targetId)
+          localStorage.setItem('adjutant_last_view', JSON.stringify({ navSection: targetSection, productId: targetId }))
+          ws.send(JSON.stringify({ type: 'switch_product', product_id: targetId }))
         }
         return
       }
@@ -253,8 +237,8 @@ export default function App() {
 
       if (msg.type === 'launch_started') {
         setActiveProductId(msg.product_id)
-        setShowOverview(false)
-        localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: msg.product_id }))
+        setNavSection('products')
+        localStorage.setItem('adjutant_last_view', JSON.stringify({ navSection: 'products', productId: msg.product_id }))
         const pending = pendingWizardRef.current
         pendingWizardRef.current = null
         if (pending) {
@@ -280,11 +264,6 @@ export default function App() {
       }
 
       if (msg.type === 'queue_update') {
-        const key = msg.product_id ?? '__global__'
-        setQueueByProduct(prev => ({
-          ...prev,
-          [key]: { current: msg.current, queued: msg.queued },
-        }))
         return
       }
 
@@ -432,21 +411,12 @@ export default function App() {
 
   const switchProduct = useCallback((productId: string) => {
     setActiveProductId(productId)
-    setShowOverview(false)
-    setShowHCA(false)
-    localStorage.setItem('adjutant_last_view', JSON.stringify({ productId }))
+    setNavSection('products')
+    localStorage.setItem('adjutant_last_view', JSON.stringify({ navSection: 'products', productId }))
     if (!(productId in productStates)) {
       wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: productId }))
     }
   }, [productStates])
-
-  const switchToGlobal = useCallback(() => {
-    setActiveProductId('__global__')
-    setShowOverview(true)
-    setShowHCA(false)
-    localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: '__global__', globalViewMode }))
-    wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: null }))
-  }, [globalViewMode])
 
   const sendDirective = useCallback((content: string, attachments?: Array<{ path: string; mime_type: string; name: string }>) => {
     const prodId = activeProductId === '__global__' ? null : activeProductId
@@ -458,15 +428,6 @@ export default function App() {
       attachments: attachments ?? [],
     }))
   }, [activeProductId, productStates])
-
-  const cancelDirective = useCallback((directiveId: string) => {
-    const prodId = activeProductId === '__global__' ? null : activeProductId
-    wsRef.current?.send(JSON.stringify({
-      type: 'cancel_directive',
-      product_id: prodId,
-      directive_id: directiveId,
-    }))
-  }, [activeProductId])
 
   const resolveReview = useCallback((id: number, action: 'approved' | 'skipped') => {
     wsRef.current?.send(JSON.stringify({
@@ -506,12 +467,11 @@ export default function App() {
     }))
   }, [])
 
-  const openSettings = useCallback((tab: string = 'overview') => {
-    setSettingsTab(tab as SettingsTab)
-    setSettingsOpen(true)
-    setShowHCA(false)
+  const openSettings = useCallback((item: string = 'general-workspace') => {
+    setSettingsItem(item as SettingsItem)
+    setNavSection('settings')
     const current = (() => { try { return JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch { return null } })()
-    localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, settingsOpen: true, settingsTab: tab }))
+    localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, navSection: 'settings', settingsItem: item }))
   }, [])
 
 
@@ -521,135 +481,132 @@ export default function App() {
 
   const pw = sessionStorage.getItem('agent_pw') ?? ''
 
+  const liveAgents = (activeState.events ?? [])
+    .filter(e => e.status === 'running')
+    .map(e => ({
+      productId: activeProductId,
+      productName: activeProduct?.name ?? '',
+      label: e.agent_type.charAt(0).toUpperCase() + e.agent_type.slice(1),
+      elapsedSeconds: Math.floor((Date.now() - new Date(e.created_at.replace(' ', 'T') + (e.created_at.includes('Z') ? '' : 'Z')).getTime()) / 1000),
+    }))
+
   return (
-    <div className="flex flex-col h-full bg-adj-base text-adj-text-primary overflow-hidden">
+    <div className="flex h-full bg-adj-base text-adj-text-primary overflow-hidden">
 
-      {/* Error banner */}
-      {errorBanner && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-red-950/60 border-b border-red-900/60 text-red-300 text-sm flex-shrink-0">
-          <span className="text-red-400 flex-shrink-0">⚠</span>
-          <span className="flex-1 font-mono text-xs leading-relaxed">{errorBanner}</span>
-          <button
-            onClick={() => setErrorBanner(null)}
-            className="flex-shrink-0 text-red-500 hover:text-red-300 transition-colors text-base leading-none"
-            aria-label="Dismiss"
-          >×</button>
-        </div>
-      )}
+      {/* Left nav rail */}
+      <NavRail
+        section={navSection}
+        reviewBadgeCount={pendingReviewCount}
+        agentInitial={agentName[0]?.toUpperCase() ?? 'A'}
+        onNavigate={section => {
+          setNavSection(section)
+          const current = (() => { try { return JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch { return null } })()
+          localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, navSection: section }))
+        }}
+      />
 
-      {/* Header */}
-      <header className="flex items-center gap-3 px-5 h-12 border-b border-adj-border flex-shrink-0 bg-adj-surface">
-        {/* Logo */}
-        <span className="w-7 h-7 rounded-lg bg-adj-accent text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
-          {agentName[0]?.toUpperCase() ?? 'A'}
-        </span>
-        <span className="w-px h-4 bg-adj-border flex-shrink-0" />
+      {/* Main content */}
+      <div className="flex flex-col flex-1 overflow-hidden">
 
-        {/* Product dropdown — always visible, includes Overview entry */}
-        {!settingsOpen && (
-          <ProductDropdown
+        {/* Error banner */}
+        {errorBanner && (
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-red-950/60 border-b border-red-900/60 text-red-300 text-sm flex-shrink-0">
+            <span className="text-red-400 flex-shrink-0">⚠</span>
+            <span className="flex-1 font-mono text-xs leading-relaxed">{errorBanner}</span>
+            <button onClick={() => setErrorBanner(null)} aria-label="Dismiss" className="flex-shrink-0 text-red-500 hover:text-red-300 text-base leading-none">×</button>
+          </div>
+        )}
+
+        {/* Section routing */}
+        {navSection === 'overview' && (
+          <OverviewPage
             products={products}
-            activeProductId={activeProductId}
-            showingOverview={showOverview}
+            productStates={productStates}
+            password={pw}
+            onOpenProduct={productId => {
+              switchProduct(productId)
+            }}
+          />
+        )}
+
+        {navSection === 'products' && !activeProductId && (
+          <ProductPicker
+            products={products}
+            productStates={productStates}
             onSelect={switchProduct}
-            onOverview={switchToGlobal}
             onNewProduct={() => setWizardOpen(true)}
           />
         )}
-        {settingsOpen && (
-          <span className="text-sm font-semibold text-adj-text-muted">Settings</span>
+
+        {navSection === 'products' && activeProductId && (
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col border-r border-adj-border w-52 flex-shrink-0 bg-adj-panel">
+              <SessionsPanel
+                productName={activeProduct?.name ?? ''}
+                sessions={activeState.sessions}
+                activeSessionId={activeState.activeSessionId}
+                liveAgents={liveAgents}
+                onCreate={createSession}
+                onSwitch={switchSession}
+                onRename={renameSession}
+                onDelete={deleteSession}
+              />
+            </div>
+
+            <div className="flex flex-col flex-1 overflow-hidden bg-adj-base">
+              {activeState.activeSessionId && (
+                <div className="flex items-center px-4 py-1 border-b border-adj-border">
+                  <span className="text-[10px] text-adj-text-faint ml-auto">
+                    {activeState.sessions.find(s => s.id === activeState.activeSessionId)?.name ?? ''} session
+                  </span>
+                </div>
+              )}
+              <ActivityFeed
+                productId={activeProductId}
+                password={pw}
+                events={activeState.events}
+                directives={directives[activeProductId] ?? []}
+                agentMessages={agentMessages[activeProductId] ?? []}
+                agentDraft={agentDraftByProduct[activeProductId] ?? ''}
+                agentName={agentName}
+                reviewItems={activeState.review_items}
+                onApprove={id => resolveReview(id, 'approved')}
+                onSkip={id => resolveReview(id, 'skipped')}
+              />
+              <DirectiveBar
+                onSend={sendDirective}
+                disabled={connState !== 'ready'}
+                productName={activeProduct?.name ?? 'this product'}
+                agentName={agentName}
+                prefill={directivePrefill}
+                onPrefillConsumed={() => setDirectivePrefill('')}
+                password={pw}
+                templatesProductId={activeProductId}
+                templatesPassword={pw}
+              />
+            </div>
+          </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
-          {/* HCA Briefing */}
-          <button
-            onClick={() => { setShowHCA(v => !v); setShowOverview(false) }}
-            className={`relative px-2.5 py-1 text-[10px] rounded border transition-colors ${
-              showHCA
-                ? 'bg-adj-accent/20 border-adj-accent text-adj-accent'
-                : 'bg-adj-panel border-adj-border text-adj-text-muted hover:text-adj-text-primary'
-            }`}
-          >
-            🏢 Chief
-            {hcaPendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                {hcaPendingCount}
-              </span>
-            )}
-          </button>
+        {navSection === 'chief' && (
+          <ChiefPage
+            password={pw}
+            reviewItems={Object.values(productStates).flatMap(s => s.review_items)}
+            onResolveReview={resolveReview}
+            onOpenSettings={() => openSettings('system-chief')}
+          />
+        )}
 
-          {/* Connection status */}
-          <span className={`flex items-center gap-1.5 text-xs ${connState === 'ready' ? 'text-green-500' : 'text-adj-text-faint'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${connState === 'ready' ? 'bg-green-500' : 'bg-adj-text-faint'}`} />
-            {connState === 'ready' ? 'connected' : 'disconnected'}
-          </span>
-
-          {/* Notes */}
-          <button
-            onClick={() => { setNotesOpen(o => !o); setHistoryOpen(false) }}
-            title="Product notes"
-            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${notesOpen ? 'text-adj-text-primary bg-adj-elevated' : 'text-adj-text-muted hover:text-adj-text-secondary hover:bg-adj-elevated'}`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
-
-          {/* History */}
-          <button
-            onClick={() => { setHistoryOpen(o => !o); setNotesOpen(false) }}
-            title="Directive history"
-            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${historyOpen ? 'text-adj-text-primary bg-adj-elevated' : 'text-adj-text-muted hover:text-adj-text-secondary hover:bg-adj-elevated'}`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-
-          {/* Settings */}
-          <button
-            onClick={() => openSettings()}
-            title="Settings"
-            className="w-7 h-7 flex items-center justify-center rounded bg-adj-elevated border border-adj-accent text-adj-accent hover:bg-adj-accent hover:text-white transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      {/* Status strip — shown only in product workspace, not overview or settings */}
-      {!showOverview && !settingsOpen && (
-        <StatusStrip
-          workstreams={activeState.workstreams}
-          reviewItems={activeState.review_items}
-          events={activeState.events}
-          objectives={activeState.objectives}
-          onResolveReview={resolveReview}
-          onCancelAgent={cancelDirective}
-          onOpenSettings={openSettings}
-        />
-      )}
-
-      {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
-        {settingsOpen ? (
+        {navSection === 'settings' && (
           <SettingsPage
             products={products}
             activeProductId={activeProductId}
             productStates={productStates}
             password={pw}
-            initialTab={settingsTab}
-
-            onClose={() => {
-              setSettingsOpen(false)
-              const current = (() => { try { return JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch { return null } })()
-              localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, settingsOpen: false, settingsTab: undefined }))
-            }}
+            initialTab={settingsItem}
+            onClose={() => setNavSection('overview')}
             onSwitchProduct={switchProduct}
-            onNewProduct={() => { setSettingsOpen(false); setWizardOpen(true) }}
+            onNewProduct={() => { setNavSection('overview'); setWizardOpen(true) }}
             onRefreshData={pid => wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: pid }))}
             onWorkstreamUpdated={(wsId, patch) =>
               setProductState(activeProductId, prev => ({
@@ -668,170 +625,18 @@ export default function App() {
             onProductUpdated={(productId, updates) =>
               setProducts(prev => prev.map(p => p.id === productId ? { ...p, ...updates } : p))
             }
-            onProductDeleted={(productId) => {
+            onProductDeleted={productId => {
               setProducts(prev => prev.filter(p => p.id !== productId))
               setProductStates(prev => { const next = { ...prev }; delete next[productId]; return next })
               if (activeProductId === productId) setActiveProductId('')
-              setSettingsOpen(false)
-              setShowOverview(true)
+              setNavSection('overview')
             }}
           />
-        ) : showOverview ? (
-          <div className="flex flex-1 overflow-hidden">
-            {/* Left: global sessions + mode toggle */}
-            <div className="flex flex-col border-r border-zinc-800/60 w-48 flex-shrink-0">
-              <SessionsPanel
-                sessions={productStates['__global__']?.sessions ?? []}
-                activeSessionId={productStates['__global__']?.activeSessionId ?? null}
-                onCreate={createSession}
-                onSwitch={switchSession}
-                onRename={renameSession}
-                onDelete={deleteSession}
-              />
-              <div className="flex border-t border-zinc-800/60 flex-shrink-0">
-                <button
-                  onClick={() => { setGlobalViewMode('overview'); localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: '__global__', globalViewMode: 'overview' })) }}
-                  className={`flex-1 text-[10px] py-2 transition-colors ${
-                    globalViewMode === 'overview'
-                      ? 'text-blue-400 bg-blue-600/10'
-                      : 'text-zinc-600 hover:text-zinc-400'
-                  }`}
-                >Overview</button>
-                <button
-                  onClick={() => { setGlobalViewMode('chat'); localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: '__global__', globalViewMode: 'chat' })) }}
-                  className={`flex-1 text-[10px] py-2 transition-colors ${
-                    globalViewMode === 'chat'
-                      ? 'text-blue-400 bg-blue-600/10'
-                      : 'text-zinc-600 hover:text-zinc-400'
-                  }`}
-                >Chat</button>
-              </div>
-            </div>
-
-            {globalViewMode === 'overview' ? (
-              <OverviewPanel password={pw} onSelectProduct={switchProduct} />
-            ) : (
-              <div className="flex-1 flex flex-col overflow-hidden">
-                {productStates['__global__']?.activeSessionId && (
-                  <div className="flex items-center px-4 py-1 border-b border-zinc-800/30">
-                    <span className="text-[10px] text-zinc-600 ml-auto">
-                      {productStates['__global__']?.sessions.find(
-                        s => s.id === productStates['__global__']?.activeSessionId
-                      )?.name ?? ''} session
-                    </span>
-                  </div>
-                )}
-                <LiveAgents
-                  events={productStates['__global__']?.events ?? []}
-                  currentDirective={queueByProduct['__global__']?.current ?? null}
-                  onCancelDirective={cancelDirective}
-                  agentName={agentName}
-                />
-                <ActivityFeed
-                  productId="__global__"
-                  password={pw}
-                  events={productStates['__global__']?.events ?? []}
-                  directives={directives['__global__'] ?? []}
-                  agentMessages={agentMessages['__global__'] ?? []}
-                  agentDraft={agentDraftByProduct['__global__'] ?? ''}
-                  agentName={agentName}
-                  reviewItems={productStates['__global__']?.review_items ?? []}
-                  onApprove={id => resolveReview(id, 'approved')}
-                  onSkip={id => resolveReview(id, 'skipped')}
-                />
-                <DirectiveBar
-                  onSend={sendDirective}
-                  disabled={connState !== 'ready'}
-                  productName={agentName}
-                  agentName={agentName}
-                  prefill={directivePrefill}
-                  onPrefillConsumed={() => setDirectivePrefill('')}
-                  password={pw}
-                />
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Product workspace — two column */
-          <div className="flex flex-1 overflow-hidden">
-            {/* Left: sessions only */}
-            <div className="flex flex-col border-r border-adj-border w-52 flex-shrink-0 bg-adj-panel">
-              <SessionsPanel
-                sessions={activeState.sessions}
-                activeSessionId={activeState.activeSessionId}
-                onCreate={createSession}
-                onSwitch={switchSession}
-                onRename={renameSession}
-                onDelete={deleteSession}
-              />
-            </div>
-
-            {/* Center: full-width activity feed */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-adj-base">
-              {activeState.activeSessionId && (
-                <div className="flex items-center px-4 py-1 border-b border-adj-border">
-                  <span className="text-[10px] text-adj-text-faint ml-auto">
-                    {activeState.sessions.find(s => s.id === activeState.activeSessionId)?.name ?? ''} session
-                  </span>
-                </div>
-              )}
-              <LiveAgents
-                events={activeState.events}
-                currentDirective={queueByProduct[activeProductId]?.current ?? null}
-                onCancelDirective={cancelDirective}
-                agentName={agentName}
-              />
-              <ActivityFeed
-                productId={activeProductId}
-                password={pw}
-                events={activeState.events}
-                directives={directives[activeProductId] ?? []}
-                agentMessages={agentMessages[activeProductId] ?? []}
-                agentDraft={agentDraftByProduct[activeProductId] ?? ''}
-                agentName={agentName}
-                reviewItems={activeState.review_items}
-                onApprove={id => resolveReview(id, 'approved')}
-                onSkip={id => resolveReview(id, 'skipped')}
-              />
-              <DirectiveTemplates
-                productId={activeProductId}
-                password={pw}
-                onSelect={content => setDirectivePrefill(content)}
-              />
-              <DirectiveBar
-                onSend={sendDirective}
-                disabled={connState !== 'ready'}
-                productName={activeProduct?.name ?? 'this product'}
-                agentName={agentName}
-                prefill={directivePrefill}
-                onPrefillConsumed={() => setDirectivePrefill('')}
-                password={pw}
-              />
-            </div>
-          </div>
         )}
       </div>
 
-      {/* HCA Briefing Panel */}
-      {showHCA && (
-        <HCABriefingPanel
-          password={pw}
-          reviewItems={Object.values(productStates).flatMap(s => s.review_items)}
-          onApprove={id => resolveReview(id, 'approved')}
-          onSkip={id => resolveReview(id, 'skipped')}
-        />
-      )}
-
-      {/* Notes drawer */}
-      {notesOpen && (
-        <NotesDrawer
-          productId={activeProductId}
-          password={pw}
-          onClose={() => setNotesOpen(false)}
-        />
-      )}
-
-      {/* Directive history drawer */}
+      {/* Drawers */}
+      {notesOpen && <NotesDrawer productId={activeProductId} password={pw} onClose={() => setNotesOpen(false)} />}
       {historyOpen && (
         <DirectiveHistoryDrawer
           productId={activeProductId}
@@ -840,7 +645,6 @@ export default function App() {
           onSelect={content => { setDirectivePrefill(content); setHistoryOpen(false) }}
         />
       )}
-
       {wizardOpen && (
         <ProductWizard
           password={pw}
