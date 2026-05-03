@@ -448,3 +448,31 @@ def test_build_routed_signal_prefix_empty_when_none(populated_db):
     db, ws_id, sig_id = populated_db
     prefix = _build_routed_signal_prefix(ws_id)
     assert prefix == ""
+
+
+def test_orchestrator_config_has_channel_fields(db):
+    from backend.db import get_orchestrator_config
+    cfg = get_orchestrator_config("p1")
+    assert "slack_channel_id" in cfg
+    assert "discord_channel_id" in cfg
+    assert "telegram_chat_id" in cfg
+    assert cfg["slack_channel_id"] is None
+    assert cfg["discord_channel_id"] is None
+    assert cfg["telegram_chat_id"] is None
+
+
+def test_update_orchestrator_config_channel_fields(db):
+    from backend.db import get_orchestrator_config, update_orchestrator_config
+    update_orchestrator_config("p1", slack_channel_id="C123", discord_channel_id="456")
+    cfg = get_orchestrator_config("p1")
+    assert cfg["slack_channel_id"] == "C123"
+    assert cfg["discord_channel_id"] == "456"
+    assert cfg["telegram_chat_id"] is None
+
+
+def test_update_orchestrator_config_clear_channel(db):
+    from backend.db import get_orchestrator_config, update_orchestrator_config
+    update_orchestrator_config("p1", slack_channel_id="C123")
+    update_orchestrator_config("p1", slack_channel_id=None)
+    cfg = get_orchestrator_config("p1")
+    assert cfg["slack_channel_id"] is None

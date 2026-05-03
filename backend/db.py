@@ -589,6 +589,17 @@ def init_db() -> None:
                 PRAGMA foreign_keys=ON;
             """)
 
+        # Idempotent column additions for orchestrator_config channel routing
+        for col in [
+            "slack_channel_id TEXT",
+            "discord_channel_id TEXT",
+            "telegram_chat_id TEXT",
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE orchestrator_config ADD COLUMN {col}")
+            except Exception:
+                pass  # column already exists
+
         # Migrate: create General sessions for products with un-assigned messages
         import uuid as _uuid
         products_with_msgs = conn.execute("""
@@ -2529,6 +2540,9 @@ def get_orchestrator_config(product_id: str) -> dict:
             "signal_threshold": 5,
             "next_run_at": None,
             "autonomy_settings": dict(_ORCHESTRATOR_DEFAULT_AUTONOMY),
+            "slack_channel_id": None,
+            "discord_channel_id": None,
+            "telegram_chat_id": None,
         }
     d = dict(row)
     stored = json.loads(d.get("autonomy_settings") or "{}")
@@ -2537,7 +2551,8 @@ def get_orchestrator_config(product_id: str) -> dict:
 
 
 def update_orchestrator_config(product_id: str, **fields) -> None:
-    _allowed = {"enabled", "schedule", "signal_threshold", "next_run_at", "autonomy_settings"}
+    _allowed = {"enabled", "schedule", "signal_threshold", "next_run_at", "autonomy_settings",
+                "slack_channel_id", "discord_channel_id", "telegram_chat_id"}
     updates = {k: v for k, v in fields.items() if k in _allowed}
     if not updates:
         return
