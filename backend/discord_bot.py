@@ -35,6 +35,16 @@ class DiscordBot:
         self._bot_user_id: int | None = None
         self._client = None
 
+    def _resolve_discord_channel(self, product_id: str | None) -> int | None:
+        """Return per-product Discord channel ID (int) if configured, else global."""
+        if product_id:
+            from backend.db import get_orchestrator_config
+            cfg = get_orchestrator_config(product_id)
+            ch = cfg.get("discord_channel_id")
+            if ch:
+                return int(ch)
+        return self.notification_channel_id
+
     async def send_long_message(self, target, text: str) -> None:
         """Send text to a discord Messageable, splitting at 2000-char limit."""
         if len(text) <= self._MAX_LEN:
@@ -71,12 +81,13 @@ class DiscordBot:
                         logger.warning("Discord notify agent_done failed: %s", e)
 
         elif event_type == "activity_done":
-            if not self.notification_channel_id or not self._client:
+            channel_id = self._resolve_discord_channel(event.get("product_id"))
+            if not channel_id or not self._client:
                 return
             try:
-                channel = self._client.get_channel(self.notification_channel_id)
+                channel = self._client.get_channel(channel_id)
                 if channel is None:
-                    channel = await self._client.fetch_channel(self.notification_channel_id)
+                    channel = await self._client.fetch_channel(channel_id)
                 workstream_name = event.get("workstream_name", "")
                 if workstream_name:
                     msg = f"✅ {workstream_name} complete. View the full report in Adjutant under Reports."
@@ -90,7 +101,7 @@ class DiscordBot:
 
         elif event_type == "review_item_added":
             item = event.get("item", {})
-            await self._send_review_item(item)
+            await self._send_review_item(item, product_id=event.get("product_id"))
 
         elif event_type == "orchestrator_run_complete":
             brief_preview = event.get("brief_preview", "")
@@ -98,8 +109,9 @@ class DiscordBot:
             msg = f"📋 **Product Adjutant Briefing**\n{brief_preview}"
             if pending > 0:
                 msg += f"\n\n⏳ **{pending} decision(s) awaiting approval** — open Adjutant → Briefing."
-            if msg and self.notification_channel_id:
-                channel = self._client.get_channel(int(self.notification_channel_id))
+            channel_id = self._resolve_discord_channel(event.get("product_id"))
+            if msg and channel_id:
+                channel = self._client.get_channel(channel_id)
                 if channel:
                     try:
                         await channel.send(msg[:2000])
@@ -124,8 +136,9 @@ class DiscordBot:
                 except Exception as e:
                     logger.warning("Discord HCA briefing failed: %s", e)
 
-    async def _send_review_item(self, item: dict) -> None:
-        if not self.notification_channel_id or not self._client:
+    async def _send_review_item(self, item: dict, product_id: str | None = None) -> None:
+        channel_id = self._resolve_discord_channel(product_id)
+        if not channel_id or not self._client:
             return
         import discord as _discord
 
@@ -159,9 +172,9 @@ class DiscordBot:
                 await self._on_interaction(interaction)
 
         try:
-            channel = self._client.get_channel(self.notification_channel_id)
+            channel = self._client.get_channel(channel_id)
             if channel is None:
-                channel = await self._client.fetch_channel(self.notification_channel_id)
+                channel = await self._client.fetch_channel(channel_id)
             await channel.send(text, view=ReviewView())
         except Exception as e:
             logger.warning("Discord _send_review_item failed: %s", e)

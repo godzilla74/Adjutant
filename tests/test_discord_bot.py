@@ -178,3 +178,43 @@ def test_send_long_message_hard_splits_at_2000():
     assert target.send.await_count == 3  # 2000 + 2000 + 1000
     for call in target.send.call_args_list:
         assert len(call[0][0]) <= 2000
+
+
+# ── per-product Discord channel routing ──────────────────────────────────────
+
+def test_notify_activity_done_uses_per_product_discord_channel():
+    bot = _make_bot()
+    mock_channel = MagicMock()
+    mock_channel.send = AsyncMock()
+    bot._client = MagicMock()
+    bot._client.get_channel = MagicMock(return_value=mock_channel)
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": None, "discord_channel_id": "99999", "telegram_chat_id": None}):
+        asyncio.run(bot.notify({"type": "activity_done", "product_id": "p1", "summary": "Done"}))
+    bot._client.get_channel.assert_called_with(99999)
+    mock_channel.send.assert_awaited_once()
+
+
+def test_notify_activity_done_falls_back_to_global_discord_channel():
+    bot = _make_bot()
+    mock_channel = MagicMock()
+    mock_channel.send = AsyncMock()
+    bot._client = MagicMock()
+    bot._client.get_channel = MagicMock(return_value=mock_channel)
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": None, "discord_channel_id": None, "telegram_chat_id": None}):
+        asyncio.run(bot.notify({"type": "activity_done", "product_id": "p1", "summary": "Done"}))
+    bot._client.get_channel.assert_called_with(bot.notification_channel_id)
+
+
+def test_notify_review_item_uses_per_product_discord_channel():
+    bot = _make_bot()
+    mock_channel = MagicMock()
+    mock_channel.send = AsyncMock()
+    bot._client = MagicMock()
+    bot._client.get_channel = MagicMock(return_value=mock_channel)
+    item = {"id": 10, "title": "T", "description": "", "risk_label": ""}
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": None, "discord_channel_id": "99999", "telegram_chat_id": None}):
+        asyncio.run(bot.notify({"type": "review_item_added", "product_id": "p1", "item": item}))
+    bot._client.get_channel.assert_called_with(99999)
