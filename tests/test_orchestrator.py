@@ -476,3 +476,35 @@ def test_update_orchestrator_config_clear_channel(db):
     update_orchestrator_config("p1", slack_channel_id=None)
     cfg = get_orchestrator_config("p1")
     assert cfg["slack_channel_id"] is None
+
+
+def test_build_context_includes_capability_gap_hints(populated_db):
+    from backend.orchestrator import build_context
+    db, ws_id, sig_id = populated_db
+    ctx = build_context("p1")
+    assert "capability_gap_hints" in ctx
+    hints = ctx["capability_gap_hints"]
+    assert "unsubscribed_namespaces" in hints
+    assert "workstream_overview" in hints
+
+
+def test_unsubscribed_namespaces_includes_uncovered_tags(populated_db):
+    """Namespaces on signals with no subscribed workstream appear in unsubscribed_namespaces."""
+    from backend.orchestrator import build_context
+    db, ws_id, sig_id = populated_db
+    # populated_db has tag "social:linkedin" but workstream has tag_subscriptions=[]
+    ctx = build_context("p1")
+    hints = ctx["capability_gap_hints"]
+    assert "social:" in hints["unsubscribed_namespaces"]
+
+
+def test_unsubscribed_namespaces_excludes_covered_tags(populated_db):
+    """Namespaces covered by at least one workstream are excluded from unsubscribed_namespaces."""
+    from backend.orchestrator import build_context
+    import json
+    db, ws_id, sig_id = populated_db
+    # Subscribe the workstream to social:
+    db.update_workstream_fields(ws_id, tag_subscriptions=json.dumps(["social:"]))
+    ctx = build_context("p1")
+    hints = ctx["capability_gap_hints"]
+    assert "social:" not in hints["unsubscribed_namespaces"]

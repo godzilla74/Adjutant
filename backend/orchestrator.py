@@ -66,6 +66,41 @@ def build_context(product_id: str) -> dict:
                 "full_output": r["full_output"],
             })
 
+    # Compute capability gap hints for the PA
+    try:
+        import json as _json
+        signal_namespaces: set[str] = set()
+        for sig in signals:
+            tag = sig.get("tag_name", "")
+            if not tag:
+                continue
+            ns = (tag.split(":")[0] + ":") if ":" in tag else tag
+            signal_namespaces.add(ns)
+
+        unsubscribed = [
+            ns for ns in sorted(signal_namespaces)
+            if not any(
+                ns in _json.loads(ws.get("tag_subscriptions") or "[]")
+                for ws in workstreams
+            )
+        ]
+
+        capability_gap_hints: dict = {
+            "unsubscribed_namespaces": unsubscribed,
+            "workstream_overview": [
+                {
+                    "id": ws["id"],
+                    "name": ws["name"],
+                    "mission_excerpt": (ws.get("mission") or "")[:150],
+                    "subscriptions": _json.loads(ws.get("tag_subscriptions") or "[]"),
+                }
+                for ws in workstreams
+            ],
+        }
+    except Exception:
+        log.warning("build_context: failed to compute capability_gap_hints", exc_info=True)
+        capability_gap_hints = {}
+
     return {
         "product": dict(product_row) if product_row else {"id": product_id, "name": product_id},
         "workstreams": workstreams,
@@ -79,6 +114,7 @@ def build_context(product_id: str) -> dict:
         "autonomy_settings": config["autonomy_settings"],
         "active_directives": list_hca_directives(product_id=product_id),
         "current_datetime": datetime.now().isoformat(),
+        "capability_gap_hints": capability_gap_hints,
     }
 
 
