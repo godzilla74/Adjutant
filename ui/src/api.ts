@@ -578,7 +578,7 @@ export const api = {
   getHCAConfig: (pw: string) =>
     apiFetch<HCAConfig>('/api/hca/config', pw),
 
-  updateHCAConfig: (pw: string, updates: Partial<HCAConfig>) =>
+  updateHCAConfig: (pw: string, updates: Partial<Pick<HCAConfig, 'enabled' | 'schedule' | 'pa_run_threshold' | 'hca_slack_channel_id' | 'hca_discord_channel_id' | 'hca_telegram_chat_id'>>) =>
     apiFetch<HCAConfig>('/api/hca/config', pw, {
       method: 'PATCH',
       body: JSON.stringify(updates),
