@@ -179,7 +179,7 @@ async def _on_review_approved(item_id: int) -> None:
         if payload_raw:
             try:
                 payload = json.loads(payload_raw)
-            except (ValueError, KeyError):
+            except json.JSONDecodeError:
                 payload = None
             if payload:
                 from backend.hca import launch_product_from_hca

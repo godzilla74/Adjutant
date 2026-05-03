@@ -56,6 +56,9 @@ def test_patch_hca_config_channel_ids(client):
                  json={"hca_slack_channel_id": "C123", "hca_discord_channel_id": "456"},
                  headers=HEADERS)
     assert r.status_code == 200
+    data = r.json()
+    assert data["hca_slack_channel_id"] == "C123"
+    assert data["hca_discord_channel_id"] == "456"
 
 
 def test_get_hca_runs_empty(client):
