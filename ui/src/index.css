@@ -4,6 +4,7 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
+body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
 @keyframes pop-up {
   0%   { transform: translateY(0)     scale(1);    opacity: 1; }
