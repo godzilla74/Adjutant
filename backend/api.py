@@ -2000,14 +2000,16 @@ async def get_hca_run(run_id: int, _=Depends(_auth)):
 @router.post("/hca/trigger")
 async def trigger_hca(_=Depends(_auth)):
     import asyncio
-    from backend.hca import run_hca
-    from backend.scheduler import _broadcast_fn
+    from backend.scheduler import _running_hca, _run_hca_task, _broadcast_fn
+
+    if _running_hca:
+        return {"queued": False, "reason": "already running"}
 
     async def _noop(_event: dict) -> None:
         pass
 
     broadcast = _broadcast_fn if _broadcast_fn is not None else _noop
-    asyncio.create_task(run_hca("manual", broadcast))
+    asyncio.create_task(_run_hca_task("manual", broadcast))
     return {"queued": True}
 
 

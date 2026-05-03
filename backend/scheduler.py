@@ -25,6 +25,9 @@ _running_wizards: dict[str, bool] = {}
 # Per-product orchestrator (Product Adjutant) in-flight guard
 _running_orchestrators: set[str] = set()
 
+# HCA (Head of Chief Adjutant) in-flight guard
+_running_hca: bool = False
+
 # Broadcast function registered by main.py
 _broadcast_fn: Callable[[dict], Awaitable[None]] | None = None
 
@@ -426,6 +429,20 @@ async def _run_product_adjutant_task(
         log.error("orchestrator task error for %s: %s", product_id, exc, exc_info=True)
     finally:
         _running_orchestrators.discard(product_id)
+
+
+async def _run_hca_task(triggered_by: str, broadcast: BroadcastFn) -> None:
+    global _running_hca
+    if _running_hca:
+        return
+    _running_hca = True
+    try:
+        from backend.hca import run_hca
+        await run_hca(triggered_by, broadcast)
+    except Exception as exc:
+        log.error("hca task error: %s", exc, exc_info=True)
+    finally:
+        _running_hca = False
 
 
 async def _run_objective_loop(product_id: str, objective_id: int) -> None:
@@ -840,6 +857,11 @@ async def scheduler_loop(broadcast: BroadcastFn, interval_seconds: int = 60) -> 
                 if pid not in _running_orchestrators:
                     _running_orchestrators.add(pid)
                     asyncio.create_task(_run_product_adjutant_task(pid, item["trigger_type"], broadcast))
+            # HCA triggers
+            from backend.db import get_due_hca
+            due_hca = get_due_hca()
+            if due_hca and not _running_hca:
+                asyncio.create_task(_run_hca_task(due_hca["trigger_type"], broadcast))
             # Auto-resolve expired window reviews (every ~30s regardless of main interval)
             _auto_resolve_counter += 1
             if _auto_resolve_counter >= max(1, 30 // interval_seconds):

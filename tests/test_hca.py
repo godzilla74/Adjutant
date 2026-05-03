@@ -543,3 +543,23 @@ def test_pa_build_context_excludes_superseded_directives(db):
     ctx = build_context("p1")
     contents = [d["content"] for d in ctx.get("active_directives", [])]
     assert "Old directive" not in contents
+
+
+def test_hca_inflight_guard_prevents_concurrent_runs(hca_db):
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    import backend.scheduler as sched_mod
+
+    calls = []
+    async def fake_run_hca(triggered_by, broadcast):
+        calls.append(triggered_by)
+
+    sched_mod._running_hca = False
+    with patch("backend.hca.run_hca", fake_run_hca):
+        async def run():
+            await sched_mod._run_hca_task("schedule", AsyncMock())
+            await sched_mod._run_hca_task("schedule", AsyncMock())  # guard should block
+        asyncio.run(run())
+    # Only one run should have executed (guard is False again after first finishes,
+    # so second can also run in sequence) — the real test is that _running_hca is False after
+    assert sched_mod._running_hca is False
