@@ -172,6 +172,9 @@ export interface OrchestratorConfig {
   signal_threshold: number
   next_run_at: string | null
   autonomy_settings: Record<string, 'autonomous' | 'approval_required'>
+  slack_channel_id: string | null
+  discord_channel_id: string | null
+  telegram_chat_id: string | null
 }
 
 export interface OrchestratorDecision {

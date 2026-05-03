@@ -558,7 +558,7 @@ export const api = {
   getOrchestratorConfig: (pw: string, productId: string) =>
     apiFetch<OrchestratorConfig>(`/api/products/${productId}/orchestrator/config`, pw),
 
-  updateOrchestratorConfig: (pw: string, productId: string, updates: Partial<Pick<OrchestratorConfig, 'enabled' | 'schedule' | 'signal_threshold' | 'autonomy_settings'>>) =>
+  updateOrchestratorConfig: (pw: string, productId: string, updates: Partial<Pick<OrchestratorConfig, 'enabled' | 'schedule' | 'signal_threshold' | 'autonomy_settings' | 'slack_channel_id' | 'discord_channel_id' | 'telegram_chat_id'>>) =>
     apiFetch<OrchestratorConfig>(`/api/products/${productId}/orchestrator/config`, pw, {
       method: 'PATCH',
       body: JSON.stringify(updates),

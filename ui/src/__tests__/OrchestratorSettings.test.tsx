@@ -21,6 +21,9 @@ const mockConfig = vi.hoisted(() => ({
     external_action: 'approval_required',
     capability_gap: 'autonomous',
   },
+  slack_channel_id: null,
+  discord_channel_id: null,
+  telegram_chat_id: null,
 }))
 
 vi.mock('../api', () => ({
