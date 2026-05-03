@@ -140,6 +140,9 @@ class OrchestratorConfigUpdate(BaseModel):
     schedule: str | None = None
     signal_threshold: int | None = None
     autonomy_settings: dict | None = None
+    slack_channel_id: str | None = None
+    discord_channel_id: str | None = None
+    telegram_chat_id: str | None = None
 
 
 # ── Tags ─────────────────────────────────────────────────────────────────────
@@ -232,7 +235,7 @@ def update_orchestrator_config_api(
     product_id: str, body: OrchestratorConfigUpdate, _=Depends(_auth)
 ):
     from backend.db import update_orchestrator_config, get_orchestrator_config
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updates = body.model_dump(exclude_unset=True)
     if "enabled" in updates:
         updates["enabled"] = int(updates["enabled"])
     update_orchestrator_config(product_id, **updates)

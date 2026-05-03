@@ -101,3 +101,27 @@ def test_trigger_orchestrator(client):
     assert r.json()["queued"] is True
     cfg = db.get_orchestrator_config("p1")
     assert cfg["next_run_at"] is not None
+
+
+def test_patch_orchestrator_config_channel_fields(client):
+    tc, _ = client
+    r = tc.patch(
+        "/api/products/p1/orchestrator/config",
+        json={"slack_channel_id": "C123", "discord_channel_id": "456789"},
+        headers=HEADERS,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["slack_channel_id"] == "C123"
+    assert data["discord_channel_id"] == "456789"
+    assert data["telegram_chat_id"] is None
+
+
+def test_patch_orchestrator_config_clear_channel(client):
+    tc, _ = client
+    tc.patch("/api/products/p1/orchestrator/config",
+             json={"slack_channel_id": "C123"}, headers=HEADERS)
+    r = tc.patch("/api/products/p1/orchestrator/config",
+                 json={"slack_channel_id": None}, headers=HEADERS)
+    assert r.status_code == 200
+    assert r.json()["slack_channel_id"] is None
