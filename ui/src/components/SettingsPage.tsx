@@ -1,29 +1,71 @@
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import { Product, ProductState, Workstream, Objective } from '../types'
-import ProductDropdown from './ProductDropdown'
 import OverviewSettings from './settings/OverviewSettings'
-import WorkstreamsSettings from './settings/WorkstreamsSettings'
-import ObjectivesSettings from './settings/ObjectivesSettings'
-import AutonomySettings from './settings/AutonomySettings'
-import ConnectionsSettings from './settings/ConnectionsSettings'
-import SocialSettings from './settings/SocialSettings'
+import ApiKeysSettings from './settings/ApiKeysSettings'
+import TokenUsageSettings from './settings/TokenUsageSettings'
 import AgentModelSettings from './settings/AgentModelSettings'
+import ImageGenerationSettings from './settings/ImageGenerationSettings'
+import ProductModelSettings from './settings/ProductModelSettings'
+import ConnectionsSettings from './settings/ConnectionsSettings'
 import GoogleOAuthSettings from './settings/GoogleOAuthSettings'
 import IntegrationsSettings from './settings/IntegrationsSettings'
-import GlobalMCPSettings from './settings/GlobalMCPSettings'
+import SocialSettings from './settings/SocialSettings'
+import AutonomySettings from './settings/AutonomySettings'
 import ProductMCPSettings from './settings/ProductMCPSettings'
-import ImageGenerationSettings from './settings/ImageGenerationSettings'
-import TokenUsageSettings from './settings/TokenUsageSettings'
-import ProductModelSettings from './settings/ProductModelSettings'
-import TagsSettings from './settings/TagsSettings'
-import SignalsSettings from './settings/SignalsSettings'
-import OrchestratorSettings from './settings/OrchestratorSettings'
+import ObjectivesSettings from './settings/ObjectivesSettings'
 import HCASettings from './settings/HCASettings'
-export type Tab =
+import GlobalMCPSettings from './settings/GlobalMCPSettings'
+import OrchestratorSettings from './settings/OrchestratorSettings'
+import SignalsSettings from './settings/SignalsSettings'
+import TagsSettings from './settings/TagsSettings'
+
+export type SettingsItem =
+  | 'general-workspace' | 'general-api-keys' | 'general-token-usage'
+  | 'models-agent' | 'models-image' | 'models-product'
+  | 'connections-all' | 'connections-google' | 'connections-slack-discord' | 'connections-social' | 'connections-telegram'
+  | 'products-autonomy' | 'products-mcp' | 'products-objectives'
+  | 'system-chief' | 'system-global-mcp' | 'system-orchestrator' | 'system-signals' | 'system-tags'
+
+// Backwards-compatibility alias — includes legacy tab keys from old SettingsPage so App.tsx callers don't break until Task 9
+export type Tab = SettingsItem
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp' | 'product-model'
   | 'agent-model' | 'google-oauth' | 'integrations' | 'mcp' | 'image-generation' | 'usage'
   | 'tags' | 'signals' | 'orchestrator' | 'hca'
+
+interface Group { label: string; items: { key: SettingsItem; label: string }[] }
+
+const GROUPS: Group[] = [
+  { label: 'Connections', items: [
+    { key: 'connections-all',           label: 'All connections' },
+    { key: 'connections-google',        label: 'Google' },
+    { key: 'connections-slack-discord', label: 'Slack / Discord' },
+    { key: 'connections-social',        label: 'Social' },
+    { key: 'connections-telegram',      label: 'Telegram' },
+  ]},
+  { label: 'General', items: [
+    { key: 'general-api-keys',    label: 'API Keys' },
+    { key: 'general-token-usage', label: 'Token Usage' },
+    { key: 'general-workspace',   label: 'Workspace' },
+  ]},
+  { label: 'Models', items: [
+    { key: 'models-agent',   label: 'Agent default' },
+    { key: 'models-image',   label: 'Image generation' },
+    { key: 'models-product', label: 'Per-product' },
+  ]},
+  { label: 'Products', items: [
+    { key: 'products-autonomy',   label: 'Autonomy' },
+    { key: 'products-mcp',        label: 'MCP servers' },
+    { key: 'products-objectives', label: 'Objectives' },
+  ]},
+  { label: 'System', items: [
+    { key: 'system-chief',        label: 'Chief Adjutant' },
+    { key: 'system-global-mcp',   label: 'Global MCP' },
+    { key: 'system-orchestrator', label: 'Orchestrator' },
+    { key: 'system-signals',      label: 'Signals' },
+    { key: 'system-tags',         label: 'Tags' },
+  ]},
+]
 
 interface Props {
   products: Product[]
@@ -41,152 +83,95 @@ interface Props {
   onProductDeleted: (productId: string) => void
 }
 
-const PRODUCT_TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'overview',      label: 'Overview',    icon: '◻' },
-  { key: 'workstreams',   label: 'Workstreams', icon: '⟳' },
-  { key: 'objectives',    label: 'Objectives',  icon: '◎' },
-  { key: 'autonomy',      label: 'Autonomy',    icon: '🛡' },
-  { key: 'signals',       label: 'Signals',     icon: '📡' },
-  { key: 'orchestrator',  label: 'Adjutant',    icon: '🤖' },
-  { key: 'product-model', label: 'Model',       icon: '⚙' },
-]
-const INTEGRATION_TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'connections', label: 'Connections', icon: '🔗' },
-  { key: 'social',      label: 'Social',      icon: '📱' },
-  { key: 'product-mcp', label: 'MCP Servers', icon: '⚡' },
-]
-const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'agent-model',       label: 'Agent Model',       icon: '🤖' },
-  { key: 'google-oauth',      label: 'Google OAuth',      icon: '🔑' },
-  { key: 'integrations',      label: 'Integrations',      icon: '🔗' },
-  { key: 'mcp',               label: 'MCP Servers',       icon: '⚡' },
-  { key: 'image-generation',  label: 'Image Generation',  icon: '🖼' },
-  { key: 'usage',             label: 'Usage',             icon: '📊' },
-  { key: 'tags',              label: 'Tags',              icon: '🏷' },
-  { key: 'hca',              label: 'Chief Adjutant',    icon: '🏢' },
-]
+// Map legacy tab keys to new SettingsItem equivalents
+function resolveInitialTab(tab: Tab | undefined): SettingsItem {
+  switch (tab as string) {
+    case 'overview':         return 'general-workspace'
+    case 'workstreams':      return 'general-workspace'
+    case 'objectives':       return 'products-objectives'
+    case 'autonomy':         return 'products-autonomy'
+    case 'connections':      return 'connections-all'
+    case 'social':           return 'connections-social'
+    case 'product-mcp':      return 'products-mcp'
+    case 'product-model':    return 'models-product'
+    case 'agent-model':      return 'models-agent'
+    case 'google-oauth':     return 'connections-google'
+    case 'integrations':     return 'connections-slack-discord'
+    case 'mcp':              return 'system-global-mcp'
+    case 'image-generation': return 'models-image'
+    case 'usage':            return 'general-token-usage'
+    case 'tags':             return 'system-tags'
+    case 'signals':          return 'system-signals'
+    case 'orchestrator':     return 'system-orchestrator'
+    case 'hca':              return 'system-chief'
+    default:                 return (tab as SettingsItem) ?? 'general-workspace'
+  }
+}
 
 export default function SettingsPage({
   products, activeProductId, productStates, password,
-  initialTab = 'overview',
-  onClose, onSwitchProduct, onNewProduct, onRefreshData,
-  onWorkstreamUpdated, onObjectiveUpdated, onProductUpdated, onProductDeleted,
+  initialTab,
+  onClose: _onClose, onSwitchProduct: _onSwitchProduct, onNewProduct: _onNewProduct, onRefreshData,
+  onWorkstreamUpdated: _onWorkstreamUpdated, onObjectiveUpdated, onProductUpdated, onProductDeleted,
 }: Props) {
-  const [tab, setTab] = useState<Tab>(initialTab)
-  const [settingsProductId, setSettingsProductId] = useState(activeProductId)
-
-  const activeProduct = products.find(p => p.id === settingsProductId)
-  const activeState = productStates[settingsProductId]
-
-  const handleSwitchProduct = (id: string) => {
-    setSettingsProductId(id)
-    onSwitchProduct(id)
-  }
-
-  const navItem = (key: Tab, label: string, icon: string) => (
-    <button
-      data-testid={`settings-tab-${key}`}
-      onClick={() => setTab(key)}
-      className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm text-left transition-colors ${
-        tab === key
-          ? 'text-adj-accent bg-adj-elevated border-r-2 border-adj-accent'
-          : 'text-adj-text-muted hover:text-adj-text-secondary hover:bg-adj-elevated'
-      }`}
-    >
-      <span className="w-4 text-center">{icon}</span>
-      {label}
-    </button>
-  )
+  const [active, setActive] = useState<SettingsItem>(() => resolveInitialTab(initialTab))
+  const activeProduct = products.find(p => p.id === activeProductId)
+  const activeState   = productStates[activeProductId]
 
   const renderContent = () => {
-    const common = { password }
-    const productCommon = { ...common, productId: settingsProductId }
-    switch (tab) {
-      case 'overview':      return <OverviewSettings product={activeProduct} onRefresh={() => onRefreshData(settingsProductId)} onProductUpdated={updates => onProductUpdated(settingsProductId, updates)} onProductDeleted={() => onProductDeleted(settingsProductId)} {...common} />
-      case 'workstreams':   return <WorkstreamsSettings workstreams={activeState?.workstreams ?? []} onWorkstreamUpdated={onWorkstreamUpdated} onRefresh={() => onRefreshData(settingsProductId)} {...productCommon} />
-      case 'objectives':    return <ObjectivesSettings objectives={activeState?.objectives ?? []} onObjectiveUpdated={onObjectiveUpdated} {...productCommon} />
-      case 'autonomy':      return <AutonomySettings {...productCommon} />
-      case 'signals':       return <SignalsSettings {...productCommon} />
-      case 'orchestrator':  return <OrchestratorSettings {...productCommon} />
-      case 'product-model': return <ProductModelSettings {...productCommon} />
-
-      case 'connections':   return <ConnectionsSettings {...productCommon} onOpenSettings={tab => { setTab(tab as Tab) }} />
-      case 'social':        return <SocialSettings {...common} />
-      case 'agent-model':   return <AgentModelSettings {...common} />
-      case 'google-oauth':  return <GoogleOAuthSettings {...common} />
-      case 'integrations': return <IntegrationsSettings {...common} />
-      case 'product-mcp':      return <ProductMCPSettings {...productCommon} />
-      case 'mcp':              return <GlobalMCPSettings {...common} />
-      case 'image-generation': return <ImageGenerationSettings {...common} />
-      case 'usage':            return <TokenUsageSettings {...common} />
-      case 'tags':             return <TagsSettings {...common} />
-      case 'hca':              return <HCASettings password={password} />
+    switch (active) {
+      case 'general-workspace':    return <OverviewSettings product={activeProduct} password={password} onRefresh={() => onRefreshData(activeProductId)} onProductUpdated={updates => onProductUpdated(activeProductId, updates)} onProductDeleted={() => onProductDeleted(activeProductId)} />
+      case 'general-api-keys':     return <ApiKeysSettings password={password} />
+      case 'general-token-usage':  return <TokenUsageSettings password={password} />
+      case 'models-agent':         return <AgentModelSettings password={password} />
+      case 'models-image':         return <ImageGenerationSettings password={password} />
+      case 'models-product':       return <ProductModelSettings password={password} productId={activeProductId} />
+      case 'connections-all':      return <ConnectionsSettings password={password} productId={activeProductId} />
+      case 'connections-google':   return <GoogleOAuthSettings password={password} />
+      case 'connections-slack-discord': return <IntegrationsSettings password={password} />
+      case 'connections-social':   return <SocialSettings password={password} />
+      case 'connections-telegram': return <IntegrationsSettings password={password} />
+      case 'products-autonomy':    return <AutonomySettings password={password} productId={activeProductId} />
+      case 'products-mcp':         return <ProductMCPSettings password={password} productId={activeProductId} />
+      case 'products-objectives':  return activeState ? <ObjectivesSettings productId={activeProductId} objectives={activeState.objectives} password={password} onObjectiveUpdated={onObjectiveUpdated} /> : null
+      case 'system-chief':         return <HCASettings password={password} />
+      case 'system-global-mcp':    return <GlobalMCPSettings password={password} />
+      case 'system-orchestrator':  return <OrchestratorSettings password={password} productId={activeProductId} />
+      case 'system-signals':       return <SignalsSettings password={password} productId={activeProductId} />
+      case 'system-tags':          return <TagsSettings password={password} />
+      default:                     return null
     }
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-adj-base text-adj-text-primary overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center gap-3 px-5 h-12 border-b border-adj-border flex-shrink-0 bg-adj-surface">
-        <span className="text-sm font-bold text-adj-text-primary">Settings</span>
-        <span className="w-px h-4 bg-adj-border" />
-        <span className="text-xs text-adj-text-muted">Changes save automatically</span>
-        <div className="ml-auto">
-          <button
-            onClick={onClose}
-            className="text-xs text-adj-text-muted hover:text-adj-text-secondary px-3 py-1.5 rounded hover:bg-adj-elevated transition-colors"
-          >
-            ← Back to workspace
-          </button>
-        </div>
-      </header>
+    <div className="flex flex-1 overflow-hidden bg-adj-base">
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left nav */}
-        <nav className="w-48 bg-adj-panel border-r border-adj-border flex flex-col flex-shrink-0 py-2">
-          {/* Product switcher */}
-          <div className="px-3 py-2 border-b border-adj-border mb-2">
-            <div className="text-[9px] font-bold uppercase tracking-widest text-adj-text-faint mb-2">Editing settings for</div>
-            <ProductDropdown
-              products={products}
-              activeProductId={settingsProductId}
-              onSelect={handleSwitchProduct}
-              onNewProduct={onNewProduct}
-            />
+      {/* Grouped sidebar */}
+      <div className="w-44 bg-adj-surface border-r border-adj-border overflow-y-auto flex-shrink-0 py-3">
+        {GROUPS.map(group => (
+          <div key={group.label} className="mb-1 px-3">
+            <div className="text-[9px] text-adj-text-faint uppercase tracking-widest px-1 mb-1">{group.label}</div>
+            {group.items.map(item => (
+              <button
+                key={item.key}
+                onClick={() => setActive(item.key)}
+                className={`w-full text-left text-[11px] rounded-md px-2 py-1.5 mb-0.5 transition-colors ${
+                  active === item.key
+                    ? 'bg-adj-elevated border border-adj-border text-adj-text-primary'
+                    : 'text-adj-text-faint hover:text-adj-text-secondary hover:bg-adj-elevated/50'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+            <div className="h-px bg-adj-border my-2" />
           </div>
+        ))}
+      </div>
 
-          {/* Product tabs */}
-          <div className="px-2 mb-1">
-            <div className="flex items-center gap-1.5 px-1 py-1 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
-              Product
-              <span className="px-1 py-0.5 rounded text-[7px] bg-blue-900 text-blue-300 font-bold">this product</span>
-            </div>
-            {PRODUCT_TABS.map(t => <Fragment key={t.key}>{navItem(t.key, t.label, t.icon)}</Fragment>)}
-          </div>
-
-          {/* Integration tabs */}
-          <div className="px-2 mb-1 border-t border-adj-border pt-2">
-            <div className="flex items-center gap-1.5 px-1 py-1 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
-              Integrations
-              <span className="px-1 py-0.5 rounded text-[7px] bg-blue-900 text-blue-300 font-bold">this product</span>
-            </div>
-            {INTEGRATION_TABS.map(t => <Fragment key={t.key}>{navItem(t.key, t.label, t.icon)}</Fragment>)}
-          </div>
-
-          {/* Global tabs */}
-          <div className="px-2 mt-auto border-t border-adj-border pt-2">
-            <div className="flex items-center gap-1.5 px-1 py-1 text-[9px] font-bold uppercase tracking-widest text-adj-text-faint">
-              Global
-              <span className="px-1 py-0.5 rounded text-[7px] bg-purple-900 text-purple-300 font-bold">all products</span>
-            </div>
-            {GLOBAL_TABS.map(t => <Fragment key={t.key}>{navItem(t.key, t.label, t.icon)}</Fragment>)}
-          </div>
-        </nav>
-
-        {/* Content area */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {renderContent()}
-        </main>
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        {renderContent()}
       </div>
     </div>
   )
