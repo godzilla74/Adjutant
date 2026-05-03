@@ -9,6 +9,7 @@ import ProductModelSettings from './settings/ProductModelSettings'
 import ConnectionsSettings from './settings/ConnectionsSettings'
 import GoogleOAuthSettings from './settings/GoogleOAuthSettings'
 import IntegrationsSettings from './settings/IntegrationsSettings'
+import TelegramSettings from './settings/TelegramSettings'
 import SocialSettings from './settings/SocialSettings'
 import AutonomySettings from './settings/AutonomySettings'
 import ProductMCPSettings from './settings/ProductMCPSettings'
@@ -130,7 +131,7 @@ export default function SettingsPage({
       case 'connections-google':   return <GoogleOAuthSettings password={password} />
       case 'connections-slack-discord': return <IntegrationsSettings password={password} />
       case 'connections-social':   return <SocialSettings password={password} />
-      case 'connections-telegram': return <IntegrationsSettings password={password} />
+      case 'connections-telegram': return <TelegramSettings password={password} />
       case 'products-autonomy':    return <AutonomySettings password={password} productId={activeProductId} />
       case 'products-mcp':         return <ProductMCPSettings password={password} productId={activeProductId} />
       case 'products-objectives':  return activeState ? <ObjectivesSettings productId={activeProductId} objectives={activeState.objectives} password={password} onObjectiveUpdated={onObjectiveUpdated} /> : null
