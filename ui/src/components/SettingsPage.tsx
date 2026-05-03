@@ -18,11 +18,12 @@ import ProductModelSettings from './settings/ProductModelSettings'
 import TagsSettings from './settings/TagsSettings'
 import SignalsSettings from './settings/SignalsSettings'
 import OrchestratorSettings from './settings/OrchestratorSettings'
+import HCASettings from './settings/HCASettings'
 export type Tab =
   | 'overview' | 'workstreams' | 'objectives' | 'autonomy'
   | 'connections' | 'social' | 'product-mcp' | 'product-model'
   | 'agent-model' | 'google-oauth' | 'integrations' | 'mcp' | 'image-generation' | 'usage'
-  | 'tags' | 'signals' | 'orchestrator'
+  | 'tags' | 'signals' | 'orchestrator' | 'hca'
 
 interface Props {
   products: Product[]
@@ -62,6 +63,7 @@ const GLOBAL_TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'image-generation',  label: 'Image Generation',  icon: '🖼' },
   { key: 'usage',             label: 'Usage',             icon: '📊' },
   { key: 'tags',              label: 'Tags',              icon: '🏷' },
+  { key: 'hca',              label: 'Holding Company',   icon: '🏢' },
 ]
 
 export default function SettingsPage({
@@ -118,6 +120,7 @@ export default function SettingsPage({
       case 'image-generation': return <ImageGenerationSettings {...common} />
       case 'usage':            return <TokenUsageSettings {...common} />
       case 'tags':             return <TagsSettings {...common} />
+      case 'hca':              return <HCASettings password={password} />
     }
   }
 
