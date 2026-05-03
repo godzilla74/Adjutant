@@ -516,3 +516,30 @@ def test_run_hca_malformed_json_saves_error(hca_db):
     cfg = hca_db.get_hca_config()
     assert cfg["next_run_at"] is not None   # next_run_at still updated
     assert cfg["last_run_at"] is not None   # last_run_at still updated
+
+
+def test_pa_build_context_includes_hca_directives(db):
+    from backend.orchestrator import build_context
+    with db._conn() as conn:
+        conn.execute(
+            "INSERT INTO workstreams (product_id, name, status, display_order) "
+            "VALUES ('p1', 'Research', 'paused', 1)"
+        )
+    run_id = db.save_hca_run("schedule", "complete", [], "")
+    db.create_hca_directive("p1", "Product-specific directive", run_id)
+    db.create_hca_directive(None, "Global directive for all products", run_id)
+    ctx = build_context("p1")
+    assert "active_directives" in ctx
+    contents = [d["content"] for d in ctx["active_directives"]]
+    assert "Product-specific directive" in contents
+    assert "Global directive for all products" in contents
+
+
+def test_pa_build_context_excludes_superseded_directives(db):
+    from backend.orchestrator import build_context
+    run_id = db.save_hca_run("schedule", "complete", [], "")
+    d_id = db.create_hca_directive("p1", "Old directive", run_id)
+    db.retire_hca_directive(d_id)
+    ctx = build_context("p1")
+    contents = [d["content"] for d in ctx.get("active_directives", [])]
+    assert "Old directive" not in contents

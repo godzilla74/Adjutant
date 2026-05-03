@@ -29,7 +29,7 @@ PA_SYSTEM_PROMPT = (
 def build_context(product_id: str) -> dict:
     from backend.db import (
         _conn, get_workstreams, get_orchestrator_config,
-        list_orchestrator_runs, get_signals,
+        list_orchestrator_runs, get_signals, list_hca_directives,
     )
     with _conn() as conn:
         product_row = conn.execute(
@@ -76,6 +76,7 @@ def build_context(product_id: str) -> dict:
             for r in recent_runs
         ],
         "autonomy_settings": config["autonomy_settings"],
+        "active_directives": list_hca_directives(product_id=product_id),
         "current_datetime": datetime.now().isoformat(),
     }
 
