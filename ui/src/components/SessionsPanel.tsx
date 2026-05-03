@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { Session } from '../types'
 
+export interface RunningAgent {
+  productId: string
+  productName: string
+  label: string
+  elapsedSeconds: number
+}
+
 interface Props {
   sessions:        Session[]
   activeSessionId: string | null
@@ -8,6 +15,8 @@ interface Props {
   onCreate:        (name: string) => void
   onRename:        (sessionId: string, name: string) => void
   onDelete:        (sessionId: string) => void
+  productName?:    string
+  liveAgents?:     RunningAgent[]
 }
 
 function TrashIcon() {
@@ -28,7 +37,10 @@ function PencilIcon() {
 
 export default function SessionsPanel({
   sessions, activeSessionId, onSwitch, onCreate, onRename, onDelete,
+  productName, liveAgents,
 }: Props) {
+  const resolvedProductName = productName ?? ''
+  const resolvedLiveAgents = liveAgents ?? []
   const [creating,        setCreating]        = useState(false)
   const [newName,         setNewName]         = useState('')
   const [renamingId,      setRenamingId]      = useState<string | null>(null)
@@ -78,6 +90,12 @@ export default function SessionsPanel({
 
   return (
     <div className="border-b border-adj-border pb-2">
+      {/* Product header */}
+      <div className="px-3 py-3 border-b border-adj-border flex-shrink-0">
+        <div className="text-[13px] font-semibold text-adj-text-primary truncate">{resolvedProductName}</div>
+        <div className="text-[10px] text-adj-text-faint mt-0.5">{sessions.length} session{sessions.length !== 1 ? 's' : ''}</div>
+      </div>
+
       <div className="flex items-center justify-between px-3.5 pt-3 pb-1">
         <span className="text-[10px] font-semibold text-adj-text-faint uppercase tracking-widest">
           Sessions
@@ -173,6 +191,19 @@ export default function SessionsPanel({
           )
         })}
       </div>
+
+      {resolvedLiveAgents.length > 0 && (
+        <div className="border-t border-adj-border px-3 py-2 flex-shrink-0">
+          <div className="text-[9px] text-adj-text-faint uppercase tracking-widest mb-1.5">Live agents</div>
+          {resolvedLiveAgents.map((agent, i) => (
+            <div key={i} className="flex items-center gap-1.5 text-[10px] text-green-400 mb-1">
+              <span className="animate-spin">⟳</span>
+              <span>{agent.label}</span>
+              <span className="text-adj-text-faint ml-auto">{Math.floor(agent.elapsedSeconds / 60)}:{String(agent.elapsedSeconds % 60).padStart(2, '0')}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
