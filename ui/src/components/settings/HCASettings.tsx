@@ -44,12 +44,12 @@ export default function HCASettings({ password }: Props) {
           Holding Company Adjutant
         </h3>
         <div className="flex flex-col gap-3">
-          <label className="flex items-center gap-2 text-xs text-adj-text-main cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-adj-text-primary cursor-pointer">
             <input
               type="checkbox"
               checked={config.enabled === 1}
               onChange={e => setConfig({ ...config, enabled: e.target.checked ? 1 : 0 })}
-              className="w-3.5 h-3.5 accent-adj-accent"
+              className="w-4 h-4 accent-adj-accent"
             />
             Enabled
           </label>
@@ -59,7 +59,7 @@ export default function HCASettings({ password }: Props) {
               type="text"
               value={config.schedule}
               onChange={e => setConfig({ ...config, schedule: e.target.value })}
-              className="bg-adj-bg-input border border-adj-border rounded px-2 py-1 text-xs text-adj-text-main w-full"
+              className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-full focus:outline-none focus:border-adj-accent"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -69,7 +69,7 @@ export default function HCASettings({ password }: Props) {
               min={1}
               value={config.pa_run_threshold}
               onChange={e => setConfig({ ...config, pa_run_threshold: parseInt(e.target.value) || 1 })}
-              className="bg-adj-bg-input border border-adj-border rounded px-2 py-1 text-xs text-adj-text-main w-24"
+              className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-24 focus:outline-none focus:border-adj-accent"
             />
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function HCASettings({ password }: Props) {
               value={config.hca_slack_channel_id}
               onChange={e => setConfig({ ...config, hca_slack_channel_id: e.target.value })}
               placeholder="Slack channel ID (e.g. C0123ABCD)"
-              className="bg-adj-bg-input border border-adj-border rounded px-2 py-1 text-xs text-adj-text-main w-full"
+              className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-full focus:outline-none focus:border-adj-accent"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -97,7 +97,7 @@ export default function HCASettings({ password }: Props) {
               value={config.hca_discord_channel_id}
               onChange={e => setConfig({ ...config, hca_discord_channel_id: e.target.value })}
               placeholder="Discord channel ID"
-              className="bg-adj-bg-input border border-adj-border rounded px-2 py-1 text-xs text-adj-text-main w-full"
+              className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-full focus:outline-none focus:border-adj-accent"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -107,7 +107,7 @@ export default function HCASettings({ password }: Props) {
               value={config.hca_telegram_chat_id}
               onChange={e => setConfig({ ...config, hca_telegram_chat_id: e.target.value })}
               placeholder="Telegram chat ID"
-              className="bg-adj-bg-input border border-adj-border rounded px-2 py-1 text-xs text-adj-text-main w-full"
+              className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-full focus:outline-none focus:border-adj-accent"
             />
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function HCASettings({ password }: Props) {
         <button
           onClick={save}
           disabled={saving}
-          className="px-3 py-1.5 bg-adj-accent text-white text-xs rounded hover:bg-adj-accent-hover disabled:opacity-50"
+          className="self-start px-4 py-2 text-xs font-medium bg-adj-accent text-white rounded-md hover:bg-adj-accent/90 disabled:opacity-50"
         >
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
         </button>
