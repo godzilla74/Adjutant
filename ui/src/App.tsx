@@ -433,6 +433,7 @@ export default function App() {
   const switchProduct = useCallback((productId: string) => {
     setActiveProductId(productId)
     setShowOverview(false)
+    setShowHCA(false)
     localStorage.setItem('adjutant_last_view', JSON.stringify({ productId }))
     if (!(productId in productStates)) {
       wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: productId }))
@@ -442,6 +443,7 @@ export default function App() {
   const switchToGlobal = useCallback(() => {
     setActiveProductId('__global__')
     setShowOverview(true)
+    setShowHCA(false)
     localStorage.setItem('adjutant_last_view', JSON.stringify({ productId: '__global__', globalViewMode }))
     wsRef.current?.send(JSON.stringify({ type: 'switch_product', product_id: null }))
   }, [globalViewMode])
@@ -507,6 +509,7 @@ export default function App() {
   const openSettings = useCallback((tab: string = 'overview') => {
     setSettingsTab(tab as SettingsTab)
     setSettingsOpen(true)
+    setShowHCA(false)
     const current = (() => { try { return JSON.parse(localStorage.getItem('adjutant_last_view') ?? 'null') } catch { return null } })()
     localStorage.setItem('adjutant_last_view', JSON.stringify({ ...current, settingsOpen: true, settingsTab: tab }))
   }, [])
