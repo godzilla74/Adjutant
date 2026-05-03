@@ -299,7 +299,7 @@ async def run_product_adjutant(
     )
 
     agent_cfg = get_agent_config()
-    model = agent_cfg.get("agent_model", "claude-opus-4-7")
+    model = agent_cfg["agent_model"]
 
     run_id: int | None = None
     pending = 0

@@ -1331,7 +1331,7 @@ async def generate_wizard_plan(body: WizardPlanRequest, _=Depends(_auth)):
         raise HTTPException(status_code=422, detail="intent is required")
 
     _cfg = _gac()
-    _model = _cfg.get("agent_model") or "claude-haiku-4-5-20251001"
+    _model = _cfg["agent_model"]
     try:
         _provider = _make_provider(_model)
     except Exception as _e:

@@ -48,6 +48,39 @@ def _get_openai_subagent_model() -> str:
     return "gpt-4o"
 
 
+def _subagent_uses_openai() -> bool:
+    """Return True if the configured subagent model is an OpenAI model."""
+    env_override = os.environ.get("AGENT_SUBAGENT_MODEL", "")
+    if env_override:
+        return env_override.startswith(_OPENAI_PREFIXES)
+    try:
+        from backend.db import get_agent_config
+        model = get_agent_config().get("subagent_model", "")
+        if model:
+            return model.startswith(_OPENAI_PREFIXES)
+    except Exception:
+        pass
+    return False
+
+
+async def _run_openai_subagent(task: str, system_prompt: str) -> str:
+    """Run a sub-agent via Codex CLI or provider API when OpenAI is configured."""
+    if _find_codex():
+        return await _run_codex_cli(task, system_prompt)
+    from backend.db import get_agent_config
+    from backend.provider import make_provider
+    cfg = get_agent_config()
+    model = _get_openai_subagent_model()
+    provider = make_provider(model)
+    response = await provider.create(
+        model=model,
+        system=system_prompt,
+        messages=[{"role": "user", "content": task}],
+        max_tokens=4096,
+    )
+    return response.content[0].text
+
+
 def _find_codex() -> str | None:
     """Return the path to the codex binary, searching PATH and common nvm locations."""
     found = shutil.which("codex")
@@ -220,27 +253,28 @@ async def _run_codex_cli(
 
 async def run_research_agent(task: str) -> str:
     """Spawn a web-research-focused sub-agent (15-minute hard cap)."""
+    if _subagent_uses_openai():
+        return await _run_openai_subagent(task, _RESEARCH_SYSTEM)
     return await _run_claude_cli(task, _RESEARCH_TOOLS, _RESEARCH_SYSTEM)
 
 
 async def run_general_agent(task: str) -> str:
     """Spawn a general-purpose sub-agent (15-minute hard cap)."""
+    if _subagent_uses_openai():
+        return await _run_openai_subagent(task, _GENERAL_SYSTEM)
     return await _run_claude_cli(task, _GENERAL_TOOLS, _GENERAL_SYSTEM)
 
 
 async def run_extension_agent(task: str, system_prompt: str) -> str:
-    """Run a generated tool extension's sub-task.
-
-    Priority:
-      1. claude CLI — full file-system access via bypassPermissions
-      2. codex CLI — full file-system access via --dangerously-bypass-approvals-and-sandbox
-      3. provider API — no file-system tools, but tasks still complete
-    """
-    if shutil.which("claude"):
-        return await _run_claude_cli(task, "", system_prompt, bypass_permissions=True)
-
-    if _find_codex():
-        return await _run_codex_cli(task, system_prompt)
+    """Run a generated tool extension's sub-task using the configured subagent provider."""
+    if _subagent_uses_openai():
+        if _find_codex():
+            return await _run_codex_cli(task, system_prompt)
+    else:
+        if shutil.which("claude"):
+            return await _run_claude_cli(task, "", system_prompt, bypass_permissions=True)
+        if _find_codex():
+            return await _run_codex_cli(task, system_prompt)
 
     # Provider API fallback
     from backend.db import get_agent_config
