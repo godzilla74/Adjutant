@@ -554,13 +554,25 @@ export default function App() {
             </div>
 
             <div className="flex flex-col flex-1 overflow-hidden bg-adj-base">
-              {activeState.activeSessionId && (
-                <div className="flex items-center px-4 py-1 border-b border-adj-border">
-                  <span className="text-[10px] text-adj-text-faint ml-auto">
-                    {activeState.sessions.find(s => s.id === activeState.activeSessionId)?.name ?? ''} session
-                  </span>
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-adj-border flex-shrink-0">
+                <span className="text-[13px] font-medium text-adj-text-primary">
+                  {activeState.sessions.find(s => s.id === activeState.activeSessionId)?.name ?? 'Session'}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setNotesOpen(o => !o); setHistoryOpen(false) }}
+                    className="text-[10px] text-adj-text-faint bg-adj-elevated border border-adj-border rounded px-2 py-1 hover:text-adj-text-secondary transition-colors"
+                  >
+                    📝 Notes
+                  </button>
+                  <button
+                    onClick={() => { setHistoryOpen(o => !o); setNotesOpen(false) }}
+                    className="text-[10px] text-adj-text-faint bg-adj-elevated border border-adj-border rounded px-2 py-1 hover:text-adj-text-secondary transition-colors"
+                  >
+                    📜 History
+                  </button>
                 </div>
-              )}
+              </div>
               <ActivityFeed
                 productId={activeProductId}
                 password={pw}
