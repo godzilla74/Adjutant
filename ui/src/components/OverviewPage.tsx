@@ -12,9 +12,15 @@ interface Props {
 
 export default function OverviewPage({ products, productStates, password, onOpenProduct }: Props) {
   const [overview, setOverview] = useState<ProductOverview[]>([])
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
-    api.getOverview(password).then(setOverview).catch(() => {})
+    let cancelled = false
+    setLoadError(false)
+    api.getOverview(password)
+      .then(data => { if (!cancelled) setOverview(data) })
+      .catch(() => { if (!cancelled) setLoadError(true) })
+    return () => { cancelled = true }
   }, [password])
 
   const totalRunning  = overview.reduce((n, p) => n + p.running_ws, 0)
@@ -32,6 +38,12 @@ export default function OverviewPage({ products, productStates, password, onOpen
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {products.length} product{products.length !== 1 ? 's' : ''}
           </p>
         </div>
+
+        {loadError && (
+          <div className="mb-4 px-3 py-2 bg-red-950/40 border border-red-900/40 rounded-lg text-[11px] text-red-400">
+            Failed to load overview data.
+          </div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3 mb-6">
@@ -60,6 +72,7 @@ export default function OverviewPage({ products, productStates, password, onOpen
                   <span className="text-[13px] font-medium text-adj-text-primary">{product.name}</span>
                   <button
                     onClick={() => onOpenProduct(product.id)}
+                    aria-label={`Open ${product.name} workspace`}
                     className="text-[10px] text-adj-text-faint bg-adj-elevated border border-adj-border rounded px-2 py-1 hover:text-adj-text-secondary transition-colors"
                   >
                     Open workspace →
