@@ -252,3 +252,193 @@ def test_build_hca_context_recent_hca_runs(populated_db):
     ctx = build_hca_context()
     assert len(ctx["recent_hca_runs"]) >= 1
     assert any(r["brief"] == "HCA summary" for r in ctx["recent_hca_runs"])
+
+
+@pytest.fixture
+def hca_db(db):
+    """DB with two products and a workstream on p1."""
+    with db._conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO products (id, name, icon_label, color) "
+            "VALUES ('p2', 'Beta', 'B', '#111')"
+        )
+        conn.execute(
+            "INSERT INTO workstreams (product_id, name, status, display_order, mission, schedule) "
+            "VALUES ('p1', 'Research', 'paused', 1, 'Track market', 'weekly on mondays')"
+        )
+    return db
+
+
+def test_apply_hca_issue_directive(hca_db):
+    from backend.hca import apply_hca_decisions
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [{"action": "issue_directive", "product_id": "p1",
+                  "content": "Focus on enterprise", "reason": "market shift"}]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "applied"
+    directives = hca_db.list_hca_directives("p1")
+    assert any(d["content"] == "Focus on enterprise" for d in directives)
+
+
+def test_apply_hca_issue_global_directive(hca_db):
+    from backend.hca import apply_hca_decisions
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [{"action": "issue_directive",
+                  "content": "All products: cut scope", "reason": "budget"}]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "applied"
+    directives = hca_db.list_hca_directives()
+    assert any(d["content"] == "All products: cut scope" and d["product_id"] is None
+               for d in directives)
+
+
+def test_apply_hca_supersede_directive(hca_db):
+    from backend.hca import apply_hca_decisions
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    old_id = hca_db.create_hca_directive("p1", "Old guidance", run_id)
+    decisions = [{"action": "supersede_directive", "directive_id": old_id,
+                  "replacement": "New guidance", "reason": "updated"}]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "applied"
+    with hca_db._conn() as conn:
+        old = conn.execute("SELECT status FROM hca_directives WHERE id = ?", (old_id,)).fetchone()
+    assert old["status"] == "superseded"
+
+
+def test_apply_hca_pa_action_updates_mission(hca_db):
+    from backend.hca import apply_hca_decisions
+    ws_id = hca_db.get_workstreams("p1")[0]["id"]
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [{
+        "action": "pa_action",
+        "product_id": "p1",
+        "pa_decision": {"action": "update_mission", "workstream_id": ws_id,
+                        "new_mission": "New mission from HCA", "reason": "strategic pivot"},
+        "reason": "HCA directive",
+    }]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "applied"
+    ws = hca_db.get_workstreams("p1")[0]
+    assert ws["mission"] == "New mission from HCA"
+
+
+def test_apply_hca_pa_action_bypasses_pa_autonomy(hca_db):
+    """HCA can pause a workstream even though PA config has it approval_required."""
+    from backend.hca import apply_hca_decisions
+    from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
+    assert _ORCHESTRATOR_DEFAULT_AUTONOMY["pause_workstream"] == "approval_required"
+    ws_id = hca_db.get_workstreams("p1")[0]["id"]
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [{
+        "action": "pa_action",
+        "product_id": "p1",
+        "pa_decision": {"action": "update_schedule", "workstream_id": ws_id,
+                        "new_schedule": "daily at 9am", "reason": "HCA override"},
+        "reason": "speed up",
+    }]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "applied"
+
+
+def test_apply_hca_propose_new_product_creates_review_item(hca_db):
+    from backend.hca import apply_hca_decisions
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [{
+        "action": "propose_new_product",
+        "name": "Acme Analytics",
+        "description": "Analytics for enterprise",
+        "goals": "Drive expansion revenue",
+        "icon_label": "📊",
+        "color": "#6366f1",
+        "suggested_workstreams": [
+            {"name": "Research", "mission": "Track analytics market",
+             "schedule": "weekly on mondays at 9am",
+             "workstream_type": "research", "tag_subscriptions": ["research:"]}
+        ],
+        "reason": "Opportunity from PA briefs",
+    }]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "queued"
+    with hca_db._conn() as conn:
+        row = conn.execute(
+            "SELECT action_type, payload FROM review_items WHERE action_type = 'hca_new_product'"
+        ).fetchone()
+    assert row is not None
+    payload = json.loads(row["payload"])
+    assert payload["name"] == "Acme Analytics"
+    # Ensure no product row was created
+    with hca_db._conn() as conn:
+        p = conn.execute("SELECT id FROM products WHERE name = 'Acme Analytics'").fetchone()
+    assert p is None
+
+
+def test_apply_hca_portfolio_gap_creates_review_item(hca_db):
+    from backend.hca import apply_hca_decisions
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [{"action": "portfolio_gap",
+                  "description": "No video content workstream", "reason": "gap in content strategy"}]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "applied"
+    with hca_db._conn() as conn:
+        row = conn.execute(
+            "SELECT action_type FROM review_items WHERE action_type = 'portfolio_gap'"
+        ).fetchone()
+    assert row is not None
+
+
+def test_apply_hca_unknown_action_skipped(hca_db):
+    from backend.hca import apply_hca_decisions
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [
+        {"action": "bogus_action", "reason": "test"},
+        {"action": "issue_directive", "product_id": "p1", "content": "Still applies", "reason": "test"},
+    ]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "skipped"
+    assert annotated[1]["_status"] == "applied"
+
+
+def test_apply_hca_pa_action_nonexistent_product_skipped(hca_db):
+    from backend.hca import apply_hca_decisions
+    run_id = hca_db.save_hca_run("schedule", "complete", [], "")
+    decisions = [{
+        "action": "pa_action",
+        "product_id": "no_such_product",
+        "pa_decision": {"action": "update_mission", "workstream_id": 999,
+                        "new_mission": "nope", "reason": "test"},
+        "reason": "test",
+    }]
+    annotated = apply_hca_decisions(decisions, run_id)
+    assert annotated[0]["_status"] == "skipped"
+
+
+def test_launch_product_from_hca(hca_db):
+    import asyncio
+    from backend.hca import launch_product_from_hca
+    payload = {
+        "name": "New Product",
+        "description": "A brand new product",
+        "goals": "Grow revenue",
+        "icon_label": "🚀",
+        "color": "#22c55e",
+        "suggested_workstreams": [
+            {"name": "Research", "mission": "Track market trends",
+             "schedule": "weekly on mondays at 9am",
+             "tag_subscriptions": ["research:"]}
+        ],
+    }
+    broadcast_calls = []
+    async def mock_broadcast(event): broadcast_calls.append(event)
+    asyncio.run(launch_product_from_hca(payload, mock_broadcast))
+    # Product created
+    with hca_db._conn() as conn:
+        p = conn.execute("SELECT * FROM products WHERE name = 'New Product'").fetchone()
+    assert p is not None
+    # Workstream created
+    ws_list = hca_db.get_workstreams(p["id"])
+    assert any(w["name"] == "Research" for w in ws_list)
+    # PA enabled
+    cfg = hca_db.get_orchestrator_config(p["id"])
+    assert cfg["enabled"] == 1
+    # Broadcast fired
+    assert any(e["type"] == "product_launched" for e in broadcast_calls)

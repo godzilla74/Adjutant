@@ -1,4 +1,5 @@
 # backend/hca.py
+import json
 import logging
 from datetime import datetime
 
@@ -107,3 +108,133 @@ def _get_hca_config_raw() -> dict:
     if row is None:
         return {"last_run_at": None, "next_run_at": None, "schedule": "weekly on mondays at 8am"}
     return dict(row)
+
+
+def apply_hca_decisions(decisions: list, run_id: int) -> list:
+    from backend.db import (
+        _conn, create_hca_directive, supersede_hca_directive,
+        save_review_item, get_products,
+    )
+    from backend.orchestrator import _execute_decision
+
+    valid_products = {p["id"] for p in get_products()}
+    annotated = []
+
+    for d in decisions:
+        action = d.get("action", "")
+        try:
+            if action == "issue_directive":
+                pid = d.get("product_id")  # None = global
+                create_hca_directive(pid, d["content"], run_id)
+                annotated.append({**d, "_status": "applied"})
+
+            elif action == "supersede_directive":
+                new_id = supersede_hca_directive(
+                    d["directive_id"], d["replacement"], run_id
+                )
+                annotated.append({**d, "_status": "applied", "_new_directive_id": new_id})
+
+            elif action == "pa_action":
+                pid = d.get("product_id", "")
+                if pid not in valid_products:
+                    log.warning("hca: pa_action references unknown product '%s', skipping", pid)
+                    annotated.append({**d, "_status": "skipped", "_reason": "unknown product"})
+                    continue
+                pa_dec = d.get("pa_decision", {})
+                # Pre-load valid workstream and signal sets for target product
+                with _conn() as conn:
+                    valid_ws = {
+                        r["id"] for r in conn.execute(
+                            "SELECT id FROM workstreams WHERE product_id = ?", (pid,)
+                        ).fetchall()
+                    }
+                    valid_signals = {
+                        r["id"] for r in conn.execute(
+                            "SELECT id FROM signals WHERE product_id = ? AND consumed_at IS NULL",
+                            (pid,),
+                        ).fetchall()
+                    }
+                note = _execute_decision(pid, pa_dec, valid_ws, valid_signals)
+                annotated.append({**d, "_status": "applied", "_note": note})
+
+            elif action == "propose_new_product":
+                payload = {
+                    "name": d.get("name", ""),
+                    "description": d.get("description", ""),
+                    "goals": d.get("goals", ""),
+                    "icon_label": d.get("icon_label", "🏢"),
+                    "color": d.get("color", "#6366f1"),
+                    "suggested_workstreams": d.get("suggested_workstreams", []),
+                }
+                item_id = save_review_item(
+                    product_id=None,
+                    title=f"New product: {d.get('name', 'Unnamed')}",
+                    description=d.get("reason", ""),
+                    risk_label="High · owner approval required",
+                    action_type="hca_new_product",
+                    payload=json.dumps(payload),
+                )
+                annotated.append({**d, "_status": "queued", "_review_item_id": item_id})
+
+            elif action == "portfolio_gap":
+                save_review_item(
+                    product_id=None,
+                    title=d.get("description", "Portfolio gap"),
+                    description=d.get("reason", ""),
+                    risk_label="Opportunity · no action taken",
+                    action_type="portfolio_gap",
+                    payload=json.dumps(d),
+                )
+                annotated.append({**d, "_status": "applied"})
+
+            else:
+                log.warning("hca: unknown action '%s', skipping", action)
+                annotated.append({**d, "_status": "skipped", "_reason": "unknown action"})
+
+        except Exception as exc:
+            log.warning("hca: decision failed: %s — %s", d, exc, exc_info=True)
+            annotated.append({**d, "_status": "error", "_error": str(exc)})
+
+    return annotated
+
+
+def _slugify(name: str) -> str:
+    import re
+    slug = name.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
+    return slug or "product"
+
+
+async def launch_product_from_hca(payload: dict, broadcast) -> None:
+    from backend.db import (
+        create_product, update_orchestrator_config, create_workstream_for_launch,
+    )
+    from backend.scheduler import calc_next_run
+
+    name = payload.get("name", "New Product")
+    product_id = _slugify(name)
+    icon_label = payload.get("icon_label", "🏢")
+    color = payload.get("color", "#6366f1")
+
+    create_product(id=product_id, name=name, icon_label=icon_label, color=color)
+
+    for ws in payload.get("suggested_workstreams", []):
+        schedule = ws.get("schedule", "")
+        next_dt = calc_next_run(schedule)
+        create_workstream_for_launch(
+            product_id=product_id,
+            name=ws.get("name", "Workstream"),
+            mission=ws.get("mission", ""),
+            schedule=schedule,
+            tag_subscriptions=json.dumps(ws.get("tag_subscriptions", [])),
+            next_run_at=next_dt.isoformat(timespec="seconds") if next_dt else None,
+        )
+
+    update_orchestrator_config(product_id, enabled=1, schedule="daily at 8am")
+
+    await broadcast({
+        "type": "product_launched",
+        "product_id": product_id,
+        "product_name": name,
+        "source": "hca",
+    })
