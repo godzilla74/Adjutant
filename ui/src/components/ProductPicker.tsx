@@ -28,10 +28,11 @@ export default function ProductPicker({ products, productStates, onSelect, onNew
             const wsCount = state?.workstreams.length ?? 0
             const runningCount = state?.workstreams.filter(w => w.status === 'running').length ?? 0
             return (
-              <div
+              <button
                 key={product.id}
+                type="button"
                 onClick={() => onSelect(product.id)}
-                className="bg-adj-panel border border-adj-border rounded-lg px-4 py-3 cursor-pointer hover:border-adj-accent/40 hover:bg-adj-elevated transition-colors flex items-center gap-4"
+                className="w-full text-left bg-adj-panel border border-adj-border rounded-lg px-4 py-3 hover:border-adj-accent/40 hover:bg-adj-elevated transition-colors flex items-center gap-4"
               >
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
@@ -47,7 +48,7 @@ export default function ProductPicker({ products, productStates, onSelect, onNew
                   </div>
                 </div>
                 <span className="text-adj-text-faint text-sm flex-shrink-0">›</span>
-              </div>
+              </button>
             )
           })}
           {products.length === 0 && (

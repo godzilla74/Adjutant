@@ -24,7 +24,7 @@ describe('ProductPicker', () => {
   it('calls onSelect with product id when clicked', () => {
     const onSelect = vi.fn()
     render(<ProductPicker products={PRODUCTS} productStates={STATES} onSelect={onSelect} onNewProduct={vi.fn()} />)
-    fireEvent.click(screen.getByText('Content Co').closest('div')!)
+    fireEvent.click(screen.getByText('Content Co').closest('button')!)
     expect(onSelect).toHaveBeenCalledWith('p1')
   })
 
@@ -39,5 +39,10 @@ describe('ProductPicker', () => {
     render(<ProductPicker products={PRODUCTS} productStates={STATES} onSelect={vi.fn()} onNewProduct={onNewProduct} />)
     fireEvent.click(screen.getByText('+ New product'))
     expect(onNewProduct).toHaveBeenCalled()
+  })
+
+  it('shows empty state when no products', () => {
+    render(<ProductPicker products={[]} productStates={{}} onSelect={vi.fn()} onNewProduct={vi.fn()} />)
+    expect(screen.getByText(/no products yet/i)).toBeInTheDocument()
   })
 })
