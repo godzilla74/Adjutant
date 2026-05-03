@@ -35,6 +35,16 @@ class SlackBot:
         self._bot_user_id: str | None = None
         self._web_client = None  # initialised in start() after token guard
 
+    def _resolve_slack_channel(self, product_id: str | None) -> str:
+        """Return per-product Slack channel if configured, else global notification channel."""
+        if product_id:
+            from backend.db import get_orchestrator_config
+            cfg = get_orchestrator_config(product_id)
+            ch = cfg.get("slack_channel_id")
+            if ch:
+                return ch
+        return self.notification_channel_id
+
     async def send_long_message(self, channel: str, text: str, thread_ts: str | None = None) -> None:
         """Send text as Block Kit blocks in a single chat_postMessage call."""
         blocks = []
@@ -76,7 +86,8 @@ class SlackBot:
                     await self.send_long_message(channel, content, thread_ts=thread_ts)
 
         elif event_type == "activity_done":
-            if not self.notification_channel_id:
+            channel = self._resolve_slack_channel(event.get("product_id"))
+            if not channel:
                 return
             workstream_name = event.get("workstream_name", "")
             if workstream_name:
@@ -87,7 +98,7 @@ class SlackBot:
             if msg:
                 try:
                     await self._web_client.chat_postMessage(
-                        channel=self.notification_channel_id,
+                        channel=channel,
                         text=msg,
                     )
                 except Exception as e:
@@ -95,7 +106,7 @@ class SlackBot:
 
         elif event_type == "review_item_added":
             item = event.get("item", {})
-            await self._send_review_item(item)
+            await self._send_review_item(item, product_id=event.get("product_id"))
 
         elif event_type == "orchestrator_run_complete":
             await self._send_orchestrator_briefing(event)
@@ -104,7 +115,8 @@ class SlackBot:
             await self._send_hca_briefing(event)
 
     async def _send_orchestrator_briefing(self, event: dict) -> None:
-        if not self.notification_channel_id:
+        channel = self._resolve_slack_channel(event.get("product_id"))
+        if not channel:
             return
         brief_preview = event.get("brief_preview", "")
         pending = event.get("pending_approval_count", 0)
@@ -133,7 +145,7 @@ class SlackBot:
 
         try:
             await self._web_client.chat_postMessage(
-                channel=self.notification_channel_id,
+                channel=channel,
                 text=f"📋 Product Adjutant Briefing — {pending} pending approval(s)",
                 blocks=blocks,
             )
@@ -180,8 +192,9 @@ class SlackBot:
         except Exception as e:
             logger.warning("Slack HCA briefing failed: %s", e)
 
-    async def _send_review_item(self, item: dict) -> None:
-        if not self.notification_channel_id:
+    async def _send_review_item(self, item: dict, product_id: str | None = None) -> None:
+        channel = self._resolve_slack_channel(product_id)
+        if not channel:
             return
         item_id = item.get("id")
         title = item.get("title", "Review item")
@@ -221,7 +234,7 @@ class SlackBot:
         ]
         try:
             await self._web_client.chat_postMessage(
-                channel=self.notification_channel_id,
+                channel=channel,
                 text=f"Review Required: {title}",
                 blocks=blocks,
             )

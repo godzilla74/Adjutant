@@ -186,3 +186,43 @@ def test_send_long_message_hard_splits_at_3000():
     kwargs = bot._web_client.chat_postMessage.call_args.kwargs
     for block in kwargs["blocks"]:
         assert len(block["text"]["text"]) <= 3000
+
+
+# ── per-product channel routing ───────────────────────────────────────────────
+
+def test_notify_activity_done_uses_per_product_channel():
+    bot = _make_bot()
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": "C_PRODUCT", "discord_channel_id": None, "telegram_chat_id": None}):
+        asyncio.run(bot.notify({"type": "activity_done", "product_id": "p1", "summary": "Done"}))
+    bot._web_client.chat_postMessage.assert_awaited_once()
+    assert bot._web_client.chat_postMessage.call_args.kwargs["channel"] == "C_PRODUCT"
+
+
+def test_notify_activity_done_falls_back_to_global_channel():
+    bot = _make_bot()
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": None, "discord_channel_id": None, "telegram_chat_id": None}):
+        asyncio.run(bot.notify({"type": "activity_done", "product_id": "p1", "summary": "Done"}))
+    bot._web_client.chat_postMessage.assert_awaited_once()
+    assert bot._web_client.chat_postMessage.call_args.kwargs["channel"] == "C_NOTIF"
+
+
+def test_notify_review_item_uses_per_product_channel():
+    bot = _make_bot()
+    item = {"id": 10, "title": "T", "description": "", "risk_label": ""}
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": "C_PRODUCT", "discord_channel_id": None, "telegram_chat_id": None}):
+        asyncio.run(bot.notify({"type": "review_item_added", "product_id": "p1", "item": item}))
+    assert bot._web_client.chat_postMessage.call_args.kwargs["channel"] == "C_PRODUCT"
+
+
+def test_notify_orchestrator_run_complete_uses_per_product_channel():
+    bot = _make_bot()
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": "C_PRODUCT", "discord_channel_id": None, "telegram_chat_id": None}):
+        asyncio.run(bot.notify({
+            "type": "orchestrator_run_complete", "product_id": "p1",
+            "brief_preview": "All good", "pending_approval_count": 0,
+        }))
+    assert bot._web_client.chat_postMessage.call_args.kwargs["channel"] == "C_PRODUCT"
