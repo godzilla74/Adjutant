@@ -176,3 +176,79 @@ def test_create_workstream_for_launch(db):
     assert isinstance(ws_id, int)
     ws_list = db.get_workstreams("p1")
     assert any(w["id"] == ws_id and w["name"] == "Research" for w in ws_list)
+
+
+@pytest.fixture
+def populated_db(db):
+    """DB with a product, PA runs, and HCA directives."""
+    with db._conn() as conn:
+        conn.execute(
+            "INSERT INTO workstreams (product_id, name, status, display_order) "
+            "VALUES ('p1', 'Research', 'paused', 1)"
+        )
+        # Insert 3 PA runs
+        for i in range(3):
+            conn.execute(
+                "INSERT INTO orchestrator_runs "
+                "(product_id, triggered_by, status, decisions, brief) "
+                "VALUES ('p1', 'schedule', 'complete', '[]', ?)",
+                (f"Brief {i}",),
+            )
+    # Active directive for p1 and one global
+    run_id = db.save_hca_run("schedule", "complete", [], "")
+    db.create_hca_directive("p1", "Focus on enterprise", run_id)
+    db.create_hca_directive(None, "All products: cut costs", run_id)
+    return db
+
+
+def test_build_hca_context_includes_products(populated_db):
+    from backend.hca import build_hca_context
+    ctx = build_hca_context()
+    product_ids = [p["id"] for p in ctx["products"]]
+    assert "p1" in product_ids
+
+
+def test_build_hca_context_includes_pa_runs(populated_db):
+    from backend.hca import build_hca_context
+    ctx = build_hca_context()
+    p1 = next(p for p in ctx["products"] if p["id"] == "p1")
+    assert len(p1["recent_pa_runs"]) == 3
+
+
+def test_build_hca_context_caps_pa_runs_at_10(db):
+    from backend.hca import build_hca_context
+    with db._conn() as conn:
+        for i in range(15):
+            conn.execute(
+                "INSERT INTO orchestrator_runs "
+                "(product_id, triggered_by, status, decisions, brief) "
+                "VALUES ('p1', 'schedule', 'complete', '[]', ?)",
+                (f"Brief {i}",),
+            )
+    ctx = build_hca_context()
+    p1 = next(p for p in ctx["products"] if p["id"] == "p1")
+    assert len(p1["recent_pa_runs"]) <= 10
+
+
+def test_build_hca_context_includes_active_directives(populated_db):
+    from backend.hca import build_hca_context
+    ctx = build_hca_context()
+    p1 = next(p for p in ctx["products"] if p["id"] == "p1")
+    contents = [d["content"] for d in p1["active_directives"]]
+    assert "Focus on enterprise" in contents
+    assert "All products: cut costs" in contents
+
+
+def test_build_hca_context_empty_products_no_error(db):
+    from backend.hca import build_hca_context
+    ctx = build_hca_context()
+    assert isinstance(ctx["products"], list)
+    assert isinstance(ctx["recent_hca_runs"], list)
+
+
+def test_build_hca_context_recent_hca_runs(populated_db):
+    from backend.hca import build_hca_context
+    populated_db.save_hca_run("schedule", "complete", [], "HCA summary")
+    ctx = build_hca_context()
+    assert len(ctx["recent_hca_runs"]) >= 1
+    assert any(r["brief"] == "HCA summary" for r in ctx["recent_hca_runs"])
