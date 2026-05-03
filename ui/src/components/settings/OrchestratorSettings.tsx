@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api'
 import type { OrchestratorConfig } from '../../types'
+import ChannelSelect from './ChannelSelect'
 
 interface Props {
   productId: string
@@ -40,6 +41,9 @@ export default function OrchestratorSettings({ productId, password }: Props) {
         schedule: config.schedule,
         signal_threshold: config.signal_threshold,
         autonomy_settings: config.autonomy_settings,
+        slack_channel_id: config.slack_channel_id,
+        discord_channel_id: config.discord_channel_id,
+        telegram_chat_id: config.telegram_chat_id,
       })
       setConfig(updated)
       setSaved(true)
@@ -122,6 +126,51 @@ export default function OrchestratorSettings({ productId, password }: Props) {
                 </select>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-2">
+          Notification Channel
+        </h3>
+        <p className="text-[10px] text-adj-text-faint mb-3">
+          All notifications for this product (briefs, approvals, reports) go here. Defaults to the global channel when unset.
+        </p>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
+              Slack
+            </label>
+            <ChannelSelect
+              platform="slack"
+              value={config.slack_channel_id ?? ''}
+              onChange={id => setConfig({ ...config, slack_channel_id: id || null })}
+              password={password}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
+              Discord
+            </label>
+            <ChannelSelect
+              platform="discord"
+              value={config.discord_channel_id ?? ''}
+              onChange={id => setConfig({ ...config, discord_channel_id: id || null })}
+              password={password}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-adj-text-muted mb-1.5">
+              Telegram Chat ID
+            </label>
+            <input
+              type="text"
+              value={config.telegram_chat_id ?? ''}
+              onChange={e => setConfig({ ...config, telegram_chat_id: e.target.value || null })}
+              placeholder="Leave empty to use global"
+              className="w-full bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary focus:outline-none focus:border-adj-accent"
+            />
           </div>
         </div>
       </div>

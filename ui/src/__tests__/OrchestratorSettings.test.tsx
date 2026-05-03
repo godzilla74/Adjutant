@@ -30,6 +30,8 @@ vi.mock('../api', () => ({
   api: {
     getOrchestratorConfig: vi.fn().mockResolvedValue(mockConfig),
     updateOrchestratorConfig: vi.fn().mockResolvedValue(mockConfig),
+    getSlackChannels: vi.fn().mockResolvedValue({ channels: [{ id: 'C1', name: 'general' }] }),
+    getDiscordChannels: vi.fn().mockResolvedValue({ channels: [{ id: '999', name: 'alerts', guild: 'My Server' }] }),
   },
 }))
 
@@ -58,5 +60,38 @@ describe('OrchestratorSettings', () => {
     await waitFor(() => screen.getByText(/save/i))
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     await waitFor(() => expect(api.updateOrchestratorConfig).toHaveBeenCalled())
+  })
+
+  it('renders Slack channel dropdown', async () => {
+    render(<OrchestratorSettings productId="p1" password="pw" />)
+    await waitFor(() => screen.getByText(/notification channel/i))
+    await waitFor(() => screen.getByText('#general'))
+  })
+
+  it('renders Discord channel dropdown', async () => {
+    render(<OrchestratorSettings productId="p1" password="pw" />)
+    await waitFor(() => screen.getByText(/notification channel/i))
+    await waitFor(() => screen.getByText(/My Server.*alerts/i))
+  })
+
+  it('renders Telegram chat ID text input', async () => {
+    render(<OrchestratorSettings productId="p1" password="pw" />)
+    await waitFor(() => screen.getByText(/notification channel/i))
+    expect(screen.getByPlaceholderText(/leave empty to use global/i)).toBeInTheDocument()
+  })
+
+  it('includes channel fields in save call', async () => {
+    const { api } = await import('../api')
+    render(<OrchestratorSettings productId="p1" password="pw" />)
+    await waitFor(() => screen.getByRole('button', { name: /save/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(() => expect(api.updateOrchestratorConfig).toHaveBeenCalledWith(
+      'pw', 'p1',
+      expect.objectContaining({
+        slack_channel_id: null,
+        discord_channel_id: null,
+        telegram_chat_id: null,
+      })
+    ))
   })
 })
