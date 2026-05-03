@@ -30,7 +30,7 @@ def test_notify_agent_done_sends_for_pending_product():
     bot = _make_bot()
     bot._pending_products.add("alpha")
     asyncio.run(bot.notify({"type": "agent_done", "product_id": "alpha", "content": "Done!"}))
-    bot.send_message.assert_awaited_once_with("Done!")
+    bot.send_message.assert_awaited_once_with("Done!", chat_id=None)
     assert "alpha" not in bot._pending_products
 
 
@@ -64,7 +64,7 @@ def test_notify_agent_done_global_agent():
     bot = _make_bot()
     bot._pending_products.add(None)
     asyncio.run(bot.notify({"type": "agent_done", "product_id": None, "content": "Summary across all products."}))
-    bot.send_message.assert_awaited_once_with("Summary across all products.")
+    bot.send_message.assert_awaited_once_with("Summary across all products.", chat_id=None)
     assert None not in bot._pending_products
 
 
@@ -250,4 +250,61 @@ def test_send_long_message_short_text_single_send():
     """Short text sends in one message."""
     bot = _make_bot()
     asyncio.run(bot.send_long_message("Hello!"))
-    bot.send_message.assert_awaited_once_with("Hello!")
+    bot.send_message.assert_awaited_once_with("Hello!", chat_id=None)
+
+
+def _make_raw_bot():
+    """Return a TelegramBot without send_message mocked (for testing send_message itself)."""
+    return TelegramBot(
+        token="test-token",
+        chat_id="123456",
+        directive_callback=AsyncMock(),
+        resolve_review_fn=MagicMock(),
+        broadcast_fn=AsyncMock(),
+    )
+
+
+def _mock_httpx_post(bot_method, *args, **kwargs):
+    """Run bot_method with httpx.AsyncClient patched. Returns the mock post call."""
+    with patch("httpx.AsyncClient") as mock_client:
+        mock_instance = MagicMock()
+        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_instance.__aexit__ = AsyncMock(return_value=False)
+        resp_mock = MagicMock()
+        resp_mock.json.return_value = {"ok": True, "result": {"message_id": 1}}
+        mock_instance.post = AsyncMock(return_value=resp_mock)
+        mock_client.return_value = mock_instance
+        asyncio.run(bot_method(*args, **kwargs))
+        return mock_instance.post
+
+
+def test_send_message_uses_override_chat_id():
+    bot = _make_raw_bot()
+    post_mock = _mock_httpx_post(bot.send_message, "Hello", chat_id="OTHER_CHAT")
+    call_json = post_mock.call_args.kwargs["json"]
+    assert call_json["chat_id"] == "OTHER_CHAT"
+
+
+def test_send_message_uses_self_chat_id_by_default():
+    bot = _make_raw_bot()
+    post_mock = _mock_httpx_post(bot.send_message, "Hello")
+    call_json = post_mock.call_args.kwargs["json"]
+    assert call_json["chat_id"] == bot.chat_id
+
+
+def test_notify_activity_done_uses_per_product_chat():
+    bot = _make_bot()
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": None, "discord_channel_id": None, "telegram_chat_id": "-1001"}):
+        asyncio.run(bot.notify({"type": "activity_done", "product_id": "p1", "summary": "Done"}))
+    call_kwargs = bot.send_message.call_args.kwargs
+    assert call_kwargs["chat_id"] == "-1001"
+
+
+def test_notify_activity_done_falls_back_to_global_chat():
+    bot = _make_bot()
+    with patch("backend.db.get_orchestrator_config",
+               return_value={"slack_channel_id": None, "discord_channel_id": None, "telegram_chat_id": None}):
+        asyncio.run(bot.notify({"type": "activity_done", "product_id": "p1", "summary": "Done"}))
+    call_kwargs = bot.send_message.call_args.kwargs
+    assert call_kwargs["chat_id"] == bot.chat_id

@@ -35,9 +35,19 @@ class TelegramBot:
 
     _MAX_LEN = 4096
 
-    async def send_message(self, text: str, reply_markup: dict | None = None) -> int | None:
+    def _resolve_telegram_chat(self, product_id: str | None) -> str:
+        """Return per-product Telegram chat ID if configured, else global chat."""
+        if product_id:
+            from backend.db import get_orchestrator_config
+            cfg = get_orchestrator_config(product_id)
+            ch = cfg.get("telegram_chat_id")
+            if ch:
+                return ch
+        return self.chat_id
+
+    async def send_message(self, text: str, reply_markup: dict | None = None, *, chat_id: str | None = None) -> int | None:
         """Send a single message (≤4096 chars). Returns message_id or None."""
-        payload: dict = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"}
+        payload: dict = {"chat_id": chat_id or self.chat_id, "text": text, "parse_mode": "HTML"}
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
         try:
@@ -50,22 +60,22 @@ class TelegramBot:
             logger.warning("Telegram sendMessage failed: %s", e)
         return None
 
-    async def send_long_message(self, text: str) -> None:
+    async def send_long_message(self, text: str, *, chat_id: str | None = None) -> None:
         """Send text, splitting into multiple messages if it exceeds Telegram's 4096-char limit."""
         if len(text) <= self._MAX_LEN:
-            await self.send_message(text)
+            await self.send_message(text, chat_id=chat_id)
             return
         remaining = text
         while remaining:
             if len(remaining) <= self._MAX_LEN:
-                await self.send_message(remaining)
+                await self.send_message(remaining, chat_id=chat_id)
                 break
             split_at = remaining.rfind('\n\n', 0, self._MAX_LEN)
             if split_at == -1:
                 split_at = remaining.rfind('\n', 0, self._MAX_LEN)
             if split_at == -1:
                 split_at = self._MAX_LEN
-            await self.send_message(remaining[:split_at].rstrip())
+            await self.send_message(remaining[:split_at].rstrip(), chat_id=chat_id)
             remaining = remaining[split_at:].lstrip()
 
     async def send_typing(self) -> None:
@@ -182,21 +192,24 @@ class TelegramBot:
                     await self.send_long_message(content)
 
         elif event_type == "activity_done":
+            target = self._resolve_telegram_chat(product_id)
             workstream_name = event.get("workstream_name", "")
             if workstream_name:
                 await self.send_message(
-                    f"✅ {workstream_name} complete. View the full report in Adjutant under Reports."
+                    f"✅ {workstream_name} complete. View the full report in Adjutant under Reports.",
+                    chat_id=target,
                 )
             else:
                 summary = event.get("summary", "")
                 if summary:
-                    await self.send_message(f"✅ Agent finished: {summary[:400]}")
+                    await self.send_message(f"✅ Agent finished: {summary[:400]}", chat_id=target)
 
         elif event_type == "review_item_added":
             item = event.get("item", {})
-            await self._send_review_item(item)
+            await self._send_review_item(item, product_id=product_id)
 
         elif event_type == "orchestrator_run_complete":
+            target = self._resolve_telegram_chat(product_id)
             brief_preview = event.get("brief_preview", "")
             pending = event.get("pending_approval_count", 0)
             msg = f"📋 <b>Product Adjutant Briefing</b>\n{brief_preview}"
@@ -204,7 +217,7 @@ class TelegramBot:
                 msg += f"\n\n⏳ <b>{pending} decision(s) awaiting approval</b> — open Adjutant → Briefing."
             if msg:
                 try:
-                    await self.send_message(msg[:4096])
+                    await self.send_message(msg[:4096], chat_id=target)
                 except Exception as e:
                     logger.warning("Telegram orchestrator briefing failed: %s", e)
 
@@ -224,7 +237,8 @@ class TelegramBot:
             except Exception as e:
                 logger.warning("Telegram HCA briefing failed: %s", e)
 
-    async def _send_review_item(self, item: dict) -> None:
+    async def _send_review_item(self, item: dict, product_id: str | None = None) -> None:
+        target = self._resolve_telegram_chat(product_id)
         item_id = item.get("id")
         title = item.get("title", "Review item")
         description = item.get("description", "")
@@ -245,7 +259,7 @@ class TelegramBot:
                 {"text": "❌ Reject",  "callback_data": f"reject:{item_id}"},
             ]]
         }
-        msg_id = await self.send_message(text, reply_markup=reply_markup)
+        msg_id = await self.send_message(text, reply_markup=reply_markup, chat_id=target)
         if msg_id and item_id is not None:
             self._review_message_ids[item_id] = msg_id
 
