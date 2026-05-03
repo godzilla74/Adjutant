@@ -280,6 +280,37 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_orchestrator_runs_product
                 ON orchestrator_runs(product_id, run_at DESC);
+
+            CREATE TABLE IF NOT EXISTS hca_config (
+                id               INTEGER PRIMARY KEY DEFAULT 1,
+                enabled          INTEGER NOT NULL DEFAULT 0,
+                schedule         TEXT NOT NULL DEFAULT 'weekly on mondays at 8am',
+                pa_run_threshold INTEGER NOT NULL DEFAULT 10,
+                next_run_at      TEXT,
+                last_run_at      TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS hca_runs (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                triggered_by TEXT NOT NULL,
+                run_at       TEXT NOT NULL DEFAULT (datetime('now')),
+                status       TEXT NOT NULL DEFAULT 'complete',
+                decisions    TEXT NOT NULL DEFAULT '[]',
+                brief        TEXT NOT NULL DEFAULT '',
+                error        TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS hca_directives (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id  TEXT REFERENCES products(id) ON DELETE CASCADE,
+                content     TEXT NOT NULL,
+                hca_run_id  INTEGER REFERENCES hca_runs(id),
+                status      TEXT NOT NULL DEFAULT 'active',
+                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_hca_directives_product
+                ON hca_directives(product_id, status);
         """)
         # Safe migration: add routed_to_workstream_id to signals if not present
         try:
@@ -2652,3 +2683,199 @@ def consume_routed_signals(workstream_id: int) -> None:
                WHERE routed_to_workstream_id = ? AND consumed_at IS NULL""",
             (workstream_id,),
         )
+
+
+# ── Holding Company Adjutant ──────────────────────────────────────────────────
+
+def get_hca_config() -> dict:
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM hca_config WHERE id = 1").fetchone()
+    if row is None:
+        return {
+            "id": 1, "enabled": 0,
+            "schedule": "weekly on mondays at 8am",
+            "pa_run_threshold": 10,
+            "next_run_at": None,
+            "last_run_at": None,
+        }
+    return dict(row)
+
+
+def update_hca_config(**fields) -> None:
+    _allowed = {"enabled", "schedule", "pa_run_threshold", "next_run_at", "last_run_at"}
+    updates = {k: v for k, v in fields.items() if k in _allowed}
+    if not updates:
+        return
+    if "enabled" in updates and isinstance(updates["enabled"], bool):
+        updates["enabled"] = int(updates["enabled"])
+    with _conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO hca_config (id) VALUES (1)")
+        sets = [f"{k} = ?" for k in updates]
+        conn.execute(
+            f"UPDATE hca_config SET {', '.join(sets)} WHERE id = 1",
+            list(updates.values()),
+        )
+
+
+def save_hca_run(
+    triggered_by: str,
+    status: str,
+    decisions: list,
+    brief: str,
+    error: str | None = None,
+) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO hca_runs (triggered_by, status, decisions, brief, error)
+               VALUES (?, ?, ?, ?, ?)""",
+            (triggered_by, status, json.dumps(decisions), brief, error),
+        )
+        return cur.lastrowid
+
+
+def update_hca_run_decisions(
+    run_id: int,
+    decisions: list,
+    status: str = "complete",
+    error: str | None = None,
+) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE hca_runs SET decisions = ?, status = ?, error = ? WHERE id = ?",
+            (json.dumps(decisions), status, error, run_id),
+        )
+
+
+def get_hca_run(run_id: int) -> "dict | None":
+    with _conn() as conn:
+        row = conn.execute("SELECT * FROM hca_runs WHERE id = ?", (run_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["decisions"] = json.loads(d.get("decisions") or "[]")
+    return d
+
+
+def list_hca_runs(limit: int = 20) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM hca_runs ORDER BY run_at DESC, id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["decisions"] = json.loads(d.get("decisions") or "[]")
+        result.append(d)
+    return result
+
+
+def create_hca_directive(
+    product_id: "str | None",
+    content: str,
+    hca_run_id: "int | None",
+) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO hca_directives (product_id, content, hca_run_id) VALUES (?, ?, ?)",
+            (product_id, content, hca_run_id),
+        )
+        return cur.lastrowid
+
+
+def supersede_hca_directive(
+    directive_id: int,
+    replacement_content: str,
+    hca_run_id: "int | None",
+) -> int:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT product_id FROM hca_directives WHERE id = ?", (directive_id,)
+        ).fetchone()
+        if row:
+            conn.execute(
+                "UPDATE hca_directives SET status = 'superseded' WHERE id = ?",
+                (directive_id,),
+            )
+            cur = conn.execute(
+                "INSERT INTO hca_directives (product_id, content, hca_run_id) VALUES (?, ?, ?)",
+                (row["product_id"], replacement_content, hca_run_id),
+            )
+            return cur.lastrowid
+    return -1
+
+
+def retire_hca_directive(directive_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE hca_directives SET status = 'superseded' WHERE id = ?",
+            (directive_id,),
+        )
+
+
+def list_hca_directives(product_id: "str | None" = None) -> list[dict]:
+    with _conn() as conn:
+        if product_id is not None:
+            rows = conn.execute(
+                """SELECT * FROM hca_directives
+                   WHERE status = 'active' AND (product_id = ? OR product_id IS NULL)
+                   ORDER BY created_at DESC""",
+                (product_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM hca_directives WHERE status = 'active' ORDER BY created_at DESC"
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_due_hca() -> "dict | None":
+    """Return trigger dict if HCA should fire, else None."""
+    from datetime import datetime
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as conn:
+        cfg_row = conn.execute("SELECT * FROM hca_config WHERE id = 1").fetchone()
+    if cfg_row is None or not cfg_row["enabled"]:
+        return None
+    cfg = dict(cfg_row)
+    # Scheduled trigger
+    if cfg.get("next_run_at") and cfg["next_run_at"] <= now:
+        return {"trigger_type": "schedule"}
+    # PA accumulation trigger (only fires if scheduled time hasn't arrived yet)
+    threshold = cfg.get("pa_run_threshold") or 10
+    last_run_at = cfg.get("last_run_at")
+    with _conn() as conn:
+        if last_run_at:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM orchestrator_runs WHERE run_at > ?",
+                (last_run_at,),
+            ).fetchone()[0]
+        else:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM orchestrator_runs"
+            ).fetchone()[0]
+    if count >= threshold:
+        return {"trigger_type": "pa_run_threshold"}
+    return None
+
+
+def create_workstream_for_launch(
+    product_id: str,
+    name: str,
+    mission: str,
+    schedule: str,
+    tag_subscriptions: str,
+    next_run_at: "str | None",
+) -> int:
+    """Create a fully-specified workstream and return its id."""
+    with _conn() as conn:
+        max_order = conn.execute(
+            "SELECT COALESCE(MAX(display_order), -1) FROM workstreams WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()[0]
+        cur = conn.execute(
+            """INSERT INTO workstreams
+               (product_id, name, status, display_order, mission, schedule, tag_subscriptions, next_run_at)
+               VALUES (?, ?, 'paused', ?, ?, ?, ?, ?)""",
+            (product_id, name, max_order + 1, mission, schedule, tag_subscriptions, next_run_at),
+        )
+        return cur.lastrowid
