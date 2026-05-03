@@ -255,7 +255,6 @@ def _strip_signals_block(output: str) -> str:
     return "\n".join(lines).strip()
 
 
-
 async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
     ws_id      = ws["id"]
     product_id = ws["product_id"]
