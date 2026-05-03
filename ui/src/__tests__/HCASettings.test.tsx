@@ -16,6 +16,8 @@ vi.mock('../api', () => ({
   api: {
     getHCAConfig: vi.fn().mockResolvedValue(mockConfig),
     updateHCAConfig: vi.fn().mockResolvedValue({ ...mockConfig, enabled: 1 }),
+    getSlackChannels: vi.fn().mockResolvedValue({ channels: [{ id: 'C1', name: 'general' }] }),
+    getDiscordChannels: vi.fn().mockResolvedValue({ channels: [{ id: '999', name: 'alerts', guild: 'My Server' }] }),
   },
 }))
 
@@ -30,12 +32,17 @@ describe('HCASettings', () => {
     expect(screen.getByDisplayValue('10')).toBeInTheDocument()
   })
 
-  it('renders channel ID inputs', async () => {
+  it('renders Slack and Discord channel dropdowns', async () => {
     render(<HCASettings password="test" />)
     await waitFor(() => screen.getByText('Chief Adjutant'))
-    expect(screen.getByPlaceholderText(/slack channel/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/discord channel/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/telegram chat/i)).toBeInTheDocument()
+    await waitFor(() => screen.getByText('#general'))
+    expect(screen.getByText(/My Server.*alerts/i)).toBeInTheDocument()
+  })
+
+  it('renders Telegram chat ID text input', async () => {
+    render(<HCASettings password="test" />)
+    await waitFor(() => screen.getByText('Chief Adjutant'))
+    expect(screen.getByPlaceholderText(/telegram/i)).toBeInTheDocument()
   })
 
   it('calls updateHCAConfig on save', async () => {

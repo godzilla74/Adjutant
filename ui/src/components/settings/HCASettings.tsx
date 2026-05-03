@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api'
 import type { HCAConfig } from '../../types'
+import ChannelSelect from './ChannelSelect'
 
 interface Props {
   password: string
@@ -81,23 +82,21 @@ export default function HCASettings({ password }: Props) {
         </h3>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-adj-text-muted uppercase tracking-wider">Slack Channel ID</label>
-            <input
-              type="text"
+            <label className="text-[10px] text-adj-text-muted uppercase tracking-wider">Slack Channel</label>
+            <ChannelSelect
+              platform="slack"
               value={config.hca_slack_channel_id}
-              onChange={e => setConfig({ ...config, hca_slack_channel_id: e.target.value })}
-              placeholder="Slack channel ID (e.g. C0123ABCD)"
-              className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-full focus:outline-none focus:border-adj-accent"
+              onChange={id => setConfig({ ...config, hca_slack_channel_id: id })}
+              password={password}
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-adj-text-muted uppercase tracking-wider">Discord Channel ID</label>
-            <input
-              type="text"
+            <label className="text-[10px] text-adj-text-muted uppercase tracking-wider">Discord Channel</label>
+            <ChannelSelect
+              platform="discord"
               value={config.hca_discord_channel_id}
-              onChange={e => setConfig({ ...config, hca_discord_channel_id: e.target.value })}
-              placeholder="Discord channel ID"
-              className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-full focus:outline-none focus:border-adj-accent"
+              onChange={id => setConfig({ ...config, hca_discord_channel_id: id })}
+              password={password}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -106,7 +105,7 @@ export default function HCASettings({ password }: Props) {
               type="text"
               value={config.hca_telegram_chat_id}
               onChange={e => setConfig({ ...config, hca_telegram_chat_id: e.target.value })}
-              placeholder="Telegram chat ID"
+              placeholder="Telegram chat ID (optional)"
               className="bg-adj-panel border border-adj-border rounded-md px-3 py-2 text-sm text-adj-text-primary w-full focus:outline-none focus:border-adj-accent"
             />
           </div>
