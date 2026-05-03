@@ -49,3 +49,11 @@ def test_parse_signals_no_block():
     assert _parse_signals(output) == []
     stripped = _strip_signals_block(output)
     assert stripped == "Just a plain output.\nSTATUS:OK"
+
+
+def test_check_capability_gap_removed():
+    import importlib
+    import backend.scheduler as sched_mod
+    assert not hasattr(sched_mod, "_check_capability_gap"), (
+        "_check_capability_gap should have been removed from scheduler"
+    )

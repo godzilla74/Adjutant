@@ -255,24 +255,6 @@ def _strip_signals_block(output: str) -> str:
     return "\n".join(lines).strip()
 
 
-def _check_capability_gap(product_id: str, tag_name: str, note: str) -> None:
-    """Create a review item if no workstream subscribes to this tag's namespace."""
-    import json as _json
-    from backend.db import get_workstreams, save_review_item
-    workstreams = get_workstreams(product_id)
-    namespace = tag_name.split(":")[0] + ":" if ":" in tag_name else tag_name
-    for ws in workstreams:
-        subs = _json.loads(ws.get("tag_subscriptions") or "[]")
-        if namespace in subs:
-            return  # a workstream covers this
-    save_review_item(
-        product_id=product_id,
-        title=f"Capability gap: no workstream handles '{tag_name}'",
-        description=f"An agent identified an opportunity tagged **{tag_name}** but no workstream is subscribed to this namespace.\n\n**Opportunity note:** {note}\n\nConsider creating a new workstream to handle `{namespace}*` signals.",
-        risk_label="Opportunity · no action taken",
-        action_type="capability_gap",
-    )
-
 
 async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
     ws_id      = ws["id"]
@@ -355,7 +337,6 @@ async def _run_workstream(ws: dict, broadcast: BroadcastFn) -> None:
                         tagged_by="agent",
                         note=note,
                     )
-                    _check_capability_gap(product_id, tag_name, note)
                 except Exception as sig_exc:
                     log.error("Failed to create signal '%s' for report %s: %s", tag_name, report_id, sig_exc)
 
