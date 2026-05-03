@@ -2652,6 +2652,7 @@ def get_due_orchestrator_products() -> list[dict]:
                    SELECT COUNT(*) FROM signals s
                    WHERE s.product_id = oc.product_id
                      AND s.consumed_at IS NULL
+                     AND s.routed_to_workstream_id IS NULL
                  ) >= oc.signal_threshold""",
             (now,),
         ).fetchall()

@@ -12,7 +12,8 @@ PA_SYSTEM_PROMPT = (
     "agent outputs, signals, and your own prior decisions.\n\n"
     "Your job each run:\n"
     "1. Review all unconsumed signals — decide what to do with each (route to a workstream, "
-    "consume as noise, or flag a capability gap).\n"
+    "consume as noise, or flag a capability gap). For capability_gap decisions, always include "
+    "the signal_id so the signal is consumed and does not re-trigger this run.\n"
     "2. Review recent workstream outputs — identify patterns, drift from mission, schedule "
     "mismatches, or underperformance.\n"
     "3. Make adjustments: update missions, schedules, subscriptions, create objectives as needed.\n"
@@ -166,6 +167,9 @@ def _execute_decision(
             action_type="capability_gap",
             payload=json.dumps(d),
         )
+        sig_id = d.get("signal_id")
+        if sig_id and sig_id in valid_signals:
+            consume_signal(sig_id, product_id)
         return f"capability gap escalated: {d.get('tag', '')}"
 
     raise ValueError(f"unhandled action: {action}")
