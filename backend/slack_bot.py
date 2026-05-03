@@ -100,6 +100,9 @@ class SlackBot:
         elif event_type == "orchestrator_run_complete":
             await self._send_orchestrator_briefing(event)
 
+        elif event_type == "hca_run_complete":
+            await self._send_hca_briefing(event)
+
     async def _send_orchestrator_briefing(self, event: dict) -> None:
         if not self.notification_channel_id:
             return
@@ -136,6 +139,46 @@ class SlackBot:
             )
         except Exception as e:
             logger.warning("Slack orchestrator briefing failed: %s", e)
+
+    async def _send_hca_briefing(self, event: dict) -> None:
+        from backend.db import get_agent_config
+        cfg = get_agent_config()
+        channel = cfg.get("hca_slack_channel_id", "")
+        if not channel:
+            return
+        brief_preview = event.get("brief_preview", "")
+        pending = event.get("pending_proposal_count", 0)
+
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "🏢 Holding Company Adjutant Briefing"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": brief_preview or "_No summary available._",
+                },
+            },
+        ]
+        if pending > 0:
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*{pending} new product proposal(s) awaiting approval.* Open Adjutant → HCA to review.",
+                },
+            })
+
+        try:
+            await self._web_client.chat_postMessage(
+                channel=channel,
+                text=f"🏢 HCA Briefing — {pending} pending proposal(s)",
+                blocks=blocks,
+            )
+        except Exception as e:
+            logger.warning("Slack HCA briefing failed: %s", e)
 
     async def _send_review_item(self, item: dict) -> None:
         if not self.notification_channel_id:

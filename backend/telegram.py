@@ -208,6 +208,22 @@ class TelegramBot:
                 except Exception as e:
                     logger.warning("Telegram orchestrator briefing failed: %s", e)
 
+        elif event_type == "hca_run_complete":
+            from backend.db import get_agent_config
+            cfg = get_agent_config()
+            chat_id = cfg.get("hca_telegram_chat_id", "")
+            if not chat_id:
+                return
+            brief_preview = event.get("brief_preview", "")
+            pending = event.get("pending_proposal_count", 0)
+            msg = f"🏢 <b>HCA Briefing</b>\n{brief_preview}"
+            if pending > 0:
+                msg += f"\n\n⏳ <b>{pending} new product proposal(s) awaiting approval</b> — open Adjutant → HCA."
+            try:
+                await self.send_message(msg[:4096])
+            except Exception as e:
+                logger.warning("Telegram HCA briefing failed: %s", e)
+
     async def _send_review_item(self, item: dict) -> None:
         item_id = item.get("id")
         title = item.get("title", "Review item")

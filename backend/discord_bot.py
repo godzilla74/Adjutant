@@ -106,6 +106,24 @@ class DiscordBot:
                     except Exception as e:
                         logger.warning("Discord orchestrator briefing failed: %s", e)
 
+        elif event_type == "hca_run_complete":
+            from backend.db import get_agent_config
+            cfg = get_agent_config()
+            channel_id = cfg.get("hca_discord_channel_id", "")
+            if not channel_id or not self._client:
+                return
+            brief_preview = event.get("brief_preview", "")
+            pending = event.get("pending_proposal_count", 0)
+            msg = f"🏢 **HCA Briefing**\n{brief_preview}"
+            if pending > 0:
+                msg += f"\n\n⏳ **{pending} new product proposal(s) awaiting approval** — open Adjutant → HCA."
+            channel = self._client.get_channel(int(channel_id))
+            if channel:
+                try:
+                    await channel.send(msg[:2000])
+                except Exception as e:
+                    logger.warning("Discord HCA briefing failed: %s", e)
+
     async def _send_review_item(self, item: dict) -> None:
         if not self.notification_channel_id or not self._client:
             return
