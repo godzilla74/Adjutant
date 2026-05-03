@@ -114,10 +114,10 @@ def test_retire_hca_directive(db):
     db.retire_hca_directive(d_id)
     with db._conn() as conn:
         row = conn.execute("SELECT status FROM hca_directives WHERE id = ?", (d_id,)).fetchone()
-    assert row["status"] == "superseded"
+    assert row["status"] == "retired"
 
 
-def test_list_hca_directives_excludes_superseded(db):
+def test_list_hca_directives_excludes_terminal_statuses(db):
     run_id = db.save_hca_run("schedule", "complete", [], "")
     active_id = db.create_hca_directive("p1", "Active", run_id)
     old_id = db.create_hca_directive("p1", "Old", run_id)

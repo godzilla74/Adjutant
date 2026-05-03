@@ -2791,23 +2791,23 @@ def supersede_hca_directive(
         row = conn.execute(
             "SELECT product_id FROM hca_directives WHERE id = ?", (directive_id,)
         ).fetchone()
-        if row:
-            conn.execute(
-                "UPDATE hca_directives SET status = 'superseded' WHERE id = ?",
-                (directive_id,),
-            )
-            cur = conn.execute(
-                "INSERT INTO hca_directives (product_id, content, hca_run_id) VALUES (?, ?, ?)",
-                (row["product_id"], replacement_content, hca_run_id),
-            )
-            return cur.lastrowid
-    return -1
+        if not row:
+            raise ValueError(f"Directive {directive_id} not found")
+        conn.execute(
+            "UPDATE hca_directives SET status = 'superseded' WHERE id = ?",
+            (directive_id,),
+        )
+        cur = conn.execute(
+            "INSERT INTO hca_directives (product_id, content, hca_run_id) VALUES (?, ?, ?)",
+            (row["product_id"], replacement_content, hca_run_id),
+        )
+        return cur.lastrowid
 
 
 def retire_hca_directive(directive_id: int) -> None:
     with _conn() as conn:
         conn.execute(
-            "UPDATE hca_directives SET status = 'superseded' WHERE id = ?",
+            "UPDATE hca_directives SET status = 'retired' WHERE id = ?",
             (directive_id,),
         )
 
@@ -2834,16 +2834,15 @@ def get_due_hca() -> "dict | None":
     now = datetime.now().isoformat(timespec="seconds")
     with _conn() as conn:
         cfg_row = conn.execute("SELECT * FROM hca_config WHERE id = 1").fetchone()
-    if cfg_row is None or not cfg_row["enabled"]:
-        return None
-    cfg = dict(cfg_row)
-    # Scheduled trigger
-    if cfg.get("next_run_at") and cfg["next_run_at"] <= now:
-        return {"trigger_type": "schedule"}
-    # PA accumulation trigger (only fires if scheduled time hasn't arrived yet)
-    threshold = cfg.get("pa_run_threshold") or 10
-    last_run_at = cfg.get("last_run_at")
-    with _conn() as conn:
+        if cfg_row is None or not cfg_row["enabled"]:
+            return None
+        cfg = dict(cfg_row)
+        # Scheduled trigger
+        if cfg.get("next_run_at") and cfg["next_run_at"] <= now:
+            return {"trigger_type": "schedule"}
+        # PA accumulation trigger
+        threshold = cfg.get("pa_run_threshold") or 10
+        last_run_at = cfg.get("last_run_at")
         if last_run_at:
             count = conn.execute(
                 "SELECT COUNT(*) FROM orchestrator_runs WHERE run_at > ?",
@@ -2853,8 +2852,8 @@ def get_due_hca() -> "dict | None":
             count = conn.execute(
                 "SELECT COUNT(*) FROM orchestrator_runs"
             ).fetchone()[0]
-    if count >= threshold:
-        return {"trigger_type": "pa_run_threshold"}
+        if count >= threshold:
+            return {"trigger_type": "pa_run_threshold"}
     return None
 
 
