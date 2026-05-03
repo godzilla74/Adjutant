@@ -317,6 +317,6 @@ async def run_product_adjutant(
         "type": "orchestrator_run_complete",
         "product_id": product_id,
         "run_id": run_id,
-        "brief_preview": brief[:300],
+        "brief_preview": brief,
         "pending_approval_count": pending,
     })

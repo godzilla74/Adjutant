@@ -45,8 +45,12 @@ export default function BriefingTab({ productId, password, reviewItems, onApprov
 
   const trigger = async () => {
     setTriggering(true)
-    await api.triggerOrchestrator(password, productId).catch(() => {})
-    setTriggering(false)
+    try {
+      await api.triggerOrchestrator(password, productId).catch(() => {})
+      await new Promise(res => setTimeout(res, 2000))
+    } finally {
+      setTriggering(false)
+    }
   }
 
   const toggleExpand = (id: number) => {
@@ -77,7 +81,7 @@ export default function BriefingTab({ productId, password, reviewItems, onApprov
           disabled={triggering}
           className="text-xs px-3 py-1 bg-adj-surface border border-adj-border rounded-full text-adj-text-secondary hover:text-adj-text-primary disabled:opacity-50"
         >
-          {triggering ? 'Queuing…' : 'Run now'}
+          {triggering ? 'Running…' : 'Run now'}
         </button>
       </div>
 

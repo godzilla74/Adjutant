@@ -47,6 +47,7 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
     setRunning(prev => new Set(prev).add(ws.id))
     try {
       await api.triggerWorkstreamRun(password, ws.id)
+      await new Promise(res => setTimeout(res, 2000))
     } finally {
       setRunning(prev => { const n = new Set(prev); n.delete(ws.id); return n })
     }
@@ -156,7 +157,7 @@ export default function WorkstreamsSettings({ productId, workstreams, password, 
                         className="px-3 py-1.5 rounded-md bg-adj-elevated hover:bg-adj-panel text-xs text-adj-text-secondary font-medium transition-colors disabled:opacity-40 whitespace-nowrap border border-adj-border"
                         title={hasMission ? 'Run now' : 'Save a mission first'}
                       >
-                        {isRunning ? '…' : '▶ Run now'}
+                        {isRunning ? 'Running…' : '▶ Run now'}
                       </button>
                     </div>
                     <input

@@ -48,8 +48,12 @@ export default function HCABriefingPanel({ password, reviewItems, onApprove, onS
 
   const trigger = async () => {
     setTriggering(true)
-    await api.triggerHCA(password).catch(() => {})
-    setTriggering(false)
+    try {
+      await api.triggerHCA(password).catch(() => {})
+      await new Promise(res => setTimeout(res, 2000))
+    } finally {
+      setTriggering(false)
+    }
   }
 
   const retireDirective = async (id: number) => {

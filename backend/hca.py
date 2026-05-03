@@ -325,6 +325,6 @@ async def run_hca(triggered_by: str, broadcast) -> None:
     await broadcast({
         "type": "hca_run_complete",
         "run_id": run_id,
-        "brief_preview": brief[:300],
+        "brief_preview": brief,
         "pending_proposal_count": pending,
     })
