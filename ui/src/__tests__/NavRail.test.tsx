@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import NavRail from '../components/NavRail'
@@ -11,6 +11,8 @@ describe('NavRail', () => {
     agentInitial: 'A',
     onNavigate,
   }
+
+  beforeEach(() => onNavigate.mockClear())
 
   it('renders all four nav items', () => {
     render(<NavRail {...defaultProps} />)
@@ -39,6 +41,6 @@ describe('NavRail', () => {
   it('highlights the active section', () => {
     render(<NavRail {...defaultProps} section="chief" />)
     const chiefBtn = screen.getByTitle('Chief')
-    expect(chiefBtn.closest('div')).toHaveClass('bg-adj-accent/20')
+    expect(chiefBtn).toHaveClass('bg-adj-accent/20')
   })
 })

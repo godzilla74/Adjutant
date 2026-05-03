@@ -1,4 +1,4 @@
-type Section = 'overview' | 'products' | 'chief' | 'settings'
+export type Section = 'overview' | 'products' | 'chief' | 'settings'
 
 interface Props {
   section: Section
@@ -24,10 +24,11 @@ export default function NavRail({ section, reviewBadgeCount, agentInitial, onNav
       {/* Main nav items */}
       {NAV_ITEMS.map(item => (
         <div key={item.section} className="flex flex-col items-center gap-0.5 w-full px-1 mb-1">
-          <div
+          <button
+            type="button"
             title={item.title}
             onClick={() => onNavigate(item.section)}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center cursor-pointer text-base transition-colors relative ${
+            className={`w-10 h-10 rounded-lg flex items-center justify-center text-base transition-colors relative ${
               section === item.section
                 ? 'bg-adj-accent/20 border border-adj-accent/50 text-adj-accent'
                 : 'text-adj-text-faint hover:text-adj-text-secondary hover:bg-adj-elevated'
@@ -39,24 +40,25 @@ export default function NavRail({ section, reviewBadgeCount, agentInitial, onNav
                 {reviewBadgeCount > 9 ? '9+' : reviewBadgeCount}
               </span>
             )}
-          </div>
+          </button>
           <span className="text-[8px] text-adj-text-faint uppercase tracking-wide">{item.title}</span>
         </div>
       ))}
 
       {/* Settings pinned to bottom */}
       <div className="flex flex-col items-center gap-0.5 w-full px-1 mt-auto">
-        <div
+        <button
+          type="button"
           title="Settings"
           onClick={() => onNavigate('settings')}
-          className={`w-10 h-10 rounded-lg flex items-center justify-center cursor-pointer text-base transition-colors ${
+          className={`w-10 h-10 rounded-lg flex items-center justify-center text-base transition-colors ${
             section === 'settings'
               ? 'bg-adj-accent/20 border border-adj-accent/50 text-adj-accent'
               : 'text-adj-text-faint hover:text-adj-text-secondary hover:bg-adj-elevated'
           }`}
         >
           ⚙
-        </div>
+        </button>
         <span className="text-[8px] text-adj-text-faint uppercase tracking-wide">Settings</span>
       </div>
     </div>
