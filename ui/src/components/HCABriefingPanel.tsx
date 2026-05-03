@@ -53,8 +53,12 @@ export default function HCABriefingPanel({ password, reviewItems, onApprove, onS
   }
 
   const retireDirective = async (id: number) => {
-    await api.deleteHCADirective(password, id).catch(() => {})
-    setDirectives(prev => prev.filter(d => d.id !== id))
+    try {
+      await api.deleteHCADirective(password, id)
+      setDirectives(prev => prev.filter(d => d.id !== id))
+    } catch {
+      // silent fail — directive remains visible
+    }
   }
 
   const pendingProposals = reviewItems.filter(r => r.action_type === 'hca_new_product' && r.status === 'pending')

@@ -26,6 +26,7 @@ vi.mock('../api', () => ({
     getHCARuns: vi.fn().mockResolvedValue(mockRuns),
     getHCADirectives: vi.fn().mockResolvedValue(mockDirectives),
     triggerHCA: vi.fn().mockResolvedValue({ queued: true }),
+    deleteHCADirective: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
@@ -82,5 +83,14 @@ describe('HCABriefingPanel', () => {
     render(<HCABriefingPanel password="test" reviewItems={[]} onApprove={() => {}} onSkip={() => {}} />)
     await waitFor(() => screen.getByText('Focus on enterprise'))
     expect(screen.getByRole('button', { name: /retire/i })).toBeInTheDocument()
+  })
+
+  it('calls deleteHCADirective and removes directive when retire clicked', async () => {
+    const { api } = await import('../api')
+    render(<HCABriefingPanel password="test" reviewItems={[]} onApprove={() => {}} onSkip={() => {}} />)
+    await waitFor(() => screen.getByText('Focus on enterprise'))
+    fireEvent.click(screen.getByRole('button', { name: /retire/i }))
+    await waitFor(() => expect(api.deleteHCADirective).toHaveBeenCalledWith('test', 1))
+    await waitFor(() => expect(screen.queryByText('Focus on enterprise')).not.toBeInTheDocument())
   })
 })
