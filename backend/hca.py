@@ -1,6 +1,7 @@
 # backend/hca.py
 import json
 import logging
+import re
 from datetime import datetime
 
 log = logging.getLogger(__name__)
@@ -199,7 +200,6 @@ def apply_hca_decisions(decisions: list, run_id: int) -> list:
 
 
 def _slugify(name: str) -> str:
-    import re
     slug = name.lower()
     slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
     return slug or "product"

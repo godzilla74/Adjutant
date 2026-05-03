@@ -323,7 +323,7 @@ def test_apply_hca_pa_action_updates_mission(hca_db):
 
 
 def test_apply_hca_pa_action_bypasses_pa_autonomy(hca_db):
-    """HCA can pause a workstream even though PA config has it approval_required."""
+    """HCA executes PA actions directly, bypassing approval_required autonomy settings."""
     from backend.hca import apply_hca_decisions
     from backend.db import _ORCHESTRATOR_DEFAULT_AUTONOMY
     assert _ORCHESTRATOR_DEFAULT_AUTONOMY["pause_workstream"] == "approval_required"
@@ -440,5 +440,9 @@ def test_launch_product_from_hca(hca_db):
     # PA enabled
     cfg = hca_db.get_orchestrator_config(p["id"])
     assert cfg["enabled"] == 1
-    # Broadcast fired
-    assert any(e["type"] == "product_launched" for e in broadcast_calls)
+    # Broadcast fired with correct fields
+    launched = next((e for e in broadcast_calls if e["type"] == "product_launched"), None)
+    assert launched is not None
+    assert launched["product_id"] == "new-product"
+    assert launched["product_name"] == "New Product"
+    assert launched["source"] == "hca"
