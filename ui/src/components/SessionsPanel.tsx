@@ -9,14 +9,15 @@ export interface RunningAgent {
 }
 
 interface Props {
-  sessions:        Session[]
-  activeSessionId: string | null
-  onSwitch:        (sessionId: string) => void
-  onCreate:        (name: string) => void
-  onRename:        (sessionId: string, name: string) => void
-  onDelete:        (sessionId: string) => void
-  productName?:    string
-  liveAgents?:     RunningAgent[]
+  sessions:         Session[]
+  activeSessionId:  string | null
+  onSwitch:         (sessionId: string) => void
+  onCreate:         (name: string) => void
+  onRename:         (sessionId: string, name: string) => void
+  onDelete:         (sessionId: string) => void
+  productName?:     string
+  liveAgents?:      RunningAgent[]
+  onSwitchProduct?: () => void
 }
 
 function TrashIcon() {
@@ -37,7 +38,7 @@ function PencilIcon() {
 
 export default function SessionsPanel({
   sessions, activeSessionId, onSwitch, onCreate, onRename, onDelete,
-  productName, liveAgents,
+  productName, liveAgents, onSwitchProduct,
 }: Props) {
   const resolvedProductName = productName ?? ''
   const resolvedLiveAgents = liveAgents ?? []
@@ -92,7 +93,19 @@ export default function SessionsPanel({
     <div className="border-b border-adj-border pb-2">
       {/* Product header */}
       <div className="px-3 py-3 border-b border-adj-border flex-shrink-0">
-        <div className="text-[13px] font-semibold text-adj-text-primary truncate">{resolvedProductName}</div>
+        <div className="flex items-center gap-1 min-w-0">
+          <div className="text-[13px] font-semibold text-adj-text-primary truncate flex-1">{resolvedProductName}</div>
+          {onSwitchProduct && (
+            <button
+              type="button"
+              onClick={onSwitchProduct}
+              title="Switch product"
+              className="flex-shrink-0 text-[10px] text-adj-text-faint hover:text-adj-text-secondary hover:bg-adj-elevated rounded px-1.5 py-0.5 transition-colors"
+            >
+              ⇄
+            </button>
+          )}
+        </div>
         <div className="text-[10px] text-adj-text-faint mt-0.5">{sessions.length} session{sessions.length !== 1 ? 's' : ''}</div>
       </div>
 

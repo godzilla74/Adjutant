@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Product, ProductState, Workstream, Objective } from '../types'
 import OverviewSettings from './settings/OverviewSettings'
 import ApiKeysSettings from './settings/ApiKeysSettings'
@@ -109,6 +109,16 @@ function resolveInitialTab(tab: Tab | undefined): SettingsItem {
   }
 }
 
+const PRODUCT_SPECIFIC = new Set<SettingsItem>([
+  'general-workspace',
+  'models-product',
+  'products-autonomy',
+  'products-mcp',
+  'products-objectives',
+  'system-orchestrator',
+  'system-signals',
+])
+
 export default function SettingsPage({
   products, activeProductId, productStates, password,
   initialTab,
@@ -116,29 +126,35 @@ export default function SettingsPage({
   onWorkstreamUpdated: _onWorkstreamUpdated, onObjectiveUpdated, onProductUpdated, onProductDeleted,
 }: Props) {
   const [active, setActive] = useState<SettingsItem>(() => resolveInitialTab(initialTab))
-  const activeProduct = products.find(p => p.id === activeProductId)
-  const activeState   = productStates[activeProductId]
+  const [localProductId, setLocalProductId] = useState(activeProductId || products[0]?.id || '')
+
+  useEffect(() => {
+    if (activeProductId) setLocalProductId(activeProductId)
+  }, [activeProductId])
+
+  const localProduct = products.find(p => p.id === localProductId)
+  const localState   = productStates[localProductId]
 
   const renderContent = () => {
     switch (active) {
-      case 'general-workspace':    return <OverviewSettings product={activeProduct} password={password} onRefresh={() => onRefreshData(activeProductId)} onProductUpdated={updates => onProductUpdated(activeProductId, updates)} onProductDeleted={() => onProductDeleted(activeProductId)} />
+      case 'general-workspace':    return <OverviewSettings product={localProduct} password={password} onRefresh={() => onRefreshData(localProductId)} onProductUpdated={updates => onProductUpdated(localProductId, updates)} onProductDeleted={() => onProductDeleted(localProductId)} />
       case 'general-api-keys':     return <ApiKeysSettings password={password} />
       case 'general-token-usage':  return <TokenUsageSettings password={password} />
       case 'models-agent':         return <AgentModelSettings password={password} />
       case 'models-image':         return <ImageGenerationSettings password={password} />
-      case 'models-product':       return <ProductModelSettings password={password} productId={activeProductId} />
-      case 'connections-all':      return <ConnectionsSettings password={password} productId={activeProductId} />
+      case 'models-product':       return <ProductModelSettings password={password} productId={localProductId} />
+      case 'connections-all':      return <ConnectionsSettings password={password} productId={localProductId} />
       case 'connections-google':   return <GoogleOAuthSettings password={password} />
       case 'connections-slack-discord': return <IntegrationsSettings password={password} />
       case 'connections-social':   return <SocialSettings password={password} />
       case 'connections-telegram': return <TelegramSettings password={password} />
-      case 'products-autonomy':    return <AutonomySettings password={password} productId={activeProductId} />
-      case 'products-mcp':         return <ProductMCPSettings password={password} productId={activeProductId} />
-      case 'products-objectives':  return activeState ? <ObjectivesSettings productId={activeProductId} objectives={activeState.objectives} password={password} onObjectiveUpdated={onObjectiveUpdated} /> : null
+      case 'products-autonomy':    return <AutonomySettings password={password} productId={localProductId} />
+      case 'products-mcp':         return <ProductMCPSettings password={password} productId={localProductId} />
+      case 'products-objectives':  return localState ? <ObjectivesSettings productId={localProductId} objectives={localState.objectives} password={password} onObjectiveUpdated={onObjectiveUpdated} /> : null
       case 'system-chief':         return <HCASettings password={password} />
       case 'system-global-mcp':    return <GlobalMCPSettings password={password} />
-      case 'system-orchestrator':  return <OrchestratorSettings password={password} productId={activeProductId} />
-      case 'system-signals':       return <SignalsSettings password={password} productId={activeProductId} />
+      case 'system-orchestrator':  return <OrchestratorSettings password={password} productId={localProductId} />
+      case 'system-signals':       return <SignalsSettings password={password} productId={localProductId} />
       case 'system-tags':          return <TagsSettings password={password} />
       default:                     return null
     }
@@ -172,6 +188,32 @@ export default function SettingsPage({
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
+        {/* Product selector — shown for product-specific settings when multiple products exist */}
+        {PRODUCT_SPECIFIC.has(active) && products.length > 1 && (
+          <div className="flex items-center gap-3 mb-5 pb-4 border-b border-adj-border">
+            <span className="text-[10px] text-adj-text-faint uppercase tracking-widest flex-shrink-0">Product</span>
+            <div className="flex flex-wrap gap-1.5">
+              {products.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setLocalProductId(p.id)}
+                  className={`flex items-center gap-1.5 text-[11px] rounded-md px-2.5 py-1 border transition-colors ${
+                    p.id === localProductId
+                      ? 'bg-adj-accent/20 border-adj-accent/50 text-adj-accent'
+                      : 'bg-adj-elevated border-adj-border text-adj-text-faint hover:text-adj-text-secondary'
+                  }`}
+                >
+                  <span
+                    className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                    style={{ backgroundColor: p.color }}
+                  >{p.icon_label}</span>
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {renderContent()}
       </div>
     </div>

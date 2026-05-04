@@ -550,6 +550,7 @@ export default function App() {
                 onSwitch={switchSession}
                 onRename={renameSession}
                 onDelete={deleteSession}
+                onSwitchProduct={products.length > 1 ? () => setActiveProductId('') : undefined}
               />
             </div>
 
