@@ -47,7 +47,6 @@ const GROUPS: Group[] = [
   { label: 'General', items: [
     { key: 'general-api-keys',    label: 'API Keys' },
     { key: 'general-token-usage', label: 'Token Usage' },
-    { key: 'general-workspace',   label: 'Workspace' },
   ]},
   { label: 'Models', items: [
     { key: 'models-agent',   label: 'Agent default' },
@@ -55,6 +54,7 @@ const GROUPS: Group[] = [
     { key: 'models-product', label: 'Per-product' },
   ]},
   { label: 'Products', items: [
+    { key: 'general-workspace',   label: 'Overview' },
     { key: 'products-autonomy',   label: 'Autonomy' },
     { key: 'products-mcp',        label: 'MCP servers' },
     { key: 'products-objectives', label: 'Objectives' },
@@ -111,6 +111,11 @@ function resolveInitialTab(tab: Tab | undefined): SettingsItem {
 
 const PRODUCT_SPECIFIC = new Set<SettingsItem>([
   'general-workspace',
+  'connections-all',
+  'connections-google',
+  'connections-slack-discord',
+  'connections-social',
+  'connections-telegram',
   'models-product',
   'products-autonomy',
   'products-mcp',
